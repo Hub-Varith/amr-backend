@@ -1,7 +1,10 @@
-.PHONY: install api test-api docker-build docker-run
+.PHONY: install install-data api test-api test-data download-ast labels push-data pull-data docker-build docker-run
 
 install:
 	pip install -e ".[test]"
+
+install-data:
+	pip install -e ".[data,test]"
 
 # Request logging comes from RequestIdMiddleware, so uvicorn's access log is off.
 api:
@@ -9,6 +12,25 @@ api:
 
 test-api:
 	pytest tests/api
+
+test-data:
+	PYTHONPATH=src pytest tests/ingest
+
+# Stage 1: raw AST + metadata from BV-BRC and NCBI into data/raw/ (about 3 minutes).
+download-ast:
+	PYTHONPATH=src python -m genome2mic.ingest.run_download
+
+# Stage 2: labels.parquet, label_counts.csv, pairs_kept.csv, dropped_labels.parquet.
+labels:
+	PYTHONPATH=src python -m genome2mic.ingest.run_harmonize
+
+# VM only: upload the handoff files as a new frozen S3 release. Optional: RELEASE=<name>.
+push-data:
+	bash scripts/push_data.sh
+
+# Engineers: download and verify a release. Uses the AWS profile g2m unless AWS_PROFILE is set.
+pull-data:
+	AWS_PROFILE=$${AWS_PROFILE:-g2m} bash scripts/pull_data.sh
 
 docker-build:
 	docker build -t genome2mic-api .

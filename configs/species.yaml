@@ -1,0 +1,33 @@
+# Species in scope. Keys match DATA_CONTRACT.md. Confirm amrfinder_organism with `amrfinder -l`.
+# reference_accession is the Mash species reference for stage 3 QC; null = still to choose.
+species:
+  ECOLI:
+    name: Escherichia coli
+    amrfinder_organism: Escherichia
+    taxon_id: 562
+    expected_genome_size: 5100000
+    reference_accession: GCF_000005845.2  # K-12 MG1655
+  KPNEU:
+    name: Klebsiella pneumoniae
+    amrfinder_organism: Klebsiella_pneumoniae
+    taxon_id: 573
+    expected_genome_size: 5600000
+    reference_accession: GCF_000240185.1  # HS11286
+  SAUR:
+    name: Staphylococcus aureus
+    amrfinder_organism: Staphylococcus_aureus
+    taxon_id: 1280
+    expected_genome_size: 2800000
+    reference_accession: GCF_000013425.1  # NCTC 8325
+  PAER:
+    name: Pseudomonas aeruginosa
+    amrfinder_organism: Pseudomonas_aeruginosa
+    taxon_id: 287
+    expected_genome_size: 6600000
+    reference_accession: GCF_000006765.1  # PAO1
+  ABAU:
+    name: Acinetobacter baumannii
+    amrfinder_organism: Acinetobacter_baumannii
+    taxon_id: 470
+    expected_genome_size: 4000000
+    reference_accession: null

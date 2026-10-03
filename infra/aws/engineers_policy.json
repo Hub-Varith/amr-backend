@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListReleasesAndModels",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::g2m-data-v1",
+      "Condition": {"StringLike": {"s3:prefix": ["releases/*", "models/*"]}}
+    },
+    {
+      "Sid": "ReadReleasesAndAllModels",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": ["arn:aws:s3:::g2m-data-v1/releases/*", "arn:aws:s3:::g2m-data-v1/models/*"]
+    },
+    {
+      "Sid": "WriteOwnModelsOnly",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::g2m-data-v1/models/${aws:username}/*"
+    }
+  ]
+}
