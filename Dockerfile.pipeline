@@ -1,0 +1,118 @@
+# Pipeline image for the Linux VM: bioinformatics tools from bioconda + this repo.
+# The API image stays in ./Dockerfile; this one is for the training path
+# (fetch -> Snakemake per-genome tools -> ingest ... report). See docs/VM_RUNBOOK.md.
+#
+#   docker build -f Dockerfile.pipeline -t genome2mic-pipeline .
+#   docker build -f Dockerfile.pipeline -t genome2mic-pipeline \
+#       --build-arg INSTALL_GCLOUD=true --build-arg INSTALL_PYSEER=true .
+#
+# UNTESTED: no Docker daemon or network was available while this file was written.
+# Verify the base-image tag and the bioconda package names on the VM before relying on it.
+#
+# Layer cost (approximate, uncompressed):
+#   micromamba base + Debian slim ............ ~120 MB
+#   bioconda tools (amrfinder, mash, mlst,
+#     unitig-caller, snakemake, python 3.11) .. ~1.5-2.5 GB
+#   AMRFinderPlus database (`amrfinder -u`) ... ~0.3-0.6 GB   <- rebuilt whenever the
+#                                                              layer cache is invalidated
+#   gcloud CLI (optional) ..................... ~0.5-1 GB
+#   aws CLI v2 (optional) ..................... ~0.2 GB
+#   pyseer (optional) ......................... ~0.3 GB
+# Baking the AMRFinder DB in makes every container start with a working `amrfinder`
+# (no network needed at run time) at the price of a bigger image. Set
+# --build-arg AMRFINDER_DB_UPDATE=false to skip it and run `amrfinder -u` on the VM
+# into a mounted volume instead (see the runbook).
+
+ARG BASE_IMAGE=mambaorg/micromamba:2.0.5-debian12-slim
+FROM ${BASE_IMAGE}
+
+ARG AMRFINDER_DB_UPDATE=true
+ARG INSTALL_PYSEER=false
+ARG INSTALL_GCLOUD=false
+ARG INSTALL_AWSCLI=false
+ARG INSTALL_AZCOPY=false
+# Pin for reproducible rebuilds; bump deliberately. `amrfinder -l` prints the DB version.
+ARG AMRFINDERPLUS_VERSION=4.0.19
+ARG PYTHON_VERSION=3.11
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MAMBA_DOCKERFILE_ACTIVATE=1
+
+# ---------------------------------------------------------------- OS packages (root)
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg unzip procps rsync less \
+    && rm -rf /var/lib/apt/lists/*
+
+# Optional cloud CLIs. Credentials are NEVER baked in: mount ~/.config/gcloud, ~/.aws,
+# or pass env vars / use the VM identity at run time (docs/VM_RUNBOOK.md section 4).
+RUN if [ "$INSTALL_GCLOUD" = "true" ]; then \
+        curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+            | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+        && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
+            > /etc/apt/sources.list.d/google-cloud-sdk.list \
+        && apt-get update && apt-get install -y --no-install-recommends google-cloud-cli \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+RUN if [ "$INSTALL_AWSCLI" = "true" ]; then \
+        ARCH="$(uname -m)" \
+        && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip \
+        && unzip -q /tmp/awscliv2.zip -d /tmp \
+        && /tmp/aws/install \
+        && rm -rf /tmp/aws /tmp/awscliv2.zip; \
+    fi
+RUN if [ "$INSTALL_AZCOPY" = "true" ]; then \
+        curl -fsSL https://aka.ms/downloadazcopy-v10-linux -o /tmp/azcopy.tgz \
+        && tar -xzf /tmp/azcopy.tgz -C /tmp \
+        && install -m 0755 /tmp/azcopy_linux_*/azcopy /usr/local/bin/azcopy \
+        && rm -rf /tmp/azcopy.tgz /tmp/azcopy_linux_*; \
+    fi
+
+# Data root used by the runbook; owned by the non-root user so a bind mount of an
+# empty host directory is writable. Mount your own volume over it.
+RUN mkdir -p /data/g2m && chown -R $MAMBA_USER:$MAMBA_USER /data/g2m
+
+# ----------------------------------------------------- bioconda tools (non-root user)
+USER $MAMBA_USER
+# One solve for everything so the layer is cached as a unit. snakemake-minimal
+# satisfies the `snakemake` requirement of `pip install .[pipeline]` below.
+RUN micromamba install -y -n base \
+        -c conda-forge -c bioconda \
+        python=${PYTHON_VERSION} pip \
+        ncbi-amrfinderplus=${AMRFINDERPLUS_VERSION} \
+        mash \
+        mlst \
+        unitig-caller \
+        snakemake-minimal \
+    && micromamba clean --all --yes
+RUN if [ "$INSTALL_PYSEER" = "true" ]; then \
+        micromamba install -y -n base -c conda-forge -c bioconda pyseer \
+        && micromamba clean --all --yes; \
+    fi
+
+# AMRFinderPlus database. This is the expensive layer (network + ~0.5 GB); it is
+# rebuilt only when the lines above change. `amrfinder -l` lists the installed DB.
+RUN if [ "$AMRFINDER_DB_UPDATE" = "true" ]; then amrfinder -u; fi
+
+# ---------------------------------------------------------------------- this repo
+WORKDIR /app
+COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml ./
+COPY --chown=$MAMBA_USER:$MAMBA_USER src ./src
+COPY --chown=$MAMBA_USER:$MAMBA_USER configs ./configs
+COPY --chown=$MAMBA_USER:$MAMBA_USER workflow ./workflow
+RUN pip install ".[pipeline]"
+
+# Sanity check at build time: every CLI the Snakefile and the fetch stage may call.
+RUN amrfinder --version && mash --version && mlst --version && unitig-caller --version \
+    && snakemake --version && python -m genome2mic --help > /dev/null
+
+ENV G2M_ROOT=/data/g2m
+VOLUME ["/data/g2m"]
+
+# The micromamba entrypoint activates the env, then runs the command. Override the
+# entrypoint for the per-genome tools: `docker run --entrypoint snakemake ...`.
+ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "-m", "genome2mic"]
+CMD ["--help"]

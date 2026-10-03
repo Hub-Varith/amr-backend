@@ -1,0 +1,52 @@
+# Species in scope. Keys are the 5-letter species codes used everywhere else
+# (labels, QC, splits, model directories).
+#
+# amrfinder_organism   AMRFinderPlus -O value. Run `amrfinder -l` to confirm the
+#                      exact string for the installed database version.
+# expected_genome_size Typical assembly length in bp. QC fails a genome whose
+#                      total length is outside +/- size_tolerance of this value.
+# reference_accession  NCBI RefSeq / GenBank accession of the reference genome
+#                      used for Mash species identification.
+# reference_sketch     Optional path to a pre-built Mash sketch of the reference.
+#                      null -> sketch the reference FASTA at run time.
+species:
+  ECOLI:
+    name: Escherichia coli
+    amrfinder_organism: Escherichia
+    expected_genome_size: 5000000
+    size_tolerance: 0.20
+    reference_accession: NC_000913.3
+    reference_sketch: null
+  KPNEU:
+    name: Klebsiella pneumoniae
+    amrfinder_organism: Klebsiella_pneumoniae
+    expected_genome_size: 5500000
+    size_tolerance: 0.20
+    reference_accession: NC_016845.1
+    reference_sketch: null
+  SAUR:
+    name: Staphylococcus aureus
+    amrfinder_organism: Staphylococcus_aureus
+    expected_genome_size: 2800000
+    size_tolerance: 0.20
+    reference_accession: NC_007795.1
+    reference_sketch: null
+  PAER:
+    name: Pseudomonas aeruginosa
+    amrfinder_organism: Pseudomonas_aeruginosa
+    expected_genome_size: 6500000
+    size_tolerance: 0.20
+    reference_accession: NC_002516.2
+    reference_sketch: null
+  ABAU:
+    name: Acinetobacter baumannii
+    amrfinder_organism: Acinetobacter_baumannii
+    expected_genome_size: 4000000
+    size_tolerance: 0.20
+    reference_accession: CP000521.1
+    reference_sketch: null
+
+# Assembly QC thresholds (DATA_CONTRACT.md stage 3).
+qc:
+  max_contigs: 500
+  max_mash_distance: 0.05

@@ -246,21 +246,26 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 
 ## Current state
 
-- [ ] Stage 1 — ingest + harmonize → `labels.parquet`, `pairs_kept.csv`
-- [ ] Stage 2 — genomes + QC
-- [ ] Stage 3 — lineages + splits (freeze)
-- [ ] Stage 4 — AMRFinderPlus → `known_amr.parquet`
-- [ ] Stage 5 — metrics module + unit tests
-- [ ] Stage 6 — baselines B0–B2
-- [ ] Stage 7 — AFT on known AMR only
-- [ ] Stage 8 — unitigs: build, query, filter, collapse
-- [ ] Stage 9 — AFT on known AMR + unitigs; ablations
-- [ ] Stage 10 — conformal bands + ranking + report
-- [ ] Stage 11 — external validation + distance plots
+All stages below run end to end on the seeded synthetic data
+(`python -m genome2mic run-all --root runs/synthetic`, ~2.5 min; `make demo` copies the
+report to `reports/synthetic_demo/`). Every number produced so far is from SYNTHETIC
+genomes and says nothing about real isolates.
 
-Update this list as stages land.
+- [x] Stage 1 — ingest + harmonize → `labels.parquet`, `label_counts.csv`, `pairs_kept.csv`
+- [x] Stage 2 — genomes + QC (`qc.parquet`; Mash species ID via `mash.tsv` or the pure-Python sketch fallback)
+- [x] Stage 3 — lineages (Mash single-linkage, 0.005) + splits (frozen; PopPUNK backend is a stub)
+- [x] Stage 4 — AMRFinderPlus TSV → `known_amr.parquet` (parser only; the `amrfinder` CLI wrapper is untested because the tool is not installed)
+- [x] Stage 5 — metrics module + unit tests
+- [x] Stage 6 — baselines B0 (ResFinder pheno tables) – B2
+- [x] Stage 7 — AFT on known AMR only
+- [x] Stage 8 — unitigs: implemented with the pure-Python **k-mer backend** (canonical 31-mers, frequency window, pattern collapse, fixed-set query). The `unitig-caller` wrapper exists but is untested (tool not installed); pyseer selection is replaced by in-fold |correlation| ranking
+- [x] Stage 9 — AFT on known AMR + unitigs (`aft_known_unitig`, main model); `aft_unitig_only` ablation behind `--ablation`
+- [x] Stage 10 — conformal bands + ranking + report (`results/report.md`, 8 figure types, leakage checklist) + prediction CLI/API bundle
+- [x] Stage 11 — external sets (country/time hold-out), LOLO runs and accuracy-by-distance tables/plots on the synthetic data; **not yet run on any real external data**
 
----
+Tool wrappers untested because the tools are not on PATH: `amrfinder`, `resfinder`,
+`mlst`, `mash`, `unitig-caller`, `pyseer`, `poppunk` (the Snakefile skips them on
+synthetic data). Update this list as real data lands.
 
 ## Open questions
 

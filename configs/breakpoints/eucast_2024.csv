@@ -1,0 +1,81 @@
+species,drug,s_breakpoint,r_breakpoint,version,site,note
+ECOLI,ampicillin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,amoxicillin-clavulanate,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
+ECOLI,ampicillin-sulbactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; sulbactam fixed at 4 mg/L; verify against current tables before external use
+ECOLI,piperacillin-tazobactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; tazobactam fixed at 4 mg/L; verify against current tables before external use
+ECOLI,cefotaxime,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,ceftriaxone,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,ceftazidime,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,cefepime,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,ceftazidime-avibactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; avibactam fixed at 4 mg/L; verify against current tables before external use
+ECOLI,aztreonam,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,ertapenem,0.5,0.5,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,imipenem,2,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,meropenem,2,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; non-meningitis; verify against current tables before external use
+ECOLI,ciprofloxacin,0.25,0.5,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,levofloxacin,0.5,1,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,gentamicin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,tobramycin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,amikacin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+ECOLI,trimethoprim-sulfamethoxazole,2,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; expressed as the trimethoprim concentration; verify against current tables before external use
+ECOLI,colistin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; broth microdilution only; verify against current tables before external use
+ECOLI,tigecycline,0.5,0.5,2024,bloodstream,EUCAST v14.0 E. coli only (no Klebsiella breakpoint); verify against current tables before external use
+KPNEU,ampicillin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; K. pneumoniae is intrinsically resistant (see natural_resistance.csv); verify against current tables before external use
+KPNEU,amoxicillin-clavulanate,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
+KPNEU,ampicillin-sulbactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; sulbactam fixed at 4 mg/L; verify against current tables before external use
+KPNEU,piperacillin-tazobactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; tazobactam fixed at 4 mg/L; verify against current tables before external use
+KPNEU,cefotaxime,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,ceftriaxone,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,ceftazidime,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,cefepime,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,ceftazidime-avibactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; avibactam fixed at 4 mg/L; verify against current tables before external use
+KPNEU,aztreonam,1,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,ertapenem,0.5,0.5,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,imipenem,2,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,meropenem,2,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; non-meningitis; verify against current tables before external use
+KPNEU,ciprofloxacin,0.25,0.5,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,levofloxacin,0.5,1,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,gentamicin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,tobramycin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,amikacin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
+KPNEU,trimethoprim-sulfamethoxazole,2,4,2024,bloodstream,EUCAST v14.0 Enterobacterales; expressed as the trimethoprim concentration; verify against current tables before external use
+KPNEU,colistin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; broth microdilution only; verify against current tables before external use
+PAER,piperacillin-tazobactam,0.001,16,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,ceftazidime,0.001,8,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,cefepime,0.001,8,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,ceftazidime-avibactam,8,8,2024,bloodstream,EUCAST v14.0 Pseudomonas; avibactam fixed at 4 mg/L; verify against current tables before external use
+PAER,aztreonam,0.001,16,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,imipenem,0.001,4,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,meropenem,2,8,2024,bloodstream,EUCAST v14.0 Pseudomonas; non-meningitis; verify against current tables before external use
+PAER,ciprofloxacin,0.001,0.5,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,levofloxacin,0.001,2,2024,bloodstream,EUCAST v14.0 Pseudomonas; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+PAER,tobramycin,2,2,2024,bloodstream,EUCAST v14.0 Pseudomonas; verify against current tables before external use
+PAER,amikacin,16,16,2024,bloodstream,EUCAST v14.0 Pseudomonas; verify against current tables before external use
+PAER,colistin,4,4,2024,bloodstream,EUCAST v14.0 Pseudomonas; broth microdilution only; verify against current tables before external use
+ABAU,imipenem,2,4,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,meropenem,2,8,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,ciprofloxacin,0.001,1,2024,bloodstream,EUCAST v14.0 Acinetobacter; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+ABAU,levofloxacin,0.5,1,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,gentamicin,4,4,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,tobramycin,4,4,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,amikacin,8,8,2024,bloodstream,EUCAST v14.0 Acinetobacter; verify against current tables before external use
+ABAU,trimethoprim-sulfamethoxazole,2,4,2024,bloodstream,EUCAST v14.0 Acinetobacter; expressed as the trimethoprim concentration; verify against current tables before external use
+ABAU,colistin,2,2,2024,bloodstream,EUCAST v14.0 Acinetobacter; broth microdilution only; verify against current tables before external use
+SAUR,oxacillin,2,2,2024,bloodstream,EUCAST v14.0 S. aureus; cefoxitin screen is the preferred mecA/mecC test; verify against current tables before external use
+SAUR,cefoxitin,4,4,2024,bloodstream,EUCAST v14.0 S. aureus; published as a screening MIC for mecA/mecC not a treatment breakpoint; verify against current tables before external use
+SAUR,vancomycin,2,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,linezolid,4,4,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,daptomycin,1,1,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,clindamycin,0.25,0.5,2024,bloodstream,EUCAST v14.0 S. aureus; inducible resistance needs a D-test; verify against current tables before external use
+SAUR,erythromycin,1,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,rifampicin,0.06,0.5,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,tetracycline,1,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,doxycycline,1,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,minocycline,0.5,1,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,tigecycline,0.5,0.5,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,gentamicin,2,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,tobramycin,2,2,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,amikacin,8,8,2024,bloodstream,EUCAST v14.0 S. aureus; verify against current tables before external use
+SAUR,ciprofloxacin,0.001,2,2024,bloodstream,EUCAST v14.0 S. aureus; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+SAUR,levofloxacin,0.001,2,2024,bloodstream,EUCAST v14.0 S. aureus; S<=0.001 means susceptible-increased-exposure only; verify against current tables before external use
+SAUR,trimethoprim-sulfamethoxazole,2,4,2024,bloodstream,EUCAST v14.0 S. aureus; expressed as the trimethoprim concentration; verify against current tables before external use

@@ -1,0 +1,93 @@
+species,drug,s_breakpoint,r_breakpoint,version,site,note
+ECOLI,ampicillin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,amoxicillin-clavulanate,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,ampicillin-sulbactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,piperacillin-tazobactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; tazobactam fixed at 4 mg/L; 16 is SDD stored as I; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,cefazolin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales systemic (not the uncomplicated-UTI surrogate); published R>=8 stored as 4; verify against current tables before external use
+ECOLI,cefoxitin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,cefotaxime,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+ECOLI,ceftriaxone,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+ECOLI,ceftazidime,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,cefepime,2,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 4-8 is SDD stored as I; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,ceftazidime-avibactam,8,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; avibactam fixed at 4 mg/L; no I category; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,aztreonam,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,ertapenem,0.5,1,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=2 stored as 1; verify against current tables before external use
+ECOLI,imipenem,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+ECOLI,meropenem,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+ECOLI,ciprofloxacin,0.25,0.5,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2019 revision); published R>=1 stored as 0.5; verify against current tables before external use
+ECOLI,levofloxacin,0.5,1,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2019 revision); published R>=2 stored as 1; verify against current tables before external use
+ECOLI,gentamicin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=8 stored as 4; verify against current tables before external use
+ECOLI,tobramycin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=8 stored as 4; verify against current tables before external use
+ECOLI,amikacin,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=16 stored as 8; verify against current tables before external use
+ECOLI,trimethoprim-sulfamethoxazole,2,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; trimethoprim concentration of a 1:19 ratio; no I category; published R>=4 stored as 2; verify against current tables before external use
+ECOLI,tetracycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,doxycycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+ECOLI,minocycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,ampicillin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; K. pneumoniae is intrinsically resistant (see natural_resistance.csv); published R>=32 stored as 16; verify against current tables before external use
+KPNEU,amoxicillin-clavulanate,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+KPNEU,ampicillin-sulbactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+KPNEU,piperacillin-tazobactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; tazobactam fixed at 4 mg/L; 16 is SDD stored as I; published R>=32 stored as 16; verify against current tables before external use
+KPNEU,cefazolin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales systemic (not the uncomplicated-UTI surrogate); published R>=8 stored as 4; verify against current tables before external use
+KPNEU,cefoxitin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=32 stored as 16; verify against current tables before external use
+KPNEU,cefotaxime,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+KPNEU,ceftriaxone,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+KPNEU,ceftazidime,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,cefepime,2,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 4-8 is SDD stored as I; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,ceftazidime-avibactam,8,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; avibactam fixed at 4 mg/L; no I category; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,aztreonam,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,ertapenem,0.5,1,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=2 stored as 1; verify against current tables before external use
+KPNEU,imipenem,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+KPNEU,meropenem,1,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=4 stored as 2; verify against current tables before external use
+KPNEU,ciprofloxacin,0.25,0.5,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2019 revision); published R>=1 stored as 0.5; verify against current tables before external use
+KPNEU,levofloxacin,0.5,1,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2019 revision); published R>=2 stored as 1; verify against current tables before external use
+KPNEU,gentamicin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=8 stored as 4; verify against current tables before external use
+KPNEU,tobramycin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=8 stored as 4; verify against current tables before external use
+KPNEU,amikacin,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales (2023 revision); published R>=16 stored as 8; verify against current tables before external use
+KPNEU,trimethoprim-sulfamethoxazole,2,2,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; trimethoprim concentration of a 1:19 ratio; no I category; published R>=4 stored as 2; verify against current tables before external use
+KPNEU,tetracycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,doxycycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+KPNEU,minocycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
+PAER,piperacillin-tazobactam,16,64,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; tazobactam fixed at 4 mg/L; I = 32-64; published R>=128 stored as 64; verify against current tables before external use
+PAER,ceftazidime,8,16,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; published R>=32 stored as 16; verify against current tables before external use
+PAER,cefepime,8,16,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; published R>=32 stored as 16; verify against current tables before external use
+PAER,ceftazidime-avibactam,8,8,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; avibactam fixed at 4 mg/L; no I category; published R>=16 stored as 8; verify against current tables before external use
+PAER,aztreonam,8,16,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; published R>=32 stored as 16; verify against current tables before external use
+PAER,imipenem,2,4,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; published R>=8 stored as 4; verify against current tables before external use
+PAER,meropenem,2,4,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa; published R>=8 stored as 4; verify against current tables before external use
+PAER,ciprofloxacin,0.5,1,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa (2019 revision); published R>=2 stored as 1; verify against current tables before external use
+PAER,levofloxacin,1,2,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa (2019 revision); published R>=4 stored as 2; verify against current tables before external use
+PAER,tobramycin,1,2,2024,bloodstream,CLSI M100-Ed34 P. aeruginosa (2023 revision); published R>=4 stored as 2; gentamicin and amikacin omitted (no systemic breakpoint since the 2023 revision); verify against current tables before external use
+ABAU,ampicillin-sulbactam,8,16,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+ABAU,piperacillin-tazobactam,16,64,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; tazobactam fixed at 4 mg/L; I = 32-64; published R>=128 stored as 64; verify against current tables before external use
+ABAU,cefotaxime,8,32,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; I = 16-32; listed as natural resistance in this project; published R>=64 stored as 32; verify against current tables before external use
+ABAU,ceftriaxone,8,32,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; I = 16-32; listed as natural resistance in this project; published R>=64 stored as 32; verify against current tables before external use
+ABAU,ceftazidime,8,16,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=32 stored as 16; verify against current tables before external use
+ABAU,cefepime,8,16,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=32 stored as 16; verify against current tables before external use
+ABAU,imipenem,2,4,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=8 stored as 4; verify against current tables before external use
+ABAU,meropenem,2,4,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=8 stored as 4; verify against current tables before external use
+ABAU,ciprofloxacin,1,2,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=4 stored as 2; verify against current tables before external use
+ABAU,levofloxacin,2,4,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=8 stored as 4; verify against current tables before external use
+ABAU,gentamicin,4,8,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=16 stored as 8; verify against current tables before external use
+ABAU,tobramycin,4,8,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=16 stored as 8; verify against current tables before external use
+ABAU,amikacin,16,32,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=64 stored as 32; verify against current tables before external use
+ABAU,trimethoprim-sulfamethoxazole,2,2,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; trimethoprim concentration of a 1:19 ratio; no I category; published R>=4 stored as 2; verify against current tables before external use
+ABAU,tetracycline,4,8,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=16 stored as 8; verify against current tables before external use
+ABAU,doxycycline,4,8,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=16 stored as 8; verify against current tables before external use
+ABAU,minocycline,4,8,2024,bloodstream,CLSI M100-Ed34 Acinetobacter; published R>=16 stored as 8; verify against current tables before external use
+SAUR,oxacillin,2,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; no I category; published R>=4 stored as 2; verify against current tables before external use
+SAUR,cefoxitin,4,4,2024,bloodstream,CLSI M100-Ed34 S. aureus; mecA surrogate reported as oxacillin; no I category; published R>=8 stored as 4; verify against current tables before external use
+SAUR,vancomycin,2,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; I = 4-8; published R>=16 stored as 8; verify against current tables before external use
+SAUR,linezolid,4,4,2024,bloodstream,CLSI M100-Ed34 S. aureus; no I category; published R>=8 stored as 4; verify against current tables before external use
+SAUR,daptomycin,1,1,2024,bloodstream,CLSI M100-Ed34 S. aureus; CLSI publishes S<=1 and nonsusceptible >=2 only; nonsusceptible stored as R; verify against current tables before external use
+SAUR,clindamycin,0.5,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; I = 1-2; inducible resistance needs a D-test; published R>=4 stored as 2; verify against current tables before external use
+SAUR,erythromycin,0.5,4,2024,bloodstream,CLSI M100-Ed34 S. aureus; I = 1-4; published R>=8 stored as 4; verify against current tables before external use
+SAUR,rifampicin,1,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=4 stored as 2; verify against current tables before external use
+SAUR,tetracycline,4,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=16 stored as 8; verify against current tables before external use
+SAUR,doxycycline,4,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=16 stored as 8; verify against current tables before external use
+SAUR,minocycline,4,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=16 stored as 8; verify against current tables before external use
+SAUR,gentamicin,4,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=16 stored as 8; verify against current tables before external use
+SAUR,tobramycin,4,8,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=16 stored as 8; verify against current tables before external use
+SAUR,amikacin,16,32,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=64 stored as 32; verify against current tables before external use
+SAUR,ciprofloxacin,1,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=4 stored as 2; verify against current tables before external use
+SAUR,levofloxacin,1,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; published R>=4 stored as 2; verify against current tables before external use
+SAUR,trimethoprim-sulfamethoxazole,2,2,2024,bloodstream,CLSI M100-Ed34 S. aureus; trimethoprim concentration of a 1:19 ratio; no I category; published R>=4 stored as 2; verify against current tables before external use

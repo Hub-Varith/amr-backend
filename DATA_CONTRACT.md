@@ -621,3 +621,30 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 - [ ] Do we re-derive all S/I/R labels from MIC under one standard, or use labels
       as reported? (Doc says as-reported for now; revisit once MIC coverage is known.)
 - [ ] Minimum `n` per species × drug — is 50/50 the right bar after seeing real counts?
+
+---
+
+## 7. Additions (v0.2 draft)
+
+Columns and files the first end-to-end build added on top of v0.1. Nothing above
+changes; these are strictly additive. Each row names the stage that writes it.
+
+| Where | Addition | Written by | Meaning |
+| ----- | -------- | ---------- | ------- |
+| `data/processed/label_counts.csv` | new file | ingest | The stage-2 count table (`species, drug, n, n_R, n_S, n_I, n_exact, n_censored, n_distinct_mic`) persisted next to `pairs_kept.csv` |
+| `data/processed/qc.parquet` | `species` column | qc | Label species (or Mash species for unlabelled genomes) used by the size rule |
+| `data/processed/known_amr_columns.csv` | `member_symbols` column | known-amr | `;`-joined original symbols collapsed into the column |
+| `data/processed/unitigs_<SPECIES>_rows.parquet` | `role` column (`built` / `queried`) | unitigs | Which rows built the k-mer set; the leakage check asserts `built` implies `split == 'train'` |
+| `data/processed/unitigs_<SPECIES>_kmers.npz` | new file | unitigs | Frozen k-mer set (+ pattern column per k-mer) used to query new genomes without rebuilding |
+| `data/processed/sketches_<SPECIES>.npz` | new file | lineages | MinHash sketches of every QC-passing genome (ids, sketches, k, s) |
+| `results/preds_<SPECIES>_<drug>.parquet` | `external_set` column | train | Copied from `splits.parquet` on `split == 'test'` rows; null elsewhere |
+| `results/preds_<SPECIES>_<drug>.parquet` | `nearest_training_distance` column | train | Min Mash distance from the genome to the genomes the model was fitted on (fold training genomes for `cv`, all train rows for `test`, the LOLO training set for `lolo_*`) |
+| `results/preds_<SPECIES>_<drug>.parquet` | `split` values `cv`, `lolo_<lineage>` | train | `cv` = out-of-fold predictions of train genomes; `lolo_<cluster>` = leave-one-lineage-out |
+| `results/preds_<SPECIES>_<drug>.parquet` | `model` value `b0_resfinder` | train | ResFinder S/R baseline; `pred_mic`, `band_low`, `band_high` null |
+| `results/metrics.parquet` | `n_exact`, `n_cat`, `n_lab_r`, `n_lab_s` columns | evaluate | Denominators behind EA (exact rows), CA, VME and ME |
+| `results/metrics.csv`, `results/metrics_by_distance.{parquet,csv}` | new files | evaluate | CSV copies for the demo; metrics stratified by `nearest_training_distance` bin (`distance_bin, bin_low, bin_high` + the metrics, VME first) |
+| `models/` | bundle layout | train | `manifest.json`, `reference_sketches.npz`, `markers.fasta` (synthetic runs), `<SPECIES>/train_sketches.npz`, `<SPECIES>/unitig_kmers.npz`, `<SPECIES>/unitig_index.parquet`, `<SPECIES>/<drug>/{model.ubj, params.json, features.json, conformal.json, meta.json, importance.json}` |
+| `data/processed/drop_log_<stage>.csv` | new files | every stage | `stage, reason, n_dropped, detail` for every filter, including zero counts |
+
+Open: stage 6 names `NA` as the `st` sentinel while the global conventions forbid
+`NA`; the lineages stage follows the explicit column rule until the owner decides.

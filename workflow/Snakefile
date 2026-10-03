@@ -1,0 +1,148 @@
+# Per-genome tool runs (DATA_CONTRACT.md stage 4): amrfinder, resfinder, mlst, mash
+# writing to data/interim/<genome_id>/. Everything else (ingest, QC, features, models)
+# is driven by `python -m genome2mic <stage>`; CLAUDE.md puts per-genome CLI calls here.
+#
+# Usage:
+#   snakemake -s workflow/Snakefile -n --config root=runs/synthetic            # dry run
+#   snakemake -s workflow/Snakefile --config root=. synthetic=false -j 8       # real data, tools on PATH
+#
+# When `synthetic` is true (default when <root>/data/raw/SYNTHETIC_DATA.md exists) or a
+# tool is not on PATH, the matching rule is a no-op: it leaves the synthetic/precomputed
+# file intact and touches it so Snakemake sees it as up to date. No real tool runs on
+# simulated genomes. All data under runs/ is SYNTHETIC.
+
+import shutil
+from pathlib import Path
+
+configfile_defaults = {"root": "runs/synthetic", "configs_dir": None, "synthetic": None}
+for _key, _value in configfile_defaults.items():
+    config.setdefault(_key, _value)
+
+ROOT = Path(config["root"])
+CONFIGS_DIR = Path(config["configs_dir"]) if config["configs_dir"] else (ROOT / "configs" if (ROOT / "configs").is_dir() else Path("configs"))
+RAW = ROOT / "data" / "raw"
+INTERIM = ROOT / "data" / "interim"
+GENOMES = RAW / "genomes"
+REFERENCES = RAW / "references"
+SYNTHETIC = bool(config["synthetic"]) if config["synthetic"] is not None else (RAW / "SYNTHETIC_DATA.md").is_file()
+
+
+def genome_ids():
+    """Genomes to process: labels.parquet when it exists, else every FASTA in data/raw/genomes."""
+    labels = ROOT / "data" / "processed" / "labels.parquet"
+    if labels.is_file():
+        import pandas as pd
+        ids = sorted(pd.read_parquet(labels, columns=["genome_id"])["genome_id"].astype(str).unique())
+        return [g for g in ids if (GENOMES / f"{g}.fasta").is_file()]
+    return sorted(p.stem for p in GENOMES.glob("*.fasta"))
+
+
+def species_of(genome_id):
+    """AMRFinderPlus -O organism and ResFinder species name from genome_metadata.csv + species.yaml."""
+    import csv
+    import yaml
+    species = yaml.safe_load((CONFIGS_DIR / "species.yaml").read_text())["species"]
+    meta = RAW / "genome_metadata.csv"
+    key = None
+    if meta.is_file():
+        with meta.open() as handle:
+            for row in csv.DictReader(handle):
+                if row.get("genome_id") == genome_id:
+                    key = row.get("species")
+                    break
+    if key not in species:
+        return None, None
+    return species[key]["amrfinder_organism"], species[key]["name"]
+
+
+def have(tool):
+    return shutil.which(tool) is not None
+
+
+def keep_or_fail(path, tool):
+    """No-op for synthetic/precomputed output: touch the existing file, never create an empty one.
+
+    An empty amrfinder.tsv would be read as a failed tool run by features/known_amr.py,
+    so when the tool is missing AND nothing precomputed exists the rule fails loudly.
+    """
+    target = Path(path)
+    if target.is_file():
+        target.touch()
+        return
+    if SYNTHETIC:
+        raise FileNotFoundError(f"synthetic run but {target} was not generated; re-run `python -m genome2mic synth`")
+    raise RuntimeError(f"{tool!r} is not on PATH and no precomputed {target} exists (see DATA_CONTRACT.md stage 4)")
+
+
+GENOME_IDS = genome_ids()
+
+
+rule all:
+    input:
+        expand(str(INTERIM / "{gid}" / "amrfinder.tsv"), gid=GENOME_IDS),
+        expand(str(INTERIM / "{gid}" / "resfinder" / "pheno_table.txt"), gid=GENOME_IDS),
+        expand(str(INTERIM / "{gid}" / "mlst.tsv"), gid=GENOME_IDS),
+        expand(str(INTERIM / "{gid}" / "mash.tsv"), gid=GENOME_IDS),
+
+
+rule amrfinder:
+    input:
+        fasta=str(GENOMES / "{gid}.fasta"),
+    output:
+        tsv=str(INTERIM / "{gid}" / "amrfinder.tsv"),
+    params:
+        organism=lambda wc: species_of(wc.gid)[0],
+    run:
+        if SYNTHETIC or not have("amrfinder"):
+            keep_or_fail(output.tsv, "amrfinder")
+        else:
+            org = f"-O {params.organism}" if params.organism else ""
+            shell("amrfinder -n {input.fasta} {org} --plus -o {output.tsv}")
+
+
+rule resfinder:
+    input:
+        fasta=str(GENOMES / "{gid}.fasta"),
+    output:
+        pheno=str(INTERIM / "{gid}" / "resfinder" / "pheno_table.txt"),
+    params:
+        species=lambda wc: species_of(wc.gid)[1],
+    run:
+        out_dir = Path(output.pheno).parent
+        if SYNTHETIC or (not have("resfinder") and not have("run_resfinder.py")):
+            keep_or_fail(output.pheno, "resfinder")
+        else:
+            sp = f'-s "{params.species}"' if params.species else ""
+            shell("python -m resfinder -ifa {input.fasta} -o {out_dir} {sp} --acquired --point")
+
+
+rule mlst:
+    input:
+        fasta=str(GENOMES / "{gid}.fasta"),
+    output:
+        tsv=str(INTERIM / "{gid}" / "mlst.tsv"),
+    run:
+        if SYNTHETIC or not have("mlst"):
+            keep_or_fail(output.tsv, "mlst")
+        else:
+            shell("mlst {input.fasta} > {output.tsv}")
+
+
+rule mash:
+    input:
+        fasta=str(GENOMES / "{gid}.fasta"),
+        references=sorted(str(p) for p in REFERENCES.glob("*.fasta")),
+    output:
+        tsv=str(INTERIM / "{gid}" / "mash.tsv"),
+    run:
+        if SYNTHETIC or not have("mash") or not input.references:
+            # qc.py falls back to the pure-Python sketch backend when mash.tsv is absent,
+            # so a missing mash output is allowed: create the directory and an empty file.
+            if Path(output.tsv).is_file():
+                Path(output.tsv).touch()
+            else:
+                Path(output.tsv).parent.mkdir(parents=True, exist_ok=True)
+                Path(output.tsv).touch()
+        else:
+            refs = " ".join(input.references)
+            shell("mash dist {refs} {input.fasta} > {output.tsv}")

@@ -8,6 +8,8 @@ from genome2mic.api.config import Settings
 from genome2mic.api.constants import CONFIG_FILES, SPECIES_NAMES
 from genome2mic.api.schemas.species_info import SpeciesInfo
 from genome2mic.api.schemas.species_key import SpeciesKey
+from genome2mic.config import ConfigError
+from genome2mic.errors import Genome2MicError
 from genome2mic.predict.pipeline import PredictionPipeline
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,9 @@ class ModelRegistry:
             logger.warning("Models not loaded: pipeline not implemented", extra={"error": str(error)})
         except FileNotFoundError as error:
             logger.warning("Models not loaded: files missing", extra={"error": str(error)})
+        except (Genome2MicError, ConfigError) as error:
+            # A present-but-malformed bundle or config must not crash startup; stay up but not ready.
+            logger.warning("Models not loaded: bundle or config malformed", extra={"error": str(error)})
         logger.info(
             "Registry loaded",
             extra={"configs_parsed": self.configs_parsed, "models_loaded": self.models_loaded},

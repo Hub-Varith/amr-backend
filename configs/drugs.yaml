@@ -1,0 +1,288 @@
+# Bloodstream-infection drug panel across the five species in scope.
+#
+# Drug keys are the normalized names used everywhere else: lowercase,
+# hyphenated, no spaces or slashes (e.g. piperacillin-tazobactam).
+#
+# synonyms       Raw spellings seen in BV-BRC / NCBI AST exports and lab
+#                systems: WHONET / CLSI / EUCAST abbreviations, salt forms,
+#                brand names, slash-separated combination names. Matching is
+#                case-insensitive and ignores whitespace / slash / hyphen
+#                differences, so one spelling per distinct token sequence is
+#                enough.
+# spectrum_tier  1 narrowest ... 4 broadest / reserve. Likely-active drugs are
+#                ranked narrowest first, then by margin below the S breakpoint.
+# strong_markers Known-AMR feature columns (gene_* / point_*) whose presence
+#                forces the call to likely_inactive regardless of the model
+#                (override 2 in DATA_CONTRACT.md stage 12). Matched as column
+#                prefixes so kept variants (gene_blakpc_2) still match.
+#
+# call_standard  Breakpoint table used for pred_sir and for the final call.
+
+call_standard:
+  standard: EUCAST
+  version: "2024"
+
+drugs:
+  ampicillin:
+    synonyms: [AMP, AM, ampicillin sodium, ampicillin trihydrate, ampicilline]
+    spectrum_tier: 1
+    strong_markers: []
+  amoxicillin-clavulanate:
+    synonyms:
+      - AMC
+      - AUG
+      - XL
+      - amoxicillin/clavulanic acid
+      - amoxicillin-clavulanic acid
+      - amoxicillin/clavulanate
+      - amoxycillin/clavulanic acid
+      - amoxycillin-clavulanate
+      - amoxicillin clavulanate potassium
+      - amoxiclav
+      - co-amoxiclav
+      - augmentin
+    spectrum_tier: 2
+    strong_markers: []
+  ampicillin-sulbactam:
+    synonyms:
+      - SAM
+      - A/S
+      - ampicillin/sulbactam
+      - sulbactam/ampicillin
+      - sulbactam-ampicillin
+      - ampicillin sulbactam
+      - unasyn
+    spectrum_tier: 2
+    strong_markers: []
+  piperacillin-tazobactam:
+    synonyms:
+      - TZP
+      - PTZ
+      - PIP/TAZ
+      - PIP-TAZO
+      - P/T
+      - piperacillin/tazobactam
+      - piperacillin tazobactam
+      - tazobactam/piperacillin
+      - piptazo
+      - zosyn
+      - tazocin
+    spectrum_tier: 3
+    strong_markers: []
+  cefazolin:
+    synonyms: [CFZ, CZ, KZ, cephazolin, cefazolin sodium, ancef, kefzol]
+    spectrum_tier: 1
+    strong_markers: []
+  cefotaxime:
+    synonyms: [CTX, cefotaxime sodium, claforan]
+    spectrum_tier: 2
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+      - gene_blactx_m
+  ceftriaxone:
+    synonyms: [CRO, ceftriaxone sodium, ceftriaxone disodium, ceftriaxon, rocephin]
+    spectrum_tier: 2
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+      - gene_blactx_m
+  ceftazidime:
+    synonyms: [CAZ, ceftazidime pentahydrate, fortaz, fortum]
+    spectrum_tier: 3
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+      - gene_blactx_m
+  cefepime:
+    synonyms: [FEP, CPM, PM, cefepime hydrochloride, maxipime]
+    spectrum_tier: 3
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+      - gene_blactx_m
+  ceftazidime-avibactam:
+    synonyms:
+      - CZA
+      - ceftazidime/avibactam
+      - ceftazidime avibactam
+      - avycaz
+      - zavicefta
+    spectrum_tier: 4
+    strong_markers: []
+  aztreonam:
+    synonyms: [ATM, AZT, AT, azactam]
+    spectrum_tier: 3
+    strong_markers: []
+  ertapenem:
+    synonyms: [ETP, ERT, invanz]
+    spectrum_tier: 4
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+  imipenem:
+    synonyms:
+      - IPM
+      - IMI
+      - IMP
+      - imipenem/cilastatin
+      - imipenem-cilastatin
+      - imipenem cilastatin
+      - primaxin
+      - tienam
+    spectrum_tier: 4
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+  meropenem:
+    synonyms: [MEM, MER, MERO, MRP, meropenem trihydrate, merrem]
+    spectrum_tier: 4
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blavim
+      - gene_blaimp
+  ciprofloxacin:
+    synonyms: [CIP, CI, ciprofloxacin hydrochloride, cipro, ciproxin]
+    spectrum_tier: 2
+    strong_markers: []
+  levofloxacin:
+    synonyms: [LVX, LEV, LEVO, LE, levaquin, tavanic]
+    spectrum_tier: 2
+    strong_markers: []
+  gentamicin:
+    synonyms: [GEN, GM, CN, gentamycin, gentamicin sulfate, gentamicin sulphate]
+    spectrum_tier: 2
+    strong_markers: []
+  tobramycin:
+    synonyms: [TOB, NN, tobramycin sulfate, tobramycin sulphate, tobi]
+    spectrum_tier: 2
+    strong_markers: []
+  amikacin:
+    synonyms: [AMK, AK, AN, amikacin sulfate, amikacin sulphate, amikin]
+    spectrum_tier: 3
+    strong_markers: []
+  trimethoprim-sulfamethoxazole:
+    synonyms:
+      - SXT
+      - TMP/SMX
+      - TMP-SMX
+      - TMP/SMZ
+      - TMP-SMZ
+      - T/S
+      - trimethoprim/sulfamethoxazole
+      - trimethoprim sulfamethoxazole
+      - trimethoprim/sulphamethoxazole
+      - trimethoprim-sulphamethoxazole
+      - sulfamethoxazole/trimethoprim
+      - sulfamethoxazole-trimethoprim
+      - sulfamethoxazole trimethoprim
+      - sulphamethoxazole/trimethoprim
+      - cotrimoxazole
+      - co-trimoxazole
+      - bactrim
+      - septra
+    spectrum_tier: 1
+    strong_markers: []
+  colistin:
+    synonyms:
+      - CST
+      - COL
+      - CS
+      - CT
+      - colistin sulfate
+      - colistin sulphate
+      - colistin methanesulfonate
+      - colistimethate
+      - colistimethate sodium
+      - polymyxin E
+    spectrum_tier: 4
+    strong_markers:
+      - gene_mcr
+  tigecycline:
+    synonyms: [TGC, TIG, tygacil]
+    spectrum_tier: 4
+    strong_markers: []
+  minocycline:
+    synonyms: [MIN, MNO, MI, MH, minocycline hydrochloride, minocin]
+    spectrum_tier: 2
+    strong_markers: []
+  oxacillin:
+    synonyms: [OXA, OX, oxacillin sodium, methicillin, MET]
+    spectrum_tier: 1
+    strong_markers:
+      - gene_meca
+      - gene_mecc
+  cefoxitin:
+    synonyms: [FOX, CX, cefoxitin sodium, mefoxin]
+    spectrum_tier: 1
+    strong_markers:
+      - gene_meca
+      - gene_mecc
+  vancomycin:
+    synonyms: [VAN, VA, vancomycin hydrochloride, vancocin]
+    spectrum_tier: 2
+    strong_markers:
+      - gene_vana
+      - gene_vanb
+  linezolid:
+    synonyms: [LZD, LNZ, LIN, zyvox]
+    spectrum_tier: 3
+    strong_markers: []
+  daptomycin:
+    synonyms: [DAP, cubicin]
+    spectrum_tier: 3
+    strong_markers: []
+  clindamycin:
+    synonyms:
+      - CLI
+      - CLY
+      - CC
+      - DA
+      - clindamycin hydrochloride
+      - clindamycin phosphate
+      - cleocin
+      - dalacin
+    spectrum_tier: 1
+    strong_markers: []
+  erythromycin:
+    synonyms:
+      - ERY
+      - ERYTH
+      - ERYTHRO
+      - erythromycin ethylsuccinate
+      - erythromycin lactobionate
+      - erythrocin
+    spectrum_tier: 1
+    strong_markers: []
+  rifampicin:
+    synonyms: [RIF, RA, RD, RP, rifampin, rifampicine, rifadin, rimactane]
+    spectrum_tier: 1
+    strong_markers: []
+  tetracycline:
+    synonyms: [TET, TCY, TE, tetracycline hydrochloride]
+    spectrum_tier: 1
+    strong_markers: []
+  doxycycline:
+    synonyms: [DOX, DO, DC, doxycycline hyclate, doxycycline monohydrate, vibramycin]
+    spectrum_tier: 1
+    strong_markers: []

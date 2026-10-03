@@ -1,0 +1,8 @@
+family_prefix,note
+blaKPC,KPC carbapenemase; variants differ in ceftazidime-avibactam susceptibility (e.g. KPC-31 and KPC-33 restore ceftazidime-avibactam resistance and carbapenem susceptibility)
+blaNDM,NDM metallo-beta-lactamase; variants differ in zinc affinity and carbapenem hydrolysis
+blaOXA-48,OXA-48-like carbapenemase; the generic blaOXA family also contains non-carbapenemases (OXA-1 and OXA-10) so the family rule would hide it
+blaOXA-181,OXA-48-like carbapenemase variant common in South Asia; needs its own prefix because the family rule strips -181 to blaOXA
+blaOXA-232,OXA-48-like carbapenemase variant with weak carbapenem hydrolysis; needs its own prefix because the family rule strips -232 to blaOXA
+blaVIM,VIM metallo-beta-lactamase; variants differ in hydrolysis spectrum
+blaIMP,IMP metallo-beta-lactamase; variants differ in hydrolysis spectrum

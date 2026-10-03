@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Predict antibiotic MIC from one bacterial genome. Predictions of in-vitro susceptibility, not prescribing advice."
 requires-python = ">=3.11"
 dependencies = [
+    # --- API ---
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "pydantic>=2.7",
@@ -16,6 +17,15 @@ dependencies = [
     "python-multipart>=0.0.9",
     # Parses configs/species.yaml and configs/drugs.yaml for the readiness check.
     "pyyaml>=6.0",
+    # --- data + modelling stack (CLAUDE.md "Conventions") ---
+    "pandas>=2.2",
+    "pyarrow",
+    "numpy",
+    "scipy",
+    "xgboost>=2.0",
+    "scikit-learn",
+    "shap",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +33,11 @@ test = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
     "httpx>=0.27",
+]
+# Workflow runner and the demo UI; not needed to train or serve predictions.
+pipeline = [
+    "snakemake",
+    "streamlit",
 ]
 
 [tool.setuptools.packages.find]

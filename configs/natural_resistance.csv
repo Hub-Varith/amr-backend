@@ -1,0 +1,24 @@
+species,drug,note
+KPNEU,ampicillin,chromosomal SHV/LEN/OKP class A beta-lactamase; EUCAST expert rules intrinsic resistance
+PAER,ampicillin,intrinsic AmpC and low outer-membrane permeability; EUCAST expert rules intrinsic resistance
+PAER,amoxicillin-clavulanate,intrinsic AmpC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
+PAER,ampicillin-sulbactam,intrinsic AmpC not inhibited by sulbactam; EUCAST expert rules intrinsic resistance
+PAER,cefazolin,first-generation cephalosporin; intrinsic AmpC and permeability; EUCAST expert rules intrinsic resistance
+PAER,cefotaxime,intrinsic AmpC plus efflux; EUCAST expert rules intrinsic resistance
+PAER,ceftriaxone,intrinsic AmpC plus efflux; EUCAST expert rules intrinsic resistance
+PAER,ertapenem,OprD-independent low activity; EUCAST expert rules intrinsic resistance
+PAER,trimethoprim-sulfamethoxazole,intrinsic efflux and low permeability; EUCAST expert rules intrinsic resistance
+PAER,tetracycline,intrinsic efflux (MexAB-OprM and others); EUCAST expert rules intrinsic resistance
+PAER,doxycycline,intrinsic efflux (MexAB-OprM and others); EUCAST expert rules intrinsic resistance
+PAER,minocycline,intrinsic efflux (MexAB-OprM and others); EUCAST expert rules intrinsic resistance
+PAER,tigecycline,intrinsic efflux (MexXY-OprM); EUCAST expert rules intrinsic resistance
+ABAU,ampicillin,chromosomal OXA-51-like and ADC beta-lactamases; EUCAST expert rules intrinsic resistance
+ABAU,amoxicillin-clavulanate,chromosomal OXA-51-like and ADC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
+ABAU,cefazolin,first-generation cephalosporin; chromosomal ADC cephalosporinase; EUCAST expert rules intrinsic resistance
+ABAU,cefotaxime,chromosomal ADC cephalosporinase; project treats as intrinsic although CLSI publishes a breakpoint
+ABAU,ceftriaxone,chromosomal ADC cephalosporinase; project treats as intrinsic although CLSI publishes a breakpoint
+ABAU,aztreonam,intrinsic low activity of monobactams; EUCAST expert rules intrinsic resistance
+ABAU,ertapenem,intrinsic low activity; EUCAST expert rules intrinsic resistance
+SAUR,aztreonam,monobactams have no activity against Gram-positive organisms
+SAUR,colistin,polymyxins have no activity against Gram-positive organisms
+SAUR,ceftazidime,ceftazidime has poor anti-staphylococcal activity; EUCAST expert rules intrinsic resistance
