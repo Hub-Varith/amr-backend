@@ -17,6 +17,11 @@ HANDOFF_PATTERNS=(
   "unitigs_*.npz" "unitigs_*_rows.parquet" "unitigs_*_index.parquet"
 )
 
+if [ -f data/interim/PILOT ]; then
+  echo "ERROR: data/interim/PILOT exists. Pilot results are never published. Run the full manifest first."
+  exit 1
+fi
+
 # aws s3 ls exits non-zero when the prefix is empty, which is what we want here.
 if aws s3 ls "$RELEASE_URI/" >/dev/null 2>&1; then
   echo "ERROR: release $RELEASE already exists. Releases never change; choose a new RELEASE name."

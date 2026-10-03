@@ -1,0 +1,92 @@
+"""Per-genome tool calls for stage 3 (genomes + QC). Run through make from the repo root:
+    make genome-manifest SPECIES=KPNEU [PILOT=500]
+    make genomes
+    make qc
+The genome list comes from data/interim/genome_manifest.tsv. See docs/DATA_PIPELINE_PLAN.md.
+"""
+
+import csv
+import os
+
+import yaml
+
+SPECIES = yaml.safe_load(open("configs/species.yaml"))["species"]
+MANIFEST_PATH = "data/interim/genome_manifest.tsv"
+GENOMES = {}
+if os.path.exists(MANIFEST_PATH):
+    with open(MANIFEST_PATH) as handle:
+        GENOMES = {row["genome_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
+
+wildcard_constraints:
+    genome_id="[^/]+",
+    species="[A-Z]+",
+
+
+rule qc_inputs:
+    input:
+        expand("data/interim/{genome_id}/stats.tsv", genome_id=GENOMES),
+        expand("data/interim/{genome_id}/mash.tsv", genome_id=GENOMES),
+
+
+rule ncbi_assembly_reports:
+    output:
+        "data/raw/ncbi_assemblies_{species}.jsonl.gz",
+    params:
+        name=lambda wildcards: SPECIES[wildcards.species]["name"],
+    shell:
+        "datasets summary genome taxon '{params.name}' --assembly-source all --as-json-lines"
+        " | gzip > {output}.part && mv {output}.part {output}"
+
+
+rule reference_genome:
+    output:
+        "data/interim/references/{species}.fna.gz",
+    params:
+        accession=lambda wildcards: SPECIES[wildcards.species]["reference_accession"],
+    shell:
+        "python workflow/scripts/download_genome.py --strict --source ncbi"
+        " --accession {params.accession} --output {output}"
+
+
+rule reference_sketch:
+    input:
+        expand("data/interim/references/{species}.fna.gz", species=SPECIES),
+    output:
+        "data/interim/references/references.msh",
+    shell:
+        "mash sketch -o data/interim/references/references {input}"
+
+
+rule download_genome:
+    output:
+        "data/raw/genomes/{genome_id}.fasta.gz",
+    params:
+        source=lambda wildcards: GENOMES[wildcards.genome_id]["source"],
+        accession=lambda wildcards: GENOMES[wildcards.genome_id]["accession"],
+    log:
+        "data/interim/{genome_id}/download.log",
+    resources:
+        downloads=1,
+    shell:
+        "python workflow/scripts/download_genome.py --source {params.source}"
+        " --accession {params.accession} --output {output} > {log} 2>&1"
+
+
+rule assembly_stats:
+    input:
+        "data/raw/genomes/{genome_id}.fasta.gz",
+    output:
+        "data/interim/{genome_id}/stats.tsv",
+    shell:
+        "seqkit stats --all --tabular {input} > {output} 2> /dev/null"
+
+
+# Mash exits non-zero on an empty genome; an empty result lets QC report download_failed.
+rule mash_species:
+    input:
+        genome="data/raw/genomes/{genome_id}.fasta.gz",
+        references="data/interim/references/references.msh",
+    output:
+        "data/interim/{genome_id}/mash.tsv",
+    shell:
+        "mash dist {input.references} {input.genome} > {output} 2> /dev/null || true"
