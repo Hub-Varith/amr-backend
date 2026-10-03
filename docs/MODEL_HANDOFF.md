@@ -117,7 +117,7 @@ KPNEU rows that join to `known_amr`: 89,440 over 7,229 genomes. Censoring: 44,63
  1284788.3 KPNEU   1             0             1           1               1               3                   4
 ```
 
-Naming rules (the prediction side must apply the same ones; see section 7):
+Naming rules (the prediction side must apply the same ones; see section 8):
 
 - lowercase; every run of non-alphanumeric characters → one `_` (`aac(6')-Ib` → `gene_aac_6_ib`).
 - beta-lactamase alleles collapse to the family (`blaSHV-12` → `gene_blashv`), except the
@@ -145,7 +145,7 @@ ceftriaxone R share is 0.87 with `gene_blactx_m` vs 0.64 without.
 
 `genome_id`, `species`, `lineage_cluster` (e.g. `KPNEU_PDS000045272`, or
 `KPNEU_SOLO_<biosample>` for genomes in no cluster), `st` (null), `cluster_method`
-(`ncbi_snp_cluster`). 3,573 clusters; 4,950 genomes are in a multi-genome cluster.
+(`ncbi_snp_cluster`). 3,573 clusters; 4,950 genomes belong to an NCBI SNP cluster, the rest are SOLO.
 No cluster spans train/test or two folds (checked when built).
 
 ## 5. How to build the training table
