@@ -1,0 +1,12 @@
+# Per-genome bio tools for stages 3-4. Linux x86_64 only (no arm64 builds for several tools).
+# mlst is in mlst.yaml. unitig-caller and PopPUNK get their own envs at stages 6 and 8.
+name: genome2mic-tools
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - ncbi-amrfinderplus=4
+  - mash=2.3
+  - ncbi-datasets-cli
+  - seqkit
+  - snakemake-minimal=8

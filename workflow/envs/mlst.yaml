@@ -1,0 +1,7 @@
+# mlst has its own env: next to AMRFinderPlus the solver falls back to mlst 2.11 with a broken Perl.
+name: genome2mic-mlst
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - mlst>=2.23

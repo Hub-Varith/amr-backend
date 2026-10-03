@@ -1,0 +1,7 @@
+species,drug,s_breakpoint,r_breakpoint,version,site
+ECOLI,ceftriaxone,8,32,M100 pre-2010,bloodstream
+ECOLI,meropenem,4,8,M100 pre-2010,bloodstream
+ECOLI,ciprofloxacin,1,2,M100 pre-2010,bloodstream
+KPNEU,ceftriaxone,8,32,M100 pre-2010,bloodstream
+KPNEU,meropenem,4,8,M100 pre-2010,bloodstream
+KPNEU,ciprofloxacin,1,2,M100 pre-2010,bloodstream

@@ -3,3 +3,10 @@ __pycache__/
 .pytest_cache/
 .env
 /secret
+# Data: raw downloads and tool output are rebuilt, never committed.
+/data/raw/
+/data/interim/
+/data/processed/*
+# Frozen and version-controlled per DATA_CONTRACT.md.
+!/data/processed/splits.parquet
+!/data/processed/pairs_kept.csv
