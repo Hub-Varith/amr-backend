@@ -456,7 +456,8 @@ multi-species model.
 | `lab_lower`, `lab_upper` | float | Ground truth interval, copied from stage 2 |
 | `pred_sir` | str | `S` / `I` / `R` after applying breakpoints |
 | `lab_sir` | str | |
-| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` |
+| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `multitask_aft` |
+| `mu_log2` | float | Optional. Unrounded model output in log2 mg/L, for calibration plots |
 | `run_id` | str | Config hash, for reproducibility |
 
 Round **up**: a slightly high MIC prediction is the safer error.

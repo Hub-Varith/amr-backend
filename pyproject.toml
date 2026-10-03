@@ -19,6 +19,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The shared multi-drug model (src/genome2mic/models). torch replaces per-drug xgboost
+# because one network can hold every drug head and a masked censored loss; see MODEL_DESIGN.md.
+model = [
+    "torch>=2.2",
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=15",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+]
 test = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
@@ -27,6 +37,9 @@ test = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+genome2mic = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
