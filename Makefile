@@ -28,7 +28,7 @@ labels:
 # SPECIES=KPNEU (space-separated for several). PILOT=500 makes a throwaway test subset.
 SPECIES ?= KPNEU
 SNAKEMAKE = $${CONDA_EXE:-conda} run --no-capture-output -n genome2mic-tools snakemake -s workflow/Snakefile \
-	--cores 16 --resources downloads=16 --keep-going --rerun-incomplete --quiet rules
+	--cores 16 --resources downloads=16 --keep-going --rerun-incomplete
 
 genome-manifest:
 	$(SNAKEMAKE) $(foreach species,$(SPECIES),data/raw/ncbi_assemblies_$(species).jsonl.gz)
