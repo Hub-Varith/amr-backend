@@ -4,7 +4,13 @@ import pandas as pd
 
 from genome2mic.features.ncbi_known_amr import NcbiKnownAmrBuilder
 
-CLASSES = {"blaKPC": "BETA-LACTAM", "blaSHV": "BETA-LACTAM", "gyrA_S83I": "QUINOLONE", "sul1": "SULFONAMIDE"}
+CLASSES = {
+    "blaKPC": "BETA-LACTAM",
+    "blaSHV": "BETA-LACTAM",
+    "gyrA_S83I": "QUINOLONE",
+    "sul1": "SULFONAMIDE",
+    "aac(6')-Ib-cr": "AMINOGLYCOSIDE/QUINOLONE",
+}
 
 
 def builder() -> NcbiKnownAmrBuilder:
@@ -36,7 +42,7 @@ def test_build_makes_one_wide_row_per_genome() -> None:
         columns=["genome_id", "species", "biosample"],
     )
     metadata = pd.DataFrame(
-        [("SAMN1", "blaKPC-2,blaSHV-11,gyrA_S83I=POINT,sul1"), ("SAMN2", "blaSHV-12")],
+        [("SAMN1", "blaKPC-2,blaSHV-11,gyrA_S83I=POINT,sul1,aac(6')-Ib-cr"), ("SAMN2", "blaSHV-12")],
         columns=["biosample_acc", "AMR_genotypes"],
     )
     features, columns = builder().build(genomes, metadata)
@@ -47,7 +53,8 @@ def test_build_makes_one_wide_row_per_genome() -> None:
     assert rows.loc["573.2", "gene_blashv"] == 1
     assert rows.loc["573.1", "point_gyra_s83i"] == 1
     assert rows.loc["573.1", "n_class_beta_lactam"] == 2
-    assert rows.loc["573.1", "n_class_quinolone"] == 1
+    assert rows.loc["573.1", "n_class_quinolone"] == 2
+    assert rows.loc["573.1", "n_class_aminoglycoside"] == 1
     assert features.drop(columns=["genome_id", "species"]).dtypes.eq("int8").all()
     assert not features.isna().any().any()
     assert set(columns.columns) == {"column_name", "source_symbol", "class", "n_genomes_present"}

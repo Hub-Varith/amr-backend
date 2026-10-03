@@ -83,7 +83,7 @@ class NcbiKnownAmrBuilder:
 
         presence = pd.crosstab(hits["genome_id"], hits["column_name"]).clip(upper=1)
         class_hits = hits.dropna(subset=["class"]).assign(amr_class=lambda frame: frame["class"].str.split("/"))
-        class_hits = class_hits.explode("amr_class")
+        class_hits = class_hits.explode("amr_class", ignore_index=True)
         class_hits["column_name"] = class_hits["amr_class"].map(lambda name: self.column_name("n_class_", name))
         class_counts = pd.crosstab(class_hits["genome_id"], class_hits["column_name"])
 
