@@ -384,7 +384,7 @@ genome_id,species,gene_blakpc_2,gene_blandm,gene_blaoxa_48,gene_blactx_m,gene_bl
 | `species` | str | |
 | `lineage_cluster` | str | e.g. `KPNEU_PP_12` — **must be species-prefixed** |
 | `st` | str | MLST sequence type, or `NA`. Evaluation only |
-| `cluster_method` | str | `poppunk` or `mash_single_linkage` |
+| `cluster_method` | str | `poppunk` or `mash_single_linkage`; `ncbi_snp_cluster` only in the provisional hackathon release (docs/HACKATHON_DATA.md) |
 
 **Preferred method:** PopPUNK, per species. Fallback: Mash distance + single-linkage
 clustering at a threshold that keeps known lineages (ST131, ST258) intact.

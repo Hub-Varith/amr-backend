@@ -1,4 +1,4 @@
-.PHONY: install install-data api test-api test-data download-ast labels genome-manifest genomes qc push-data pull-data docker-build docker-run
+.PHONY: install install-data api test-api test-data download-ast labels genome-manifest genomes qc ncbi-pd hackathon-data push-data pull-data docker-build docker-run
 
 install:
 	pip install -e ".[test]"
@@ -14,7 +14,7 @@ test-api:
 	pytest tests/api
 
 test-data:
-	PYTHONPATH=src pytest tests/ingest tests/genomes tests/qc
+	PYTHONPATH=src pytest tests/ingest tests/genomes tests/qc tests/features tests/splits
 
 # Stage 1: raw AST + metadata from BV-BRC and NCBI into data/raw/ (about 3 minutes).
 download-ast:
@@ -39,6 +39,20 @@ genomes:
 
 qc:
 	PYTHONPATH=src python -m genome2mic.qc.run_qc
+
+# Hackathon shortcut (KPNEU): NCBI Pathogen Detection AMR calls + SNP clusters. See docs/HACKATHON_DATA.md.
+NCBI_PD_URL = https://ftp.ncbi.nlm.nih.gov/pathogen/Results/Klebsiella/latest_snps
+AMRFINDER_DB ?= $(lastword $(wildcard $(HOME)/miniforge3/envs/genome2mic-tools/share/amrfinderplus/data/2*))
+
+ncbi-pd:
+	mkdir -p data/raw/ncbi_pd
+	version=$$(curl -s $(NCBI_PD_URL)/Metadata/ | grep -oE 'PDG[0-9]+\.[0-9]+' | head -1) && \
+	curl -sf -o data/raw/ncbi_pd/kleb.metadata.tsv $(NCBI_PD_URL)/Metadata/$$version.metadata.tsv && \
+	curl -sf -o data/raw/ncbi_pd/kleb.clusters.tsv $(NCBI_PD_URL)/Clusters/$$version.reference_target.cluster_list.tsv && \
+	echo $$version > data/raw/ncbi_pd/VERSION && echo "NCBI Pathogen Detection $$version"
+
+hackathon-data:
+	PYTHONPATH=src python -m genome2mic.features.run_hackathon_data --species KPNEU --amrfinder-db $(AMRFINDER_DB)
 
 # VM only: upload the handoff files as a new frozen S3 release. Optional: RELEASE=<name>.
 push-data:
