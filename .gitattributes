@@ -1,0 +1,4 @@
+# Unix line endings for files run by bash/make or inside Linux containers, whatever core.autocrlf says.
+*.sh text eol=lf
+Dockerfile text eol=lf
+Makefile text eol=lf
