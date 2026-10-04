@@ -1,0 +1,8 @@
+data/
+results/
+logs/
+status/
+.snakemake/
+__pycache__/
+*.pid
+local_tools.json

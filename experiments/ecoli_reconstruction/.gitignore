@@ -1,0 +1,8 @@
+*.fastq.gz
+*.zip
+reference.fasta
+subsets/
+results/
+tools/
+.snakemake/
+*.log
