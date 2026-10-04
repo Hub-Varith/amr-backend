@@ -9,6 +9,7 @@ __pycache__/
 /data/interim
 /.snakemake/
 /data/processed/*
-# Frozen and version-controlled per DATA_CONTRACT.md.
-!/data/processed/splits.parquet
+# Version-controlled per DATA_CONTRACT.md.
 !/data/processed/pairs_kept.csv
+# Un-ignore splits.parquet only when the frozen splits exist. The current one is the
+# provisional hackathon split (docs/HACKATHON_DATA.md) and must not be committed.
