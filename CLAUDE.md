@@ -197,6 +197,11 @@ Use the band's **upper** end when comparing to the breakpoint.
 | `band_low` > R breakpoint | Likely inactive |
 | Otherwise | Uncertain — wait for lab |
 
+Where a species × drug pair has fitted probability thresholds, the call uses
+`p_active` = P(MIC ≤ S breakpoint) instead: ≥ `active_min` → likely active,
+≤ `inactive_max` → likely inactive. Thresholds are fitted on out-of-fold predictions
+for VME ≤ 1% and ME ≤ 3%. See `DATA_CONTRACT.md` stage 12.
+
 Overrides applied after the model:
 
 1. Natural resistance for the species → inactive.

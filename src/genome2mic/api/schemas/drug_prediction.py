@@ -9,7 +9,7 @@ from genome2mic.api.schemas.override import Override
 
 
 class DrugPrediction(BaseModel):
-    """Predicted MIC, 90% band, breakpoints and call for one drug (DATA_CONTRACT.md stage 12). MICs in mg/L."""
+    """Predicted MIC, 90% band, breakpoints, P(active) and call for one drug (DATA_CONTRACT.md stage 12). MICs in mg/L."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -19,6 +19,7 @@ class DrugPrediction(BaseModel):
     band_high: PositiveFloat | None
     s_breakpoint: PositiveFloat | None = None
     r_breakpoint: PositiveFloat | None = None
+    p_active: float | None = Field(default=None, ge=0.0, le=1.0)
     call: Call
     margin_steps: int | None
     reasons: list[str] = []

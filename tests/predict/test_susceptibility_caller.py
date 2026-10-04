@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from genome2mic.ingest.breakpoint_table import BreakpointTable
+from genome2mic.predict.call_thresholds import CallThresholds
 from genome2mic.predict.susceptibility_caller import SusceptibilityCaller
 
 
@@ -54,3 +55,40 @@ def test_drug_without_breakpoint_in_the_chosen_standard_is_uncertain(caller: Sus
     assert result.call == "uncertain"
     assert result.s_breakpoint is None
     assert result.reason == "no CLSI breakpoint for this drug"
+
+
+def test_probability_active_is_the_chance_the_mic_is_at_or_below_s() -> None:
+    # mu exactly on the S breakpoint (log2 2 = 1): half the bell curve is at or below it.
+    assert SusceptibilityCaller.probability_active(mu_log2=1.0, sigma_log2=2.0, s_breakpoint=2.0) == pytest.approx(0.5)
+    assert SusceptibilityCaller.probability_active(mu_log2=-5.0, sigma_log2=1.0, s_breakpoint=2.0) > 0.99
+    assert SusceptibilityCaller.probability_active(mu_log2=7.0, sigma_log2=1.0, s_breakpoint=2.0) < 0.01
+
+
+def test_probability_rule_is_used_when_the_pair_has_thresholds(caller: SusceptibilityCaller) -> None:
+    thresholds = CallThresholds(
+        [{"species": "KPNEU", "drug": "test-drug", "active_min": 0.9, "inactive_max": 0.2, "n_resistant": 50,
+          "n_susceptible": 50}],
+        vme_target=0.01,
+        me_target=0.03,
+    )
+    probability_caller = SusceptibilityCaller(caller.breakpoints, standard="CLSI", year=2026, thresholds=thresholds)
+
+    # The band crosses S (4 > 2), so the band rule alone would say uncertain.
+    active = probability_caller.call("KPNEU", "test-drug", band_low=0.5, band_high=4.0, p_active=0.95)
+    inactive = probability_caller.call("KPNEU", "test-drug", band_low=1.0, band_high=16.0, p_active=0.1)
+    unsure = probability_caller.call("KPNEU", "test-drug", band_low=0.5, band_high=4.0, p_active=0.5)
+
+    assert (active.call, active.p_active, active.margin_steps) == ("likely_active", 0.95, 0)
+    assert inactive.call == "likely_inactive"
+    assert unsure.call == "uncertain"
+
+
+def test_band_rule_is_the_fallback_without_thresholds_for_the_pair(caller: SusceptibilityCaller) -> None:
+    probability_caller = SusceptibilityCaller(
+        caller.breakpoints, standard="CLSI", year=2026, thresholds=CallThresholds([], vme_target=0.01, me_target=0.03)
+    )
+
+    result = probability_caller.call("KPNEU", "test-drug", band_low=0.5, band_high=4.0, p_active=0.99)
+
+    assert result.call == "uncertain"
+    assert result.p_active == 0.99

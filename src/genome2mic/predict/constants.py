@@ -8,3 +8,9 @@ CALL_YEAR = 2026
 LIKELY_ACTIVE = "likely_active"
 UNCERTAIN = "uncertain"
 LIKELY_INACTIVE = "likely_inactive"
+
+# Targets for the probability thresholds (CallThresholds). VME is kept below the 1.5% target
+# commonly used in AST device evaluation; these are tuning targets, not claims.
+VME_TARGET = 0.01
+ME_TARGET = 0.03
+MIN_PER_CLASS = 20

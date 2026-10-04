@@ -509,6 +509,7 @@ multi-species model.
 | `lab_sir` | str | |
 | `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `multitask_aft` |
 | `mu_log2` | float | Optional. Unrounded model output in log2 mg/L, for calibration plots |
+| `p_active` | float | Optional. P(MIC ≤ S breakpoint) from the model, 0–1. Null when the pair has no breakpoint |
 | `run_id` | str | Config hash, for reproducibility |
 
 Round **up**: a slightly high MIC prediction is the safer error.
@@ -581,12 +582,30 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | `pred_mic` | float | yes | Null when an override skips the model |
 | `band_low`, `band_high` | float | yes | 90% conformal band. All three MIC fields are null together |
 | `s_breakpoint`, `r_breakpoint` | float | yes | Breakpoints used for the call |
+| `p_active` | float | yes | P(MIC ≤ S breakpoint), 0–1. Null when there is no breakpoint or an override skips the model |
 | `call` | str | no | `likely_active` / `uncertain` / `likely_inactive` |
 | `margin_steps` | int | yes | Doubling steps below the S breakpoint |
 | `reasons` | list[str] | no | Markers behind the call, e.g. `gyrA S83L` |
 | `override` | str | yes | `natural_resistance` / `strong_marker`. Set → call is `likely_inactive` |
 
-**Call logic:**
+**Call logic.** Two rules; the probability rule applies where the species × drug pair has
+fitted thresholds (`call_thresholds.json` in the model folder), the band rule everywhere else.
+
+Probability rule (added 2026-10-03):
+
+| Condition | Call |
+| --------- | ---- |
+| `p_active` ≥ `active_min` | Likely active |
+| `p_active` ≤ `inactive_max` | Likely inactive |
+| Otherwise | Uncertain — wait for lab |
+
+`active_min` and `inactive_max` are fitted per pair on out-of-fold predictions (never test
+rows) so that VME ≤ 1% and ME ≤ 3% there. A pair needs ≥ 20 lab-resistant and ≥ 20
+lab-susceptible rows. Lab category for fitting comes from the lab interval and the same
+breakpoints; rows that span a breakpoint are left out. `margin_steps` is 0 when the band top
+is above S.
+
+Band rule (fallback):
 
 | Condition | Call |
 | --------- | ---- |
