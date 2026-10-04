@@ -1,7 +1,7 @@
 # Developer handoff — training data
 
 **For:** anyone (person or AI agent) training or serving models on this repo.
-**Branch:** `develop` · **Release:** `2026-10-04-hackathon` (provisional) · **Species with features:** KPNEU only
+**Branch:** `develop` · **Release:** `2026-10-04-hackathon-all5` (provisional) · **Species with features:** all 5 (KPNEU, ECOLI, SAUR, PAER, ABAU)
 **Data owner:** Hub · **Last updated:** 2026-10-04
 
 Read this whole file before writing training code. `DATA_CONTRACT.md` defines every
@@ -33,7 +33,7 @@ aws configure --profile g2m        # key id + secret from Hub, region us-east-1,
 aws sts get-caller-identity --profile g2m   # should show .../user/<your-name>
 
 # 4. Data
-make pull-data                     # -> OK: release 2026-10-04-hackathon verified in data/processed
+make pull-data                     # -> OK: release 2026-10-04-hackathon-all5 verified in data/processed
 
 # 5. Check everything works (2 epochs, about 1 minute)
 python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir /tmp/g2m_smoke \
@@ -45,7 +45,8 @@ python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir /
 | What | Where |
 | ---- | ----- |
 | S3 bucket | `s3://g2m-data-v1` (region `us-east-1`) |
-| Current release | `s3://g2m-data-v1/releases/2026-10-04-hackathon/` |
+| Current release | `s3://g2m-data-v1/releases/2026-10-04-hackathon-all5/` |
+| Previous release (KPNEU only) | `s3://g2m-data-v1/releases/2026-10-04-hackathon/` |
 | Name of the newest release | `s3://g2m-data-v1/releases/LATEST` (a text file) |
 | After `make pull-data` | `data/processed/` in your repo folder |
 
@@ -58,7 +59,7 @@ python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir /
 
 ```bash
 make pull-data                                 # newest release
-make pull-data RELEASE=2026-10-04-hackathon    # a pinned release (use this when comparing models)
+make pull-data RELEASE=2026-10-04-hackathon-all5    # a pinned release (use this when comparing models)
 aws s3 cp s3://g2m-data-v1/releases/LATEST - --profile g2m   # which release is newest?
 ```
 
@@ -81,16 +82,27 @@ current `splits.parquet` is provisional and is deliberately not in git.
 | File | Rows | One row per | Use |
 | ---- | ---: | ----------- | --- |
 | `labels.parquet` | 383,150 | genome × drug | **Targets** (MIC intervals). All 5 species, 48 drugs |
-| `known_amr.parquet` | 7,229 | genome | **Features** (KPNEU only) |
-| `known_amr_columns.csv` | 952 | feature column | Column → source gene symbol, AMR class, genome count |
-| `splits.parquet` | 7,229 | genome | `train` (folds 0–4) / `test` |
-| `lineages.parquet` | 7,229 | genome | Cluster IDs. **Splitting/evaluation only, never a feature** |
-| `pairs_kept.csv` | 97 | species × drug | Pairs with enough data (29 for KPNEU) |
+| `known_amr.parquet` | 28,170 | genome | **Features**, all 5 species |
+| `known_amr_columns.csv` | 2,999 | feature column | Column → source gene symbol, AMR class, genome count |
+| `splits.parquet` | 28,170 | genome | `train` (folds 0–4) / `test`, per species |
+| `lineages.parquet` | 28,170 | genome | Cluster IDs. **Splitting/evaluation only, never a feature** |
+| `pairs_kept.csv` | 97 | species × drug | Pairs with enough data (KPNEU 29, ECOLI 25, ABAU 17, PAER 14, SAUR 12) |
 | `label_counts.csv` | 219 | species × drug | Counts behind `pairs_kept.csv` |
 | `RELEASE`, `SHA256SUMS`, `download_manifest.json`, `tool_versions.json` | — | — | Provenance |
 
 `genome_id` (str) is the key in every file. `known_amr`, `splits`, and `lineages` hold
-exactly the same 7,229 genome IDs.
+exactly the same 28,170 genome IDs.
+
+Trainable lab results (labels × `pairs_kept` × genomes with features):
+
+| Species | Genomes | Drugs | Train rows | Test rows |
+| ------- | ------: | ----: | ---------: | --------: |
+| ECOLI | 16,082 | 25 | 158,315 | 28,270 |
+| KPNEU | 7,229 | 29 | 72,203 | 13,298 |
+| ABAU | 1,206 | 17 | 11,382 | 1,969 |
+| SAUR | 1,899 | 12 | 9,847 | 1,614 |
+| PAER | 1,754 | 14 | 8,482 | 1,513 |
+| **Total** | **28,170** | 37 distinct | **260,229** | **46,664** |
 
 ## 4. What each file looks like
 
@@ -131,13 +143,13 @@ KPNEU rows that join to `known_amr`: 89,440 over 7,229 genomes. Censoring: 44,63
 
 ### `known_amr.parquet` — features
 
-- Columns: `genome_id`, `species`, then 952 int8 feature columns.
-  - 319 `gene_<family>`: acquired gene present (0/1).
-  - 615 `point_<gene>_<mutation>`: resistance mutation present (0/1).
-  - 18 `n_class_<class>`: count of hits in that drug class (small non-negative int).
-- No nulls. A genome with no hit for a column has 0.
-- Only **307** columns are present in ≥ 5 genomes. Most `point_` columns are rare.
-- Median 17 gene/point hits per genome.
+- Columns: `genome_id`, `species`, then 3,028 int8 feature columns.
+  - 708 `gene_<family>`: acquired gene present (0/1).
+  - 2,291 `point_<gene>_<mutation>`: resistance mutation present (0/1). Mutations are species-specific.
+  - 29 `n_class_<class>`: count of hits in that drug class (small non-negative int).
+- No nulls. A genome with no hit for a column has 0, including columns only another species has.
+- Only **832** columns are present in ≥ 5 genomes of some species. Most `point_` columns are rare.
+- KPNEU alone: 952 columns, median 17 gene/point hits per genome.
 
 ```
  genome_id species gene_blakpc_2 gene_blactx_m gene_blashv point_gyra_s83i point_parc_s80i n_class_beta_lactam n_class_quinolone
@@ -174,8 +186,9 @@ ceftriaxone R share is 0.87 with `gene_blactx_m` vs 0.64 without.
 
 `genome_id`, `species`, `lineage_cluster` (e.g. `KPNEU_PDS000045272`, or
 `KPNEU_SOLO_<biosample>` for genomes in no cluster), `st` (null), `cluster_method`
-(`ncbi_snp_cluster`). 3,573 clusters; 4,950 genomes belong to an NCBI SNP cluster, the
-rest are SOLO. No cluster spans train/test or two folds (checked when built).
+(`ncbi_snp_cluster`). 19,162 clusters over 5 species; 13,310 genomes are SOLO. Every
+cluster is species-prefixed. No cluster spans train/test, two folds, or two species
+(checked when built).
 
 ## 5. Training the existing shared model
 
@@ -184,7 +197,7 @@ The shared multi-drug model (`multitask_aft`, see `MODEL_DESIGN.md`) reads
 
 ```bash
 python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir models/multitask \
-  --species KPNEU --no-unitigs
+  --no-unitigs                       # all 5 species; add --species KPNEU for one
 ```
 
 - `--no-unitigs` is **required**: this release has no unitig matrix.
@@ -203,7 +216,7 @@ features = pd.read_parquet("data/processed/known_amr.parquet")
 splits = pd.read_parquet("data/processed/splits.parquet")
 pairs = pd.read_csv("data/processed/pairs_kept.csv")
 
-labels = labels.merge(pairs[["species", "drug"]], on=["species", "drug"])   # 29 KPNEU drugs
+labels = labels.merge(pairs[["species", "drug"]], on=["species", "drug"])   # 97 species x drug pairs
 data = labels.merge(features, on=["genome_id", "species"]).merge(splits[["genome_id", "split", "fold"]], on="genome_id")
 feature_columns = [c for c in features.columns if c not in ("genome_id", "species")]
 
@@ -213,8 +226,8 @@ train = data[data["split"] == "train"]       # tune and calibrate with `fold`
 test = data[data["split"] == "test"]         # score ONCE, at the very end
 ```
 
-Inner joins are correct: labels without features (other species, and 10% of KPNEU) drop
-out; nothing is imputed.
+Inner joins are correct: labels for genomes without NCBI AMR results (3–17% per species)
+drop out; nothing is imputed.
 
 ## 7. Rules (break one and the results are invalid)
 
@@ -228,7 +241,7 @@ out; nothing is imputed.
 5. **Round MIC predictions up** to the next doubling step (a high prediction is the safer error).
 6. **Report VME first** (predicted S, lab R). Targets: VME ≤ 1.5%, ME ≤ 3%, EA ≥ 90% — these
    are common device-evaluation figures, not thresholds we have met.
-7. **Write the release name next to every result** (`release=2026-10-04-hackathon`).
+7. **Write the release name next to every result** (`release=2026-10-04-hackathon-all5`).
 8. **Never edit files in `data/processed/` by hand.** If the data looks wrong, tell Hub.
 
 ## 8. Sharing trained models
@@ -246,22 +259,22 @@ headline metrics (VME first).
 1. **Test scores are optimistic.** Splits come from NCBI SNP clusters: near-identical
    isolates stay together, but a lineage such as ST258 can sit in train and test.
 2. **Features come from NCBI's AMRFinderPlus runs** (mixed versions), not our own run.
-3. **10% of labelled KPNEU genomes are missing** (no NCBI AMR result).
-4. **Breakpoints are unverified** (`configs/breakpoints/README.md`; only ceftriaxone,
-   meropenem, ciprofloxacin exist for KPNEU/ECOLI). S/I/R-only labels for those three drugs
-   used them; any S/I/R call made from a predicted MIC is provisional.
+3. **Some labelled genomes are missing** (no NCBI AMR result): KPNEU 9%, ECOLI 10%, SAUR 17%,
+   PAER 3%, ABAU 13%.
+4. **Breakpoints are checked for 15 KPNEU drugs only** (`configs/breakpoints/README.md`).
+   Calls for other species and drugs are provisional or `uncertain` (no breakpoint).
 5. **Thin drugs:** tigecycline, colistin, minocycline, chloramphenicol, polymyxin-b,
    ceftazidime-avibactam, ceftolozane-tazobactam have few R or S in test — noisy scores.
 6. **Ampicillin:** KPNEU is naturally resistant; exclude it from ranking.
-7. Only KPNEU has features. The other species' labels are in `labels.parquet` but cannot
-   train until their features exist.
+7. **Each species has its own test set** (15–20% of its genomes). Report results per species;
+   ECOLI has twice as many rows as all others together and will dominate pooled numbers.
 
 Background on the shortcut: `docs/HACKATHON_DATA.md`.
 
 ## 10. Prediction side (API / demo)
 
-- A new genome needs AMRFinderPlus (`amrfinder -n <fasta> -O Klebsiella_pneumoniae --plus`),
-  then conversion of its output to **exactly** these 952 columns with the naming rules in
+- A new genome needs AMRFinderPlus (`amrfinder -n <fasta> -O <amrfinder_organism> --plus`, see
+  `configs/species.yaml`), then conversion of its output to **exactly** the model's columns (`spec.json`) with the naming rules in
   section 4: unknown genes ignored, missing columns 0, same order. That converter does not
   exist yet; use `known_amr_columns.csv` as the column list.
 - AMRFinderPlus runs on Linux (the data VM), not on a Mac.
