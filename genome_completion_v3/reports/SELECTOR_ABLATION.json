@@ -1,0 +1,4504 @@
+{
+  "model_changed": false,
+  "purpose": "Descriptive final-test comparison against the same-library support rule; never used for model selection",
+  "summary": [
+    {
+      "species": "ALL",
+      "percent": null,
+      "conditions": 550,
+      "selected_f1": 0.8965652141979706,
+      "support_f1": 0.8970967939278686,
+      "different_selections": 203
+    },
+    {
+      "species": "ALL",
+      "percent": 65,
+      "conditions": 50,
+      "selected_f1": 0.8953662894782517,
+      "support_f1": 0.8966273380698392,
+      "different_selections": 20
+    },
+    {
+      "species": "ECOLI",
+      "percent": null,
+      "conditions": 110,
+      "selected_f1": 0.8418995446231785,
+      "support_f1": 0.8470709461961216,
+      "different_selections": 58
+    },
+    {
+      "species": "ECOLI",
+      "percent": 65,
+      "conditions": 10,
+      "selected_f1": 0.8460965329865555,
+      "support_f1": 0.8484573775476744,
+      "different_selections": 5
+    },
+    {
+      "species": "KPNEU",
+      "percent": null,
+      "conditions": 110,
+      "selected_f1": 0.9006024171868399,
+      "support_f1": 0.9006024171868399,
+      "different_selections": 0
+    },
+    {
+      "species": "KPNEU",
+      "percent": 65,
+      "conditions": 10,
+      "selected_f1": 0.8961393328897154,
+      "support_f1": 0.8961393328897154,
+      "different_selections": 0
+    },
+    {
+      "species": "SAUR",
+      "percent": null,
+      "conditions": 110,
+      "selected_f1": 0.9145885473605525,
+      "support_f1": 0.9164822043615505,
+      "different_selections": 73
+    },
+    {
+      "species": "SAUR",
+      "percent": 65,
+      "conditions": 10,
+      "selected_f1": 0.9196259982385302,
+      "support_f1": 0.9183933991407077,
+      "different_selections": 8
+    },
+    {
+      "species": "PAER",
+      "percent": null,
+      "conditions": 110,
+      "selected_f1": 0.9098297570526287,
+      "support_f1": 0.9098297570526287,
+      "different_selections": 0
+    },
+    {
+      "species": "PAER",
+      "percent": 65,
+      "conditions": 10,
+      "selected_f1": 0.9269485636352556,
+      "support_f1": 0.9269485636352556,
+      "different_selections": 0
+    },
+    {
+      "species": "ABAU",
+      "percent": null,
+      "conditions": 110,
+      "selected_f1": 0.9159058047666542,
+      "support_f1": 0.9114986448422021,
+      "different_selections": 72
+    },
+    {
+      "species": "ABAU",
+      "percent": 65,
+      "conditions": 10,
+      "selected_f1": 0.8880210196412015,
+      "support_f1": 0.8931980171358431,
+      "different_selections": 7
+    }
+  ],
+  "rows": [
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 20,
+      "selected_f1": 0.881797993315683,
+      "support_f1": 0.881797993315683,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 30,
+      "selected_f1": 0.8882751744359341,
+      "support_f1": 0.8866331606876907,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 40,
+      "selected_f1": 0.8784992398576917,
+      "support_f1": 0.8767985682745957,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 50,
+      "selected_f1": 0.8725946875968256,
+      "support_f1": 0.8754267469286584,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 60,
+      "selected_f1": 0.9005438574913143,
+      "support_f1": 0.8725232409783839,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 65,
+      "selected_f1": 0.8562959905249352,
+      "support_f1": 0.8579381384225685,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 70,
+      "selected_f1": 0.8672942440905353,
+      "support_f1": 0.8847424228094475,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 80,
+      "selected_f1": 0.9123293578888806,
+      "support_f1": 0.9282598933937327,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 90,
+      "selected_f1": 0.9267249617737003,
+      "support_f1": 0.8979434423193244,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 95,
+      "selected_f1": 0.8649753383312464,
+      "support_f1": 0.9454336311722564,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 98,
+      "selected_f1": 0.9808040163904168,
+      "support_f1": 0.9807671010373215,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 20,
+      "selected_f1": 0.9318213690860048,
+      "support_f1": 0.9441477546062208,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 30,
+      "selected_f1": 0.9321773578063662,
+      "support_f1": 0.9321773578063662,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 40,
+      "selected_f1": 0.9257393798946465,
+      "support_f1": 0.9257393798946465,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 50,
+      "selected_f1": 0.9474126555058606,
+      "support_f1": 0.9307386869121727,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 60,
+      "selected_f1": 0.9166548429998955,
+      "support_f1": 0.9166548429998955,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 65,
+      "selected_f1": 0.9269427064866358,
+      "support_f1": 0.9146232882616478,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 70,
+      "selected_f1": 0.9200819344473927,
+      "support_f1": 0.9109741323869693,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 80,
+      "selected_f1": 0.984617517144247,
+      "support_f1": 0.9650701084347767,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 90,
+      "selected_f1": 0.9942322807768524,
+      "support_f1": 0.9957069702296556,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 95,
+      "selected_f1": 0.994365307663083,
+      "support_f1": 0.9943578926593396,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "percent": 98,
+      "selected_f1": 0.9859431065734472,
+      "support_f1": 0.9932177283116367,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 20,
+      "selected_f1": 0.8506758395598168,
+      "support_f1": 0.8520308173057759,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 30,
+      "selected_f1": 0.8476717550608963,
+      "support_f1": 0.8703253330338971,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 40,
+      "selected_f1": 0.8619887116930423,
+      "support_f1": 0.8619887116930423,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 50,
+      "selected_f1": 0.8475056028708272,
+      "support_f1": 0.8481162130833089,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 60,
+      "selected_f1": 0.8299365073174829,
+      "support_f1": 0.8299365073174829,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 65,
+      "selected_f1": 0.8091250221002283,
+      "support_f1": 0.8091250221002283,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 70,
+      "selected_f1": 0.8143814594326539,
+      "support_f1": 0.8143814594326539,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 80,
+      "selected_f1": 0.7582028598843877,
+      "support_f1": 0.7582028598843877,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 90,
+      "selected_f1": 0.8976554630757698,
+      "support_f1": 0.8976554630757698,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 95,
+      "selected_f1": 0.9063222277547804,
+      "support_f1": 0.8977864840456763,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "percent": 98,
+      "selected_f1": 0.9798539208604221,
+      "support_f1": 0.9798539208604221,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 20,
+      "selected_f1": 0.9721329791448977,
+      "support_f1": 0.9696908929969742,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 30,
+      "selected_f1": 0.9720490469669593,
+      "support_f1": 0.9726858763197713,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 40,
+      "selected_f1": 0.9516789792784506,
+      "support_f1": 0.9695110857493591,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 50,
+      "selected_f1": 0.9423313958436592,
+      "support_f1": 0.9674641499643886,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 60,
+      "selected_f1": 0.9305319176996497,
+      "support_f1": 0.9605579508670132,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 65,
+      "selected_f1": 0.9260227869229013,
+      "support_f1": 0.963058598462147,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 70,
+      "selected_f1": 0.9159948296197609,
+      "support_f1": 0.9585514582042765,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 80,
+      "selected_f1": 0.9907770916041758,
+      "support_f1": 0.9907770916041758,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 90,
+      "selected_f1": 0.9884088098956153,
+      "support_f1": 0.9922000605677115,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 95,
+      "selected_f1": 0.990592729337558,
+      "support_f1": 0.990592729337558,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "percent": 98,
+      "selected_f1": 0.9531510334243042,
+      "support_f1": 0.9918229380258236,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 20,
+      "selected_f1": 0.8514715593080829,
+      "support_f1": 0.8182912945525069,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 30,
+      "selected_f1": 0.858715847741938,
+      "support_f1": 0.858715847741938,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 40,
+      "selected_f1": 0.829872760664755,
+      "support_f1": 0.8485819333382716,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 50,
+      "selected_f1": 0.8374241967130739,
+      "support_f1": 0.8374241967130739,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 60,
+      "selected_f1": 0.8123897772369174,
+      "support_f1": 0.8253025171299879,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 65,
+      "selected_f1": 0.7848795923919968,
+      "support_f1": 0.7993027902725818,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 70,
+      "selected_f1": 0.748182707644582,
+      "support_f1": 0.7645027832413943,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 80,
+      "selected_f1": 0.8572430239743936,
+      "support_f1": 0.742296303704317,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 90,
+      "selected_f1": 0.9953347423119704,
+      "support_f1": 0.9966803406471807,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 95,
+      "selected_f1": 0.9970304198506893,
+      "support_f1": 0.9970377509411439,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "percent": 98,
+      "selected_f1": 0.9848687111524544,
+      "support_f1": 0.9999509352959215,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 20,
+      "selected_f1": 0.908076270413753,
+      "support_f1": 0.908076270413753,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 30,
+      "selected_f1": 0.8283129761756985,
+      "support_f1": 0.8698204038806749,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 40,
+      "selected_f1": 0.8007141279876515,
+      "support_f1": 0.8007141279876515,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 50,
+      "selected_f1": 0.8849625872003493,
+      "support_f1": 0.8849625872003493,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 60,
+      "selected_f1": 0.8664314826276863,
+      "support_f1": 0.8664314826276863,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 65,
+      "selected_f1": 0.8477567620831907,
+      "support_f1": 0.8477567620831907,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 70,
+      "selected_f1": 0.823227311564394,
+      "support_f1": 0.823227311564394,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 80,
+      "selected_f1": 0.581134345891747,
+      "support_f1": 0.581134345891747,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 90,
+      "selected_f1": 0.9781049378147354,
+      "support_f1": 0.6034525032677962,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 95,
+      "selected_f1": 0.9937963503658028,
+      "support_f1": 0.9937963503658028,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "percent": 98,
+      "selected_f1": 0.9923839151262014,
+      "support_f1": 0.9923839151262014,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 20,
+      "selected_f1": 0.8781851769307824,
+      "support_f1": 0.8781851769307824,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 30,
+      "selected_f1": 0.9087889302656061,
+      "support_f1": 0.8685560714794138,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 40,
+      "selected_f1": 0.9729848180278764,
+      "support_f1": 0.8765535392180622,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 50,
+      "selected_f1": 0.8597684202550728,
+      "support_f1": 0.8597684202550728,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 60,
+      "selected_f1": 0.9692722749301946,
+      "support_f1": 0.9441615644878812,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 65,
+      "selected_f1": 0.9603946659082955,
+      "support_f1": 0.9596495911908739,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 70,
+      "selected_f1": 0.9725949561088865,
+      "support_f1": 0.9717252343379975,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 80,
+      "selected_f1": 0.98505987812625,
+      "support_f1": 0.9837542474227188,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 90,
+      "selected_f1": 0.9891393103862859,
+      "support_f1": 0.9776862760746601,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 95,
+      "selected_f1": 0.980596287040523,
+      "support_f1": 0.9775024486534285,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "percent": 98,
+      "selected_f1": 0.9765763251533354,
+      "support_f1": 0.9692540132200189,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 20,
+      "selected_f1": 0.9494262488747397,
+      "support_f1": 0.9437492946205638,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 30,
+      "selected_f1": 0.9437092430879964,
+      "support_f1": 0.9371998149531543,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 40,
+      "selected_f1": 0.9386987893280822,
+      "support_f1": 0.9270079526114974,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 50,
+      "selected_f1": 0.9500390312279733,
+      "support_f1": 0.9500390312279733,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 60,
+      "selected_f1": 0.9509440947797112,
+      "support_f1": 0.9399716553234787,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 65,
+      "selected_f1": 0.9459014875744465,
+      "support_f1": 0.9336758383706281,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 70,
+      "selected_f1": 0.9645364815733269,
+      "support_f1": 0.9510900630731409,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 80,
+      "selected_f1": 0.9779525780309066,
+      "support_f1": 0.9569316082497521,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 90,
+      "selected_f1": 0.9383706620661776,
+      "support_f1": 0.9498803637774323,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 95,
+      "selected_f1": 0.9999752062837195,
+      "support_f1": 0.9999851236964639,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "percent": 98,
+      "selected_f1": 0.9999628096099967,
+      "support_f1": 0.9999876030496497,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 20,
+      "selected_f1": 0.8766198696871602,
+      "support_f1": 0.8766198696871602,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 30,
+      "selected_f1": 0.7803432180998119,
+      "support_f1": 0.8229283147206222,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 40,
+      "selected_f1": 0.8791895016506567,
+      "support_f1": 0.8384855553273778,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 50,
+      "selected_f1": 0.867939013361386,
+      "support_f1": 0.867939013361386,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 60,
+      "selected_f1": 0.8976031537818874,
+      "support_f1": 0.8976031537818874,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 65,
+      "selected_f1": 0.8621488912019959,
+      "support_f1": 0.8861078509771755,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 70,
+      "selected_f1": 0.8446547097050547,
+      "support_f1": 0.8722072310566775,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 80,
+      "selected_f1": 0.8526158260388296,
+      "support_f1": 0.8526158260388296,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 90,
+      "selected_f1": 0.9054572234017066,
+      "support_f1": 0.8168290073136024,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 95,
+      "selected_f1": 0.9996690697919552,
+      "support_f1": 0.9855914467038198,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "percent": 98,
+      "selected_f1": 0.9996200514768967,
+      "support_f1": 0.993035686021453,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 20,
+      "selected_f1": 0.965092116196812,
+      "support_f1": 0.965092116196812,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 30,
+      "selected_f1": 0.9695354223255628,
+      "support_f1": 0.9634483776727722,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 40,
+      "selected_f1": 0.95759899340853,
+      "support_f1": 0.95759899340853,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 50,
+      "selected_f1": 0.9568718161079516,
+      "support_f1": 0.957091894722071,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 60,
+      "selected_f1": 0.9548217391609007,
+      "support_f1": 0.9548217391609007,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 65,
+      "selected_f1": 0.9607422912173897,
+      "support_f1": 0.9607422912173897,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 70,
+      "selected_f1": 0.9644447916167957,
+      "support_f1": 0.955772211512602,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 80,
+      "selected_f1": 0.9645757457327614,
+      "support_f1": 0.9783858526482879,
+      "different_selection": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 90,
+      "selected_f1": 0.9972645497443964,
+      "support_f1": 0.9972645497443964,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 95,
+      "selected_f1": 0.9972740791721459,
+      "support_f1": 0.9972740791721459,
+      "different_selection": false
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "percent": 98,
+      "selected_f1": 0.9932500802092845,
+      "support_f1": 0.9932500802092845,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 20,
+      "selected_f1": 0.7890165892536622,
+      "support_f1": 0.7810232156049858,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 30,
+      "selected_f1": 0.7864172816695864,
+      "support_f1": 0.776278014202653,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 40,
+      "selected_f1": 0.7766871663590067,
+      "support_f1": 0.7553192019881769,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 50,
+      "selected_f1": 0.7719779932162946,
+      "support_f1": 0.7816124198679143,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 60,
+      "selected_f1": 0.8361460677312187,
+      "support_f1": 0.8361460677312187,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 65,
+      "selected_f1": 0.8184095193866353,
+      "support_f1": 0.8184095193866353,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 70,
+      "selected_f1": 0.8124138869381458,
+      "support_f1": 0.8124138869381458,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 80,
+      "selected_f1": 0.839672014734312,
+      "support_f1": 0.839672014734312,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 90,
+      "selected_f1": 0.9139642626768343,
+      "support_f1": 0.9139642626768343,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 95,
+      "selected_f1": 0.965060258290908,
+      "support_f1": 0.8967082744061162,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 98,
+      "selected_f1": 0.9750533078122655,
+      "support_f1": 0.9750533078122655,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 20,
+      "selected_f1": 0.7294694217777051,
+      "support_f1": 0.800770871591926,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 30,
+      "selected_f1": 0.873622962958608,
+      "support_f1": 0.873622962958608,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 40,
+      "selected_f1": 0.8610927831812818,
+      "support_f1": 0.8610927831812818,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 50,
+      "selected_f1": 0.8336209692871627,
+      "support_f1": 0.8336209692871627,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 60,
+      "selected_f1": 0.7920461175682475,
+      "support_f1": 0.7920461175682475,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 65,
+      "selected_f1": 0.780651051400435,
+      "support_f1": 0.780651051400435,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 70,
+      "selected_f1": 0.03203573076557996,
+      "support_f1": 0.03203573076557996,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 80,
+      "selected_f1": 0.6563432578944847,
+      "support_f1": 0.6563432578944847,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 90,
+      "selected_f1": 0.6584907944376585,
+      "support_f1": 0.6584907944376585,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 95,
+      "selected_f1": 0.9978646418059895,
+      "support_f1": 0.9978646418059895,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "percent": 98,
+      "selected_f1": 0.9999432232179187,
+      "support_f1": 0.9999432232179187,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 20,
+      "selected_f1": 0.8320616581056637,
+      "support_f1": 0.8320616581056637,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 30,
+      "selected_f1": 0.8749011421588474,
+      "support_f1": 0.8708827685174796,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 40,
+      "selected_f1": 0.865881359560771,
+      "support_f1": 0.8757673761994186,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 50,
+      "selected_f1": 0.7165852423105294,
+      "support_f1": 0.7165852423105294,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 60,
+      "selected_f1": 0.8751565534592927,
+      "support_f1": 0.8710816384089907,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 65,
+      "selected_f1": 0.8646381030548158,
+      "support_f1": 0.8605292691493828,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 70,
+      "selected_f1": 0.9021450496765652,
+      "support_f1": 0.9369565753205851,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 80,
+      "selected_f1": 0.9140756112466052,
+      "support_f1": 0.9140756112466052,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 90,
+      "selected_f1": 0.9218978944332277,
+      "support_f1": 0.9576807234522582,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 95,
+      "selected_f1": 0.919210208980567,
+      "support_f1": 0.925831474588167,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "percent": 98,
+      "selected_f1": 0.8482721773463252,
+      "support_f1": 0.8531923975656015,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 20,
+      "selected_f1": 0.8013334207501988,
+      "support_f1": 0.8324840489821953,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 30,
+      "selected_f1": 0.8226509005935829,
+      "support_f1": 0.8291282563330615,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 40,
+      "selected_f1": 0.8368224471130975,
+      "support_f1": 0.830706494999258,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 50,
+      "selected_f1": 0.7978302251782713,
+      "support_f1": 0.7978302251782713,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 60,
+      "selected_f1": 0.7729634955413773,
+      "support_f1": 0.7729634955413773,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 65,
+      "selected_f1": 0.8052427341353723,
+      "support_f1": 0.8006769379663813,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 70,
+      "selected_f1": 0.8158625963408808,
+      "support_f1": 0.8046586903012326,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 80,
+      "selected_f1": 0.7912368933579622,
+      "support_f1": 0.7684722314651342,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 90,
+      "selected_f1": 0.6495650077354281,
+      "support_f1": 0.6506714033018248,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 95,
+      "selected_f1": 0.5904136669488573,
+      "support_f1": 0.5904136669488573,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "percent": 98,
+      "selected_f1": 0.16466488385311356,
+      "support_f1": 0.16466488385311356,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 20,
+      "selected_f1": 0.8367347113320949,
+      "support_f1": 0.835345445661239,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 30,
+      "selected_f1": 0.8254914818218555,
+      "support_f1": 0.811746333462044,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 40,
+      "selected_f1": 0.8385867368450114,
+      "support_f1": 0.8057090069412814,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 50,
+      "selected_f1": 0.8260284825102993,
+      "support_f1": 0.7889680532149197,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 60,
+      "selected_f1": 0.7600293015505165,
+      "support_f1": 0.7605243275926984,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 65,
+      "selected_f1": 0.7811437908672962,
+      "support_f1": 0.7811437908672962,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 70,
+      "selected_f1": 0.8034281998175428,
+      "support_f1": 0.8041289779901998,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 80,
+      "selected_f1": 0.802203233933608,
+      "support_f1": 0.8027282804668118,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 90,
+      "selected_f1": 0.8260581425446654,
+      "support_f1": 0.8282048024027282,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 95,
+      "selected_f1": 0.881068265032348,
+      "support_f1": 0.8143004920602522,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "percent": 98,
+      "selected_f1": 0.8401724245164315,
+      "support_f1": 0.8458459567376468,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 20,
+      "selected_f1": 0.9263130672756403,
+      "support_f1": 0.9263130672756403,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 30,
+      "selected_f1": 0.9187416377473786,
+      "support_f1": 0.9187416377473786,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 40,
+      "selected_f1": 0.9076244336407248,
+      "support_f1": 0.9076244336407248,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 50,
+      "selected_f1": 0.9068202469241803,
+      "support_f1": 0.9068202469241803,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 60,
+      "selected_f1": 0.909610887397478,
+      "support_f1": 0.909610887397478,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 65,
+      "selected_f1": 0.9047496546390531,
+      "support_f1": 0.9047496546390531,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 70,
+      "selected_f1": 0.9261384264946511,
+      "support_f1": 0.9261384264946511,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 80,
+      "selected_f1": 0.9382276065044908,
+      "support_f1": 0.9382276065044908,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 90,
+      "selected_f1": 0.9113324122558834,
+      "support_f1": 0.9113324122558834,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 95,
+      "selected_f1": 0.8477272114581047,
+      "support_f1": 0.8477272114581047,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "percent": 98,
+      "selected_f1": 0.9410715040407978,
+      "support_f1": 0.9410715040407978,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 20,
+      "selected_f1": 0.8590520650450452,
+      "support_f1": 0.9123471119249597,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 30,
+      "selected_f1": 0.8471873635803739,
+      "support_f1": 0.8980875588832165,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 40,
+      "selected_f1": 0.852753810306924,
+      "support_f1": 0.9147594916580147,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 50,
+      "selected_f1": 0.9209381416389697,
+      "support_f1": 0.9209381416389697,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 60,
+      "selected_f1": 0.8197497814364958,
+      "support_f1": 0.900908124895957,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 65,
+      "selected_f1": 0.921250585259014,
+      "support_f1": 0.9189812312719111,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 70,
+      "selected_f1": 0.8739872606563078,
+      "support_f1": 0.9648772489274056,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 80,
+      "selected_f1": 0.8456926440386017,
+      "support_f1": 0.8961898711603421,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 90,
+      "selected_f1": 0.9413266211213914,
+      "support_f1": 0.9885339244413812,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 95,
+      "selected_f1": 0.880297258086401,
+      "support_f1": 0.9782661698934071,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "percent": 98,
+      "selected_f1": 0.9998461803791421,
+      "support_f1": 0.9998461803791421,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 20,
+      "selected_f1": 0.8134256233952276,
+      "support_f1": 0.8893101236325036,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 30,
+      "selected_f1": 0.8297040770743214,
+      "support_f1": 0.8299074947959147,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 40,
+      "selected_f1": 0.8238838679102594,
+      "support_f1": 0.8254200933217826,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 50,
+      "selected_f1": 0.8875581738247499,
+      "support_f1": 0.8875581738247499,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 60,
+      "selected_f1": 0.8712706239477228,
+      "support_f1": 0.8712706239477228,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 65,
+      "selected_f1": 0.8453654060145946,
+      "support_f1": 0.8729006084950292,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 70,
+      "selected_f1": 0.8250551942140137,
+      "support_f1": 0.8703198932228576,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 80,
+      "selected_f1": 0.840701752957319,
+      "support_f1": 0.841396137633709,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 90,
+      "selected_f1": 0.9102676683034197,
+      "support_f1": 0.9118613858601433,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 95,
+      "selected_f1": 0.8408427498833903,
+      "support_f1": 0.8437929973633003,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "percent": 98,
+      "selected_f1": 0.6705329184185111,
+      "support_f1": 0.6766684878644241,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 20,
+      "selected_f1": 0.9270683965008346,
+      "support_f1": 0.922616387908127,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 30,
+      "selected_f1": 0.923701616453262,
+      "support_f1": 0.9190706775654847,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 40,
+      "selected_f1": 0.9233374874166393,
+      "support_f1": 0.9019164377712915,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 50,
+      "selected_f1": 0.9083650896417242,
+      "support_f1": 0.9083650896417242,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 60,
+      "selected_f1": 0.8866423737929566,
+      "support_f1": 0.8866423737929566,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 65,
+      "selected_f1": 0.8966053050257627,
+      "support_f1": 0.9036225322180428,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 70,
+      "selected_f1": 0.9157916600944216,
+      "support_f1": 0.8885793853155232,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 80,
+      "selected_f1": 0.8923679265329677,
+      "support_f1": 0.8663944686000921,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 90,
+      "selected_f1": 0.9461212695922431,
+      "support_f1": 0.9461212695922431,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 95,
+      "selected_f1": 0.9863820460650091,
+      "support_f1": 0.9984875473469611,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "percent": 98,
+      "selected_f1": 0.9654863595434523,
+      "support_f1": 0.9999383889175881,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 20,
+      "selected_f1": 0.8666991992520086,
+      "support_f1": 0.8666991992520086,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 30,
+      "selected_f1": 0.8645951493383528,
+      "support_f1": 0.8645951493383528,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 40,
+      "selected_f1": 0.867259763729033,
+      "support_f1": 0.867259763729033,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 50,
+      "selected_f1": 0.8534254717695928,
+      "support_f1": 0.8534254717695928,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 60,
+      "selected_f1": 0.8186245848883361,
+      "support_f1": 0.8186245848883361,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 65,
+      "selected_f1": 0.8429091800825765,
+      "support_f1": 0.8429091800825765,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 70,
+      "selected_f1": 0.8392722260604513,
+      "support_f1": 0.8401022819546882,
+      "different_selection": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 80,
+      "selected_f1": 0.8747686991640989,
+      "support_f1": 0.8747686991640989,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 90,
+      "selected_f1": 0.865551786749403,
+      "support_f1": 0.865551786749403,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 95,
+      "selected_f1": 0.9270631753806108,
+      "support_f1": 0.9270631753806108,
+      "different_selection": false
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "percent": 98,
+      "selected_f1": 0.9535089405883485,
+      "support_f1": 0.9535089405883485,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 20,
+      "selected_f1": 0.9250228977150404,
+      "support_f1": 0.9250228977150404,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 30,
+      "selected_f1": 0.9206525916744459,
+      "support_f1": 0.9206525916744459,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 40,
+      "selected_f1": 0.9138687857747135,
+      "support_f1": 0.9138687857747135,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 50,
+      "selected_f1": 0.9133262825037762,
+      "support_f1": 0.9133262825037762,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 60,
+      "selected_f1": 0.9349166806361003,
+      "support_f1": 0.9349166806361003,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 65,
+      "selected_f1": 0.9540006139106323,
+      "support_f1": 0.9540006139106323,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 70,
+      "selected_f1": 0.9469908234860189,
+      "support_f1": 0.9469908234860189,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 80,
+      "selected_f1": 0.9325204275903962,
+      "support_f1": 0.9325204275903962,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 90,
+      "selected_f1": 0.9355525091166386,
+      "support_f1": 0.9355525091166386,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 95,
+      "selected_f1": 0.8788241036350688,
+      "support_f1": 0.8788241036350688,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 98,
+      "selected_f1": 0.8581111384101802,
+      "support_f1": 0.8581111384101802,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 20,
+      "selected_f1": 0.9049307157743597,
+      "support_f1": 0.9049307157743597,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 30,
+      "selected_f1": 0.9354409838076553,
+      "support_f1": 0.9354409838076553,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 40,
+      "selected_f1": 0.938374656271288,
+      "support_f1": 0.938374656271288,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 50,
+      "selected_f1": 0.9362056410425081,
+      "support_f1": 0.9362056410425081,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 60,
+      "selected_f1": 0.9202912063885976,
+      "support_f1": 0.9202912063885976,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 65,
+      "selected_f1": 0.9056538130415307,
+      "support_f1": 0.9056538130415307,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 70,
+      "selected_f1": 0.898591635543577,
+      "support_f1": 0.898591635543577,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 80,
+      "selected_f1": 0.8708856641111448,
+      "support_f1": 0.8708856641111448,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 90,
+      "selected_f1": 0.9334830057613293,
+      "support_f1": 0.9334830057613293,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 95,
+      "selected_f1": 0.8810456765503587,
+      "support_f1": 0.8810456765503587,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "percent": 98,
+      "selected_f1": 0.8398378474139997,
+      "support_f1": 0.8398378474139997,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 20,
+      "selected_f1": 0.861058899647598,
+      "support_f1": 0.861058899647598,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 30,
+      "selected_f1": 0.8558855483150375,
+      "support_f1": 0.8558855483150375,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 40,
+      "selected_f1": 0.8582278134868689,
+      "support_f1": 0.8582278134868689,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 50,
+      "selected_f1": 0.8408092780504314,
+      "support_f1": 0.8408092780504314,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 60,
+      "selected_f1": 0.8265864966973059,
+      "support_f1": 0.8265864966973059,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 65,
+      "selected_f1": 0.8436522521940023,
+      "support_f1": 0.8436522521940023,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 70,
+      "selected_f1": 0.8320835538741428,
+      "support_f1": 0.8320835538741428,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 80,
+      "selected_f1": 0.821741096887106,
+      "support_f1": 0.821741096887106,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 90,
+      "selected_f1": 0.8955527421614049,
+      "support_f1": 0.8955527421614049,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 95,
+      "selected_f1": 0.8199806600163162,
+      "support_f1": 0.8199806600163162,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "percent": 98,
+      "selected_f1": 0.9495478601116148,
+      "support_f1": 0.9495478601116148,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 20,
+      "selected_f1": 0.8677817701003554,
+      "support_f1": 0.8677817701003554,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 30,
+      "selected_f1": 0.8881513153974222,
+      "support_f1": 0.8881513153974222,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 40,
+      "selected_f1": 0.8810906990665441,
+      "support_f1": 0.8810906990665441,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 50,
+      "selected_f1": 0.8738804388073359,
+      "support_f1": 0.8738804388073359,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 60,
+      "selected_f1": 0.8507854586873679,
+      "support_f1": 0.8507854586873679,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 65,
+      "selected_f1": 0.8665011605566137,
+      "support_f1": 0.8665011605566137,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 70,
+      "selected_f1": 0.8685006009851671,
+      "support_f1": 0.8685006009851671,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 80,
+      "selected_f1": 0.8732881041283077,
+      "support_f1": 0.8732881041283077,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 90,
+      "selected_f1": 0.8860760637639299,
+      "support_f1": 0.8860760637639299,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 95,
+      "selected_f1": 0.8898083259295853,
+      "support_f1": 0.8898083259295853,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "percent": 98,
+      "selected_f1": 0.9933128665150495,
+      "support_f1": 0.9933128665150495,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 20,
+      "selected_f1": 0.9545504585986655,
+      "support_f1": 0.9545504585986655,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 30,
+      "selected_f1": 0.9082894261382186,
+      "support_f1": 0.9082894261382186,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 40,
+      "selected_f1": 0.95065287798943,
+      "support_f1": 0.95065287798943,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 50,
+      "selected_f1": 0.9484922877480807,
+      "support_f1": 0.9484922877480807,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 60,
+      "selected_f1": 0.9793587829776195,
+      "support_f1": 0.9793587829776195,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 65,
+      "selected_f1": 0.9765733546130876,
+      "support_f1": 0.9765733546130876,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 70,
+      "selected_f1": 0.9726176057154162,
+      "support_f1": 0.9726176057154162,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 80,
+      "selected_f1": 0.9690131069028147,
+      "support_f1": 0.9690131069028147,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 90,
+      "selected_f1": 0.9982379220104641,
+      "support_f1": 0.9982379220104641,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 95,
+      "selected_f1": 0.9965367887405113,
+      "support_f1": 0.9965367887405113,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "percent": 98,
+      "selected_f1": 0.9999729080499214,
+      "support_f1": 0.9999729080499214,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 20,
+      "selected_f1": 0.9365433299201489,
+      "support_f1": 0.9365433299201489,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 30,
+      "selected_f1": 0.8837685233235015,
+      "support_f1": 0.8837685233235015,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 40,
+      "selected_f1": 0.8909551937627821,
+      "support_f1": 0.8909551937627821,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 50,
+      "selected_f1": 0.9071160841047256,
+      "support_f1": 0.9071160841047256,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 60,
+      "selected_f1": 0.8881780610005576,
+      "support_f1": 0.8881780610005576,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 65,
+      "selected_f1": 0.8790035627641198,
+      "support_f1": 0.8790035627641198,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 70,
+      "selected_f1": 0.8821447997082933,
+      "support_f1": 0.8821447997082933,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 80,
+      "selected_f1": 0.8844114637729714,
+      "support_f1": 0.8844114637729714,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 90,
+      "selected_f1": 0.9294554514290062,
+      "support_f1": 0.9294554514290062,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 95,
+      "selected_f1": 0.8933485876597759,
+      "support_f1": 0.8933485876597759,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "percent": 98,
+      "selected_f1": 0.7355740814752687,
+      "support_f1": 0.7355740814752687,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 20,
+      "selected_f1": 0.9332078178666038,
+      "support_f1": 0.9332078178666038,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 30,
+      "selected_f1": 0.9821190198556106,
+      "support_f1": 0.9821190198556106,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 40,
+      "selected_f1": 0.987373755783277,
+      "support_f1": 0.987373755783277,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 50,
+      "selected_f1": 0.9851824905038215,
+      "support_f1": 0.9851824905038215,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 60,
+      "selected_f1": 0.9956049043171157,
+      "support_f1": 0.9956049043171157,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 65,
+      "selected_f1": 0.9952811128507731,
+      "support_f1": 0.9952811128507731,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 70,
+      "selected_f1": 0.9956098820172815,
+      "support_f1": 0.9956098820172815,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 80,
+      "selected_f1": 0.9983052701965945,
+      "support_f1": 0.9983052701965945,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 90,
+      "selected_f1": 0.9997800959581274,
+      "support_f1": 0.9997800959581274,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 95,
+      "selected_f1": 0.9998164460687654,
+      "support_f1": 0.9998164460687654,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "percent": 98,
+      "selected_f1": 0.9998228053994376,
+      "support_f1": 0.9998228053994376,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 20,
+      "selected_f1": 0.7315454007238114,
+      "support_f1": 0.7315454007238114,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 30,
+      "selected_f1": 0.5185654532366558,
+      "support_f1": 0.5185654532366558,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 40,
+      "selected_f1": 0.841843343362315,
+      "support_f1": 0.841843343362315,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 50,
+      "selected_f1": 0.8126330051422594,
+      "support_f1": 0.8126330051422594,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 60,
+      "selected_f1": 0.7679485466029206,
+      "support_f1": 0.7679485466029206,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 65,
+      "selected_f1": 0.7348341095133927,
+      "support_f1": 0.7348341095133927,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 70,
+      "selected_f1": 0.6930597503409573,
+      "support_f1": 0.6930597503409573,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 80,
+      "selected_f1": 0.7940934954391448,
+      "support_f1": 0.7940934954391448,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 90,
+      "selected_f1": 0.6255451055294576,
+      "support_f1": 0.6255451055294576,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 95,
+      "selected_f1": 0.27002458562784076,
+      "support_f1": 0.27002458562784076,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "percent": 98,
+      "selected_f1": 0.9901568762166495,
+      "support_f1": 0.9901568762166495,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 20,
+      "selected_f1": 0.9697299670572118,
+      "support_f1": 0.9697299670572118,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 30,
+      "selected_f1": 0.9719267837505103,
+      "support_f1": 0.9719267837505103,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 40,
+      "selected_f1": 0.9293349069454341,
+      "support_f1": 0.9293349069454341,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 50,
+      "selected_f1": 0.9394903854817226,
+      "support_f1": 0.9394903854817226,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 60,
+      "selected_f1": 0.9298625040166415,
+      "support_f1": 0.9298625040166415,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 65,
+      "selected_f1": 0.9217724899717227,
+      "support_f1": 0.9217724899717227,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 70,
+      "selected_f1": 0.9533869281077616,
+      "support_f1": 0.9533869281077616,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 80,
+      "selected_f1": 0.9834088560695049,
+      "support_f1": 0.9834088560695049,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 90,
+      "selected_f1": 0.9974552899730773,
+      "support_f1": 0.9974552899730773,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 95,
+      "selected_f1": 0.997325618678404,
+      "support_f1": 0.997325618678404,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "percent": 98,
+      "selected_f1": 0.9933332113984709,
+      "support_f1": 0.9933332113984709,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 20,
+      "selected_f1": 0.9324196967877239,
+      "support_f1": 0.9324196967877239,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 30,
+      "selected_f1": 0.9272443451219287,
+      "support_f1": 0.9272443451219287,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 40,
+      "selected_f1": 0.9243694003219569,
+      "support_f1": 0.9243694003219569,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 50,
+      "selected_f1": 0.909309513951136,
+      "support_f1": 0.909309513951136,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 60,
+      "selected_f1": 0.8874007979104456,
+      "support_f1": 0.8874007979104456,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 65,
+      "selected_f1": 0.8841208594812788,
+      "support_f1": 0.8841208594812788,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 70,
+      "selected_f1": 0.9031558787568301,
+      "support_f1": 0.9031558787568301,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 80,
+      "selected_f1": 0.8914655501603133,
+      "support_f1": 0.8914655501603133,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 90,
+      "selected_f1": 0.9952295641840867,
+      "support_f1": 0.9952295641840867,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 95,
+      "selected_f1": 0.9905036972344579,
+      "support_f1": 0.9905036972344579,
+      "different_selection": false
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "percent": 98,
+      "selected_f1": 0.99404100869471,
+      "support_f1": 0.99404100869471,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 20,
+      "selected_f1": 0.9499124254832129,
+      "support_f1": 0.9499124254832129,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 30,
+      "selected_f1": 0.9608855855130435,
+      "support_f1": 0.9608855855130435,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 40,
+      "selected_f1": 0.9591862317804916,
+      "support_f1": 0.9591862317804916,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 50,
+      "selected_f1": 0.9565968876294128,
+      "support_f1": 0.9565968876294128,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 60,
+      "selected_f1": 0.9508232532876977,
+      "support_f1": 0.9508232532876977,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 65,
+      "selected_f1": 0.9616076424932551,
+      "support_f1": 0.9616076424932551,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 70,
+      "selected_f1": 0.9761095803856096,
+      "support_f1": 0.9761095803856096,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 80,
+      "selected_f1": 0.9641727033077307,
+      "support_f1": 0.9641727033077307,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 90,
+      "selected_f1": 0.9697727072245582,
+      "support_f1": 0.9697727072245582,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 95,
+      "selected_f1": 0.9435201420854171,
+      "support_f1": 0.9435201420854171,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 98,
+      "selected_f1": 0.9997645077498358,
+      "support_f1": 0.9997645077498358,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 20,
+      "selected_f1": 0.9205239584341726,
+      "support_f1": 0.9205239584341726,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 30,
+      "selected_f1": 0.9322145833109485,
+      "support_f1": 0.9322145833109485,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 40,
+      "selected_f1": 0.9238860668626869,
+      "support_f1": 0.9238860668626869,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 50,
+      "selected_f1": 0.9286569090106188,
+      "support_f1": 0.9286569090106188,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 60,
+      "selected_f1": 0.9101961308358292,
+      "support_f1": 0.9101961308358292,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 65,
+      "selected_f1": 0.9144092510726893,
+      "support_f1": 0.9144092510726893,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 70,
+      "selected_f1": 0.8992941470297579,
+      "support_f1": 0.8992941470297579,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 80,
+      "selected_f1": 0.8442936981957893,
+      "support_f1": 0.8442936981957893,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 90,
+      "selected_f1": 0.8239805371614545,
+      "support_f1": 0.8239805371614545,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 95,
+      "selected_f1": 0.9928120811671404,
+      "support_f1": 0.9928120811671404,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "percent": 98,
+      "selected_f1": 0.9948982293854927,
+      "support_f1": 0.9948982293854927,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 20,
+      "selected_f1": 0.94945150551559,
+      "support_f1": 0.94945150551559,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 30,
+      "selected_f1": 0.9492136025680837,
+      "support_f1": 0.9492136025680837,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 40,
+      "selected_f1": 0.9685791512186832,
+      "support_f1": 0.9685791512186832,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 50,
+      "selected_f1": 0.7698126656325877,
+      "support_f1": 0.7698126656325877,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 60,
+      "selected_f1": 0.8129723512711966,
+      "support_f1": 0.8129723512711966,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 65,
+      "selected_f1": 0.9667268011492368,
+      "support_f1": 0.9667268011492368,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 70,
+      "selected_f1": 0.9745921005170834,
+      "support_f1": 0.9745921005170834,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 80,
+      "selected_f1": 0.9687296487534331,
+      "support_f1": 0.9687296487534331,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 90,
+      "selected_f1": 0.9834965154865282,
+      "support_f1": 0.9834965154865282,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 95,
+      "selected_f1": 0.9832997715903996,
+      "support_f1": 0.9832997715903996,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "percent": 98,
+      "selected_f1": 0.998662195489789,
+      "support_f1": 0.998662195489789,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 20,
+      "selected_f1": 0.8413208732424019,
+      "support_f1": 0.8413208732424019,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 30,
+      "selected_f1": 0.8356607970872535,
+      "support_f1": 0.8356607970872535,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 40,
+      "selected_f1": 0.8357089525654338,
+      "support_f1": 0.8357089525654338,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 50,
+      "selected_f1": 0.8911478995353931,
+      "support_f1": 0.8911478995353931,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 60,
+      "selected_f1": 0.8678852289749269,
+      "support_f1": 0.8678852289749269,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 65,
+      "selected_f1": 0.8592488342361243,
+      "support_f1": 0.8592488342361243,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 70,
+      "selected_f1": 0.8467205558207791,
+      "support_f1": 0.8467205558207791,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 80,
+      "selected_f1": 0.8741119995455255,
+      "support_f1": 0.8741119995455255,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 90,
+      "selected_f1": 0.8281651497159667,
+      "support_f1": 0.8281651497159667,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 95,
+      "selected_f1": 0.7860809011027216,
+      "support_f1": 0.7860809011027216,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "percent": 98,
+      "selected_f1": 0.7098909225365132,
+      "support_f1": 0.7098909225365132,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 20,
+      "selected_f1": 0.9481246979283917,
+      "support_f1": 0.9481246979283917,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 30,
+      "selected_f1": 0.9493579356916144,
+      "support_f1": 0.9493579356916144,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 40,
+      "selected_f1": 0.9470456292270337,
+      "support_f1": 0.9470456292270337,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 50,
+      "selected_f1": 0.9380429761530588,
+      "support_f1": 0.9380429761530588,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 60,
+      "selected_f1": 0.9386693603964219,
+      "support_f1": 0.9386693603964219,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 65,
+      "selected_f1": 0.9563559992015698,
+      "support_f1": 0.9563559992015698,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 70,
+      "selected_f1": 0.9577606598831628,
+      "support_f1": 0.9577606598831628,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 80,
+      "selected_f1": 0.9500707912972369,
+      "support_f1": 0.9500707912972369,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 90,
+      "selected_f1": 0.9136420837345988,
+      "support_f1": 0.9136420837345988,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 95,
+      "selected_f1": 0.872950292880883,
+      "support_f1": 0.872950292880883,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "percent": 98,
+      "selected_f1": 0.9999823438222799,
+      "support_f1": 0.9999823438222799,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 20,
+      "selected_f1": 0.8961721495160411,
+      "support_f1": 0.8961721495160411,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 30,
+      "selected_f1": 0.9131555920762467,
+      "support_f1": 0.9131555920762467,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 40,
+      "selected_f1": 0.910162938339198,
+      "support_f1": 0.910162938339198,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 50,
+      "selected_f1": 0.9115590896374919,
+      "support_f1": 0.9115590896374919,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 60,
+      "selected_f1": 0.8947399132688424,
+      "support_f1": 0.8947399132688424,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 65,
+      "selected_f1": 0.8959832522830886,
+      "support_f1": 0.8959832522830886,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 70,
+      "selected_f1": 0.879241052041469,
+      "support_f1": 0.879241052041469,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 80,
+      "selected_f1": 0.8388681146092027,
+      "support_f1": 0.8388681146092027,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 90,
+      "selected_f1": 0.9273779680427865,
+      "support_f1": 0.9273779680427865,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 95,
+      "selected_f1": 0.9701871163702163,
+      "support_f1": 0.9701871163702163,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "percent": 98,
+      "selected_f1": 0.9998269072655674,
+      "support_f1": 0.9998269072655674,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 20,
+      "selected_f1": 0.9024881813140496,
+      "support_f1": 0.9024881813140496,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 30,
+      "selected_f1": 0.901155411869808,
+      "support_f1": 0.901155411869808,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 40,
+      "selected_f1": 0.894901416341712,
+      "support_f1": 0.894901416341712,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 50,
+      "selected_f1": 0.8888857719767591,
+      "support_f1": 0.8888857719767591,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 60,
+      "selected_f1": 0.8772492163513376,
+      "support_f1": 0.8772492163513376,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 65,
+      "selected_f1": 0.8851663455865975,
+      "support_f1": 0.8851663455865975,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 70,
+      "selected_f1": 0.8848079830734403,
+      "support_f1": 0.8848079830734403,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 80,
+      "selected_f1": 0.8735716322615465,
+      "support_f1": 0.8735716322615465,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 90,
+      "selected_f1": 0.8442761744026802,
+      "support_f1": 0.8442761744026802,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 95,
+      "selected_f1": 0.9175746982093905,
+      "support_f1": 0.9175746982093905,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "percent": 98,
+      "selected_f1": 0.9820152203535761,
+      "support_f1": 0.9820152203535761,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 20,
+      "selected_f1": 0.8495576763245445,
+      "support_f1": 0.8495576763245445,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 30,
+      "selected_f1": 0.8942110778579154,
+      "support_f1": 0.8942110778579154,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 40,
+      "selected_f1": 0.7521677341320187,
+      "support_f1": 0.7521677341320187,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 50,
+      "selected_f1": 0.8719322304421808,
+      "support_f1": 0.8719322304421808,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 60,
+      "selected_f1": 0.8254758048649623,
+      "support_f1": 0.8254758048649623,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 65,
+      "selected_f1": 0.9344202383237843,
+      "support_f1": 0.9344202383237843,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 70,
+      "selected_f1": 0.9290103162992145,
+      "support_f1": 0.9290103162992145,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 80,
+      "selected_f1": 0.7481554131465749,
+      "support_f1": 0.7481554131465749,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 90,
+      "selected_f1": 0.6508808688666606,
+      "support_f1": 0.6508808688666606,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 95,
+      "selected_f1": 0.667741022685706,
+      "support_f1": 0.667741022685706,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "percent": 98,
+      "selected_f1": 0.9538282453313648,
+      "support_f1": 0.9538282453313648,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 20,
+      "selected_f1": 0.969026735419124,
+      "support_f1": 0.969026735419124,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 30,
+      "selected_f1": 0.965681029203597,
+      "support_f1": 0.965681029203597,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 40,
+      "selected_f1": 0.9652048741772109,
+      "support_f1": 0.9652048741772109,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 50,
+      "selected_f1": 0.9591137637068042,
+      "support_f1": 0.9591137637068042,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 60,
+      "selected_f1": 0.9492419376240061,
+      "support_f1": 0.9492419376240061,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 65,
+      "selected_f1": 0.9632134751781614,
+      "support_f1": 0.9632134751781614,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 70,
+      "selected_f1": 0.9675335315406276,
+      "support_f1": 0.9675335315406276,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 80,
+      "selected_f1": 0.9658741927221663,
+      "support_f1": 0.9658741927221663,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 90,
+      "selected_f1": 0.9488962187323133,
+      "support_f1": 0.9488962187323133,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 95,
+      "selected_f1": 0.9010482910418133,
+      "support_f1": 0.9010482910418133,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "percent": 98,
+      "selected_f1": 0.7613512995721311,
+      "support_f1": 0.7613512995721311,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 20,
+      "selected_f1": 0.911097101288608,
+      "support_f1": 0.911097101288608,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 30,
+      "selected_f1": 0.9011677048736706,
+      "support_f1": 0.9011677048736706,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 40,
+      "selected_f1": 0.9001465920061061,
+      "support_f1": 0.9001465920061061,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 50,
+      "selected_f1": 0.9176474919466175,
+      "support_f1": 0.9176474919466175,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 60,
+      "selected_f1": 0.9259924886072586,
+      "support_f1": 0.9259924886072586,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 65,
+      "selected_f1": 0.9323537968280494,
+      "support_f1": 0.9323537968280494,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 70,
+      "selected_f1": 0.9329590505269894,
+      "support_f1": 0.9329590505269894,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 80,
+      "selected_f1": 0.9192628993841515,
+      "support_f1": 0.9192628993841515,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 90,
+      "selected_f1": 0.9486720659777891,
+      "support_f1": 0.9486720659777891,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 95,
+      "selected_f1": 0.9580717085827896,
+      "support_f1": 0.9580717085827896,
+      "different_selection": false
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "percent": 98,
+      "selected_f1": 0.9999718002044485,
+      "support_f1": 0.9999718002044485,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 20,
+      "selected_f1": 0.870605138714345,
+      "support_f1": 0.870605138714345,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 30,
+      "selected_f1": 0.8882318756676879,
+      "support_f1": 0.8882318756676879,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 40,
+      "selected_f1": 0.87982425191913,
+      "support_f1": 0.87982425191913,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 50,
+      "selected_f1": 0.8941719074061685,
+      "support_f1": 0.8753288170225768,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 60,
+      "selected_f1": 0.884047401619181,
+      "support_f1": 0.884047401619181,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 65,
+      "selected_f1": 0.896680220749537,
+      "support_f1": 0.9153655946714586,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 70,
+      "selected_f1": 0.8877864948657872,
+      "support_f1": 0.9073751665731671,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 80,
+      "selected_f1": 0.907957708759562,
+      "support_f1": 0.9255577952318066,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 90,
+      "selected_f1": 0.9248209941866059,
+      "support_f1": 0.9248209941866059,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 95,
+      "selected_f1": 0.8694451220140651,
+      "support_f1": 0.9108454029773387,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 98,
+      "selected_f1": 0.9987179487179487,
+      "support_f1": 0.9873599835577023,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 20,
+      "selected_f1": 0.9465635007371611,
+      "support_f1": 0.9465635007371611,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 30,
+      "selected_f1": 0.9374503160484893,
+      "support_f1": 0.9517303215811591,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 40,
+      "selected_f1": 0.9285278408114017,
+      "support_f1": 0.9444721784937997,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 50,
+      "selected_f1": 0.9347321542984772,
+      "support_f1": 0.9347321542984772,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 60,
+      "selected_f1": 0.9453603230257253,
+      "support_f1": 0.9453603230257253,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 65,
+      "selected_f1": 0.9458927888283077,
+      "support_f1": 0.9479742523966616,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 70,
+      "selected_f1": 0.9457736609356326,
+      "support_f1": 0.9483881862336824,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 80,
+      "selected_f1": 0.9288504013705127,
+      "support_f1": 0.9304024593341814,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 90,
+      "selected_f1": 0.9817403292852752,
+      "support_f1": 0.9862054407123555,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 95,
+      "selected_f1": 0.9633758967115434,
+      "support_f1": 0.9726309541894389,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "percent": 98,
+      "selected_f1": 0.9723631290208676,
+      "support_f1": 0.983899072976929,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 20,
+      "selected_f1": 0.8842648796697874,
+      "support_f1": 0.8874748780270543,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 30,
+      "selected_f1": 0.8921038135815704,
+      "support_f1": 0.8921038135815704,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 40,
+      "selected_f1": 0.8863434626143477,
+      "support_f1": 0.8894605550358591,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 50,
+      "selected_f1": 0.43769404927903915,
+      "support_f1": 0.870838445187074,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 60,
+      "selected_f1": 0.9201702453809225,
+      "support_f1": 0.9010381136718966,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 65,
+      "selected_f1": 0.9113114171426909,
+      "support_f1": 0.8898101012491368,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 70,
+      "selected_f1": 0.8974776234952943,
+      "support_f1": 0.8974776234952943,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 80,
+      "selected_f1": 0.9047063302839898,
+      "support_f1": 0.9026517538999959,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 90,
+      "selected_f1": 0.9856826967708564,
+      "support_f1": 0.9070919742942151,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 95,
+      "selected_f1": 0.9718101445380667,
+      "support_f1": 0.9682277690602149,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "percent": 98,
+      "selected_f1": 0.9995343864247775,
+      "support_f1": 0.9997240856024417,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 20,
+      "selected_f1": 0.9459598416015341,
+      "support_f1": 0.9459598416015341,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 30,
+      "selected_f1": 0.8996042714144499,
+      "support_f1": 0.9528164856159842,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 40,
+      "selected_f1": 0.9474523360683451,
+      "support_f1": 0.9474523360683451,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 50,
+      "selected_f1": 0.9525803521101626,
+      "support_f1": 0.9525803521101626,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 60,
+      "selected_f1": 0.9443434827037916,
+      "support_f1": 0.9443434827037916,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 65,
+      "selected_f1": 0.9376540205056436,
+      "support_f1": 0.9376540205056436,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 70,
+      "selected_f1": 0.9278737397811718,
+      "support_f1": 0.9278737397811718,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 80,
+      "selected_f1": 0.9241054993353092,
+      "support_f1": 0.9241054993353092,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 90,
+      "selected_f1": 0.6995131187917453,
+      "support_f1": 0.8577224221999031,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 95,
+      "selected_f1": 0.9747495184043881,
+      "support_f1": 0.9856178167972118,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "percent": 98,
+      "selected_f1": 0.9795597891267397,
+      "support_f1": 0.9637488157588974,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 20,
+      "selected_f1": 0.9098267268865659,
+      "support_f1": 0.9151855518744344,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 30,
+      "selected_f1": 0.9082520690206152,
+      "support_f1": 0.9081645531462299,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 40,
+      "selected_f1": 0.8945230784602358,
+      "support_f1": 0.8944310545496128,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 50,
+      "selected_f1": 0.9198424413992867,
+      "support_f1": 0.904956033201161,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 60,
+      "selected_f1": 0.9440017317002672,
+      "support_f1": 0.9518803430489661,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 65,
+      "selected_f1": 0.9471873913253305,
+      "support_f1": 0.956266337328098,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 70,
+      "selected_f1": 0.9457349288778504,
+      "support_f1": 0.9562361007419357,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 80,
+      "selected_f1": 0.9353279865780343,
+      "support_f1": 0.9375095012804157,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 90,
+      "selected_f1": 0.9857384111424368,
+      "support_f1": 0.9857384111424368,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 95,
+      "selected_f1": 0.9763682958730474,
+      "support_f1": 0.9539624941137365,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "percent": 98,
+      "selected_f1": 0.9999134244108531,
+      "support_f1": 0.9999134244108531,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 20,
+      "selected_f1": 0.9558799051114925,
+      "support_f1": 0.9558799051114925,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 30,
+      "selected_f1": 0.9550434592067782,
+      "support_f1": 0.9550434592067782,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 40,
+      "selected_f1": 0.948129657689122,
+      "support_f1": 0.948129657689122,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 50,
+      "selected_f1": 0.9235188317810125,
+      "support_f1": 0.9568593986617331,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 60,
+      "selected_f1": 0.9407791893811019,
+      "support_f1": 0.9490891411205569,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 65,
+      "selected_f1": 0.93221662706892,
+      "support_f1": 0.9416999974568704,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 70,
+      "selected_f1": 0.9240888605773311,
+      "support_f1": 0.9319884426864276,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 80,
+      "selected_f1": 0.8970202516625491,
+      "support_f1": 0.8970202516625491,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 90,
+      "selected_f1": 0.9138097061677628,
+      "support_f1": 0.9141570995518928,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 95,
+      "selected_f1": 0.8271131884876812,
+      "support_f1": 0.8125388790632432,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "percent": 98,
+      "selected_f1": 0.5677915318369373,
+      "support_f1": 0.5679285017206842,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 20,
+      "selected_f1": 0.9314031182333395,
+      "support_f1": 0.9358535307971636,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 30,
+      "selected_f1": 0.9260484324773283,
+      "support_f1": 0.9405420616099197,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 40,
+      "selected_f1": 0.9316979257838893,
+      "support_f1": 0.9316979257838893,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 50,
+      "selected_f1": 0.9286213980583635,
+      "support_f1": 0.9006963055608606,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 60,
+      "selected_f1": 0.8796261468901346,
+      "support_f1": 0.8821880162218858,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 65,
+      "selected_f1": 0.910651935323156,
+      "support_f1": 0.8940679932977992,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 70,
+      "selected_f1": 0.9028488738269395,
+      "support_f1": 0.9514728349329459,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 80,
+      "selected_f1": 0.8618957220586471,
+      "support_f1": 0.8618957220586471,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 90,
+      "selected_f1": 0.8121172153739494,
+      "support_f1": 0.7384901593218771,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 95,
+      "selected_f1": 0.5472503093135372,
+      "support_f1": 0.6411012847880563,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "percent": 98,
+      "selected_f1": 0.9989541647579453,
+      "support_f1": 0.9989541647579453,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 20,
+      "selected_f1": 0.9557625248948852,
+      "support_f1": 0.9555660989744306,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 30,
+      "selected_f1": 0.9371251058699039,
+      "support_f1": 0.9495300336524523,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 40,
+      "selected_f1": 0.9272077920942043,
+      "support_f1": 0.9419437414985423,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 50,
+      "selected_f1": 0.9530860442427727,
+      "support_f1": 0.9530860442427727,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 60,
+      "selected_f1": 0.943437107067082,
+      "support_f1": 0.943437107067082,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 65,
+      "selected_f1": 0.936858114641971,
+      "support_f1": 0.936858114641971,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 70,
+      "selected_f1": 0.9310280341892245,
+      "support_f1": 0.9310280341892245,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 80,
+      "selected_f1": 0.9455463951044422,
+      "support_f1": 0.9455463951044422,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 90,
+      "selected_f1": 0.9603464353949589,
+      "support_f1": 0.9670837530411387,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 95,
+      "selected_f1": 0.9989456874495596,
+      "support_f1": 0.955222115649923,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "percent": 98,
+      "selected_f1": 0.9999226558270241,
+      "support_f1": 0.8957313129446548,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 20,
+      "selected_f1": 0.8891984362230513,
+      "support_f1": 0.8891984362230513,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 30,
+      "selected_f1": 0.8298306720548622,
+      "support_f1": 0.8546378037928656,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 40,
+      "selected_f1": 0.8477477138022367,
+      "support_f1": 0.843476396655541,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 50,
+      "selected_f1": 0.840854019699243,
+      "support_f1": 0.840854019699243,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 60,
+      "selected_f1": 0.8233803395996818,
+      "support_f1": 0.8323165863478472,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 65,
+      "selected_f1": 0.8102334151240935,
+      "support_f1": 0.8153375839804056,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 70,
+      "selected_f1": 0.7831383596695097,
+      "support_f1": 0.789232464804841,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 80,
+      "selected_f1": 0.8216262069741574,
+      "support_f1": 0.5893869971163014,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 90,
+      "selected_f1": 0.9645364941246215,
+      "support_f1": 0.9166213358482549,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 95,
+      "selected_f1": 0.9843731872721455,
+      "support_f1": 0.849989203972938,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "percent": 98,
+      "selected_f1": 0.9997922617501949,
+      "support_f1": 0.9997922617501949,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 20,
+      "selected_f1": 0.9620411653265849,
+      "support_f1": 0.9418227155797657,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 30,
+      "selected_f1": 0.9450632364997653,
+      "support_f1": 0.9414914842268151,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 40,
+      "selected_f1": 0.9358247941926295,
+      "support_f1": 0.9325069753049352,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 50,
+      "selected_f1": 0.9394044135366819,
+      "support_f1": 0.9394044135366819,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 60,
+      "selected_f1": 0.94363698638025,
+      "support_f1": 0.94363698638025,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 65,
+      "selected_f1": 0.9675740516756509,
+      "support_f1": 0.948899995879032,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 70,
+      "selected_f1": 0.9622726267645793,
+      "support_f1": 0.9409036104609796,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 80,
+      "selected_f1": 0.95556990470218,
+      "support_f1": 0.95556990470218,
+      "different_selection": false
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 90,
+      "selected_f1": 0.9931943401595644,
+      "support_f1": 0.9980172641000773,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 95,
+      "selected_f1": 0.9870884110365868,
+      "support_f1": 0.9961375034948863,
+      "different_selection": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "percent": 98,
+      "selected_f1": 0.9884559148559965,
+      "support_f1": 0.999742055303343,
+      "different_selection": true
+    }
+  ]
+}

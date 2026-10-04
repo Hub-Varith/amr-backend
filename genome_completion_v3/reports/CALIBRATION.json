@@ -1,0 +1,11 @@
+{
+  "tasks": 550,
+  "usable_tasks": 550,
+  "successes": 95,
+  "groups": 50,
+  "brier_raw": 0.14161485248320219,
+  "brier_calibrated": 0.12821931073244586,
+  "mean_probability": 0.17266553033367374,
+  "maximum_probability": 0.8822123237441509,
+  "event": "hidden recovery >=95% AND hidden prediction precision >=95%"
+}

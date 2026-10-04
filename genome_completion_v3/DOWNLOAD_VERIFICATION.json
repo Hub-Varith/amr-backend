@@ -1,0 +1,17 @@
+{
+  "status": "verified",
+  "checks": [
+    {
+      "route": "ftp_gzip",
+      "accession": "GCF_000005845.2",
+      "prepared_checksum_verified": true,
+      "sketch_checksum_verified": true
+    },
+    {
+      "route": "datasets_zip",
+      "accession": "GCF_045345275.1",
+      "prepared_checksum_verified": true,
+      "sketch_checksum_verified": true
+    }
+  ]
+}

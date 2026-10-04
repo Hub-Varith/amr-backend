@@ -1,0 +1,22 @@
+{
+  "status": "verified",
+  "time": "2026-10-04 07:58:29 -0400",
+  "report_sha256": {
+    "FINAL_AUDIT.json": "1e7f6f3b9bdcf396074c146e5a5d42fd5c1671d507519f2da134be17247d0de2",
+    "PAIRED_AUDIT.json": "e212762705d31a08c95f01f3f74003016e52063646e7a35860efa2ade201b0a1",
+    "PAIRED_COMPARISON.json": "bfde24d4d68880637cad745e45a138967dd72f74c9f621e1c8ff55f1bcf67874",
+    "RESULTS.json": "f69fc6e4bc6aa91d5c104b2d7a09301cebe24c20350b9b75233f9c248194dc18",
+    "ROBUSTNESS.json": "69f9c8cd5fd5549e1c59c2ce48fc10aaff0c0034f084362e20cdef23145a1560",
+    "STRUCTURAL_CHECK.json": "f8a74fbda912f58e1c4ff298a89af011a35c3c6b123d49cf78a253a3ccb3090f",
+    "AMR_RESULTS.json": "34b759b0a8badc7820a2e8566c5a219234cff02834732627fed9b60d3736ced1",
+    "ADAPTIVE_CONFIDENCE_RESULTS.json": "f9a2fd025221fe56d95b667e3977806b047b9db966bc9cd504c697163e340e68",
+    "INCREMENTAL_REPLAY.json": "4c4a6229e7ea136022fac6feae6d78c283a0adc67559bfd38b768dae50a3d19e",
+    "CLI_REPLAY.json": "91ecb739d7f807ed50f2250a6e8454f02e3a1b3d15158162a8bd2189f22ff437",
+    "TEST_REPORT.json": "7433eb29d018b9434d1dd7849ee66efda37c1969b2e8aa72e87c3c3f1065f145",
+    "MODEL_ARTIFACTS.json": "7f185ff09da959b38285b7b09e48dc63190f240b5d594724ad32a8734272ee5a",
+    "SELECTOR_ABLATION.json": "ad7f8977d071f10cc64d08645ea62bda88bc33c8c9760169d4e3b52456315875"
+  },
+  "models_unchanged_after_final_test": true,
+  "early_stopping_goal_met": false,
+  "mic_validation": false
+}

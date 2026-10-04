@@ -1,0 +1,1096 @@
+{
+  "percent_observed": 65,
+  "status": "completed",
+  "summary": [
+    {
+      "species": "ALL",
+      "genomes": 50,
+      "collinear_f1": 0.8511202453176788,
+      "genomes_with_reverse_blocks": 11
+    },
+    {
+      "species": "ECOLI",
+      "genomes": 10,
+      "collinear_f1": 0.8007821226078475,
+      "genomes_with_reverse_blocks": 6
+    },
+    {
+      "species": "KPNEU",
+      "genomes": 10,
+      "collinear_f1": 0.8196523235406484,
+      "genomes_with_reverse_blocks": 2
+    },
+    {
+      "species": "SAUR",
+      "genomes": 10,
+      "collinear_f1": 0.9059108292190704,
+      "genomes_with_reverse_blocks": 0
+    },
+    {
+      "species": "PAER",
+      "genomes": 10,
+      "collinear_f1": 0.8473297674727046,
+      "genomes_with_reverse_blocks": 1
+    },
+    {
+      "species": "ABAU",
+      "genomes": 10,
+      "collinear_f1": 0.8819261837481234,
+      "genomes_with_reverse_blocks": 2
+    }
+  ],
+  "results": [
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "ordinary_f1": 0.8184095193866353,
+      "collinear_metrics": {
+        "hidden_known_bases": 1895100,
+        "predicted_bases": 2035622,
+        "hidden_exact_bases": 1493403,
+        "predicted_exact_bases": 1493403,
+        "hidden_recovery": 0.7880338768402723,
+        "prediction_precision": 0.7336347317920517,
+        "f1": 0.7598619286736635,
+        "mismatch_events": 13354,
+        "insertion_events": 138591,
+        "deletion_events": 115440,
+        "uncovered_hidden_bases": 272903
+      },
+      "primary_blocks": 27,
+      "selected_forward_blocks": 19,
+      "reverse_aligned_query_bases": 21444
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "ordinary_f1": 0.8052427341353723,
+      "collinear_metrics": {
+        "hidden_known_bases": 1878114,
+        "predicted_bases": 1804953,
+        "hidden_exact_bases": 1479509,
+        "predicted_exact_bases": 1479509,
+        "hidden_recovery": 0.7877631496277648,
+        "prediction_precision": 0.8196939200078894,
+        "f1": 0.8034113959914387,
+        "mismatch_events": 17276,
+        "insertion_events": 159311,
+        "deletion_events": 308031,
+        "uncovered_hidden_bases": 73298
+      },
+      "primary_blocks": 20,
+      "selected_forward_blocks": 15,
+      "reverse_aligned_query_bases": 5835
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "ordinary_f1": 0.921250585259014,
+      "collinear_metrics": {
+        "hidden_known_bases": 1877167,
+        "predicted_bases": 1809235,
+        "hidden_exact_bases": 1676897,
+        "predicted_exact_bases": 1676897,
+        "hidden_recovery": 0.8933126354767583,
+        "prediction_precision": 0.9268541676454413,
+        "f1": 0.909774354506101,
+        "mismatch_events": 5161,
+        "insertion_events": 44236,
+        "deletion_events": 51186,
+        "uncovered_hidden_bases": 143923
+      },
+      "primary_blocks": 20,
+      "selected_forward_blocks": 19,
+      "reverse_aligned_query_bases": 21161
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "ordinary_f1": 0.9047496546390531,
+      "collinear_metrics": {
+        "hidden_known_bases": 1863336,
+        "predicted_bases": 2042245,
+        "hidden_exact_bases": 1753464,
+        "predicted_exact_bases": 1753464,
+        "hidden_recovery": 0.9410347892167596,
+        "prediction_precision": 0.8585962996604227,
+        "f1": 0.8979273506297784,
+        "mismatch_events": 879,
+        "insertion_events": 112481,
+        "deletion_events": 50787,
+        "uncovered_hidden_bases": 58206
+      },
+      "primary_blocks": 19,
+      "selected_forward_blocks": 8,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "ordinary_f1": 0.8646381030548158,
+      "collinear_metrics": {
+        "hidden_known_bases": 1857735,
+        "predicted_bases": 1702546,
+        "hidden_exact_bases": 1440113,
+        "predicted_exact_bases": 1440113,
+        "hidden_recovery": 0.7751982925444156,
+        "prediction_precision": 0.8458584966279913,
+        "f1": 0.8089883916466144,
+        "mismatch_events": 13260,
+        "insertion_events": 57776,
+        "deletion_events": 88704,
+        "uncovered_hidden_bases": 315658
+      },
+      "primary_blocks": 21,
+      "selected_forward_blocks": 19,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "ordinary_f1": 0.8453654060145946,
+      "collinear_metrics": {
+        "hidden_known_bases": 1853299,
+        "predicted_bases": 2017715,
+        "hidden_exact_bases": 1613002,
+        "predicted_exact_bases": 1613002,
+        "hidden_recovery": 0.8703409433663969,
+        "prediction_precision": 0.7994201361441036,
+        "f1": 0.833374407842493,
+        "mismatch_events": 10858,
+        "insertion_events": 170805,
+        "deletion_events": 9441,
+        "uncovered_hidden_bases": 219998
+      },
+      "primary_blocks": 16,
+      "selected_forward_blocks": 14,
+      "reverse_aligned_query_bases": 21541
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "ordinary_f1": 0.8429091800825765,
+      "collinear_metrics": {
+        "hidden_known_bases": 1851039,
+        "predicted_bases": 1777702,
+        "hidden_exact_bases": 1496622,
+        "predicted_exact_bases": 1496622,
+        "hidden_recovery": 0.8085307764990365,
+        "prediction_precision": 0.8418857603805362,
+        "f1": 0.8248712156640554,
+        "mismatch_events": 8663,
+        "insertion_events": 95234,
+        "deletion_events": 214316,
+        "uncovered_hidden_bases": 131438
+      },
+      "primary_blocks": 27,
+      "selected_forward_blocks": 26,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "ordinary_f1": 0.780651051400435,
+      "collinear_metrics": {
+        "hidden_known_bases": 1849343,
+        "predicted_bases": 1849342,
+        "hidden_exact_bases": 989362,
+        "predicted_exact_bases": 989362,
+        "hidden_recovery": 0.534980260557398,
+        "prediction_precision": 0.5349805498388075,
+        "f1": 0.5349804051980637,
+        "mismatch_events": 3348,
+        "insertion_events": 43263,
+        "deletion_events": 53485,
+        "uncovered_hidden_bases": 803148
+      },
+      "primary_blocks": 24,
+      "selected_forward_blocks": 21,
+      "reverse_aligned_query_bases": 459164
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "ordinary_f1": 0.8966053050257627,
+      "collinear_metrics": {
+        "hidden_known_bases": 1846268,
+        "predicted_bases": 1894912,
+        "hidden_exact_bases": 1676456,
+        "predicted_exact_bases": 1676456,
+        "hidden_recovery": 0.9080241871710932,
+        "prediction_precision": 0.8847144352877601,
+        "f1": 0.8962177708637382,
+        "mismatch_events": 4626,
+        "insertion_events": 139110,
+        "deletion_events": 50564,
+        "uncovered_hidden_bases": 114622
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 8,
+      "reverse_aligned_query_bases": 1131
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "ordinary_f1": 0.7811437908672962,
+      "collinear_metrics": {
+        "hidden_known_bases": 1844533,
+        "predicted_bases": 1844533,
+        "hidden_exact_bases": 1362029,
+        "predicted_exact_bases": 1362029,
+        "hidden_recovery": 0.738414005062528,
+        "prediction_precision": 0.738414005062528,
+        "f1": 0.738414005062528,
+        "mismatch_events": 23794,
+        "insertion_events": 173203,
+        "deletion_events": 170455,
+        "uncovered_hidden_bases": 288255
+      },
+      "primary_blocks": 24,
+      "selected_forward_blocks": 22,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "ordinary_f1": 0.8436522521940023,
+      "collinear_metrics": {
+        "hidden_known_bases": 1942806,
+        "predicted_bases": 2078384,
+        "hidden_exact_bases": 1696243,
+        "predicted_exact_bases": 1696243,
+        "hidden_recovery": 0.8730892327900984,
+        "prediction_precision": 0.8161355168246099,
+        "f1": 0.8436522521940023,
+        "mismatch_events": 12954,
+        "insertion_events": 284861,
+        "deletion_events": 159028,
+        "uncovered_hidden_bases": 74581
+      },
+      "primary_blocks": 11,
+      "selected_forward_blocks": 11,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "ordinary_f1": 0.9765733546130876,
+      "collinear_metrics": {
+        "hidden_known_bases": 1937831,
+        "predicted_bases": 1886148,
+        "hidden_exact_bases": 1867198,
+        "predicted_exact_bases": 1867198,
+        "hidden_recovery": 0.9635504850526181,
+        "prediction_precision": 0.9899530683700325,
+        "f1": 0.9765733546130876,
+        "mismatch_events": 292,
+        "insertion_events": 4106,
+        "deletion_events": 56924,
+        "uncovered_hidden_bases": 13417
+      },
+      "primary_blocks": 7,
+      "selected_forward_blocks": 7,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "ordinary_f1": 0.8665011605566137,
+      "collinear_metrics": {
+        "hidden_known_bases": 1936409,
+        "predicted_bases": 2037093,
+        "hidden_exact_bases": 1715561,
+        "predicted_exact_bases": 1715561,
+        "hidden_recovery": 0.885949714135805,
+        "prediction_precision": 0.8421613544398807,
+        "f1": 0.8635007607898524,
+        "mismatch_events": 11782,
+        "insertion_events": 240154,
+        "deletion_events": 146943,
+        "uncovered_hidden_bases": 62123
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 9,
+      "reverse_aligned_query_bases": 11790
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "ordinary_f1": 0.9056538130415307,
+      "collinear_metrics": {
+        "hidden_known_bases": 1929663,
+        "predicted_bases": 1859655,
+        "hidden_exact_bases": 1539859,
+        "predicted_exact_bases": 1539859,
+        "hidden_recovery": 0.7979937429488984,
+        "prediction_precision": 0.828034769890114,
+        "f1": 0.8127367510459665,
+        "mismatch_events": 2913,
+        "insertion_events": 45258,
+        "deletion_events": 146123,
+        "uncovered_hidden_bases": 240768
+      },
+      "primary_blocks": 9,
+      "selected_forward_blocks": 7,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "ordinary_f1": 0.7348341095133927,
+      "collinear_metrics": {
+        "hidden_known_bases": 1928973,
+        "predicted_bases": 1928972,
+        "hidden_exact_bases": 526549,
+        "predicted_exact_bases": 526549,
+        "hidden_recovery": 0.272968569285314,
+        "prediction_precision": 0.27296871079518004,
+        "f1": 0.2729686400402287,
+        "mismatch_events": 30,
+        "insertion_events": 3952,
+        "deletion_events": 29003,
+        "uncovered_hidden_bases": 1373391
+      },
+      "primary_blocks": 8,
+      "selected_forward_blocks": 3,
+      "reverse_aligned_query_bases": 991574
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "ordinary_f1": 0.9540006139106323,
+      "collinear_metrics": {
+        "hidden_known_bases": 1928465,
+        "predicted_bases": 2033085,
+        "hidden_exact_bases": 1765234,
+        "predicted_exact_bases": 1765234,
+        "hidden_recovery": 0.9153570326658768,
+        "prediction_precision": 0.8682539096988074,
+        "f1": 0.8911835014072774,
+        "mismatch_events": 198,
+        "insertion_events": 87306,
+        "deletion_events": 31905,
+        "uncovered_hidden_bases": 131128
+      },
+      "primary_blocks": 4,
+      "selected_forward_blocks": 3,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "ordinary_f1": 0.8790035627641198,
+      "collinear_metrics": {
+        "hidden_known_bases": 1927204,
+        "predicted_bases": 1861405,
+        "hidden_exact_bases": 1391809,
+        "predicted_exact_bases": 1391809,
+        "hidden_recovery": 0.7221908007662915,
+        "prediction_precision": 0.7477195989051281,
+        "f1": 0.7347335130122955,
+        "mismatch_events": 11025,
+        "insertion_events": 73875,
+        "deletion_events": 105116,
+        "uncovered_hidden_bases": 419254
+      },
+      "primary_blocks": 13,
+      "selected_forward_blocks": 10,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "ordinary_f1": 0.8841208594812788,
+      "collinear_metrics": {
+        "hidden_known_bases": 1926806,
+        "predicted_bases": 1892009,
+        "hidden_exact_bases": 1688147,
+        "predicted_exact_bases": 1688147,
+        "hidden_recovery": 0.8761375042427727,
+        "prediction_precision": 0.892251041089128,
+        "f1": 0.8841208594812788,
+        "mismatch_events": 6333,
+        "insertion_events": 152445,
+        "deletion_events": 138486,
+        "uncovered_hidden_bases": 93840
+      },
+      "primary_blocks": 15,
+      "selected_forward_blocks": 15,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "ordinary_f1": 0.9217724899717227,
+      "collinear_metrics": {
+        "hidden_known_bases": 1926254,
+        "predicted_bases": 1960256,
+        "hidden_exact_bases": 1791239,
+        "predicted_exact_bases": 1791239,
+        "hidden_recovery": 0.9299079975953327,
+        "prediction_precision": 0.913778098370825,
+        "f1": 0.9217724899717227,
+        "mismatch_events": 4601,
+        "insertion_events": 78845,
+        "deletion_events": 21399,
+        "uncovered_hidden_bases": 109015
+      },
+      "primary_blocks": 12,
+      "selected_forward_blocks": 12,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "ordinary_f1": 0.9952811128507731,
+      "collinear_metrics": {
+        "hidden_known_bases": 1925795,
+        "predicted_bases": 1927444,
+        "hidden_exact_bases": 1917528,
+        "predicted_exact_bases": 1917528,
+        "hidden_recovery": 0.9957072274047861,
+        "prediction_precision": 0.994855362853603,
+        "f1": 0.9952811128507731,
+        "mismatch_events": 270,
+        "insertion_events": 5667,
+        "deletion_events": 6942,
+        "uncovered_hidden_bases": 1055
+      },
+      "primary_blocks": 2,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "ordinary_f1": 0.93221662706892,
+      "collinear_metrics": {
+        "hidden_known_bases": 1022122,
+        "predicted_bases": 985568,
+        "hidden_exact_bases": 935801,
+        "predicted_exact_bases": 935801,
+        "hidden_recovery": 0.9155472634382197,
+        "prediction_precision": 0.9495042452677035,
+        "f1": 0.93221662706892,
+        "mismatch_events": 1062,
+        "insertion_events": 14796,
+        "deletion_events": 5687,
+        "uncovered_hidden_bases": 79572
+      },
+      "primary_blocks": 5,
+      "selected_forward_blocks": 5,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "ordinary_f1": 0.936858114641971,
+      "collinear_metrics": {
+        "hidden_known_bases": 1018168,
+        "predicted_bases": 1084039,
+        "hidden_exact_bases": 984500,
+        "predicted_exact_bases": 984500,
+        "hidden_recovery": 0.9669327655161034,
+        "prediction_precision": 0.9081776578148941,
+        "f1": 0.9366346891623898,
+        "mismatch_events": 1553,
+        "insertion_events": 76790,
+        "deletion_events": 7852,
+        "uncovered_hidden_bases": 24263
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 9,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "ordinary_f1": 0.9675740516756509,
+      "collinear_metrics": {
+        "hidden_known_bases": 1017806,
+        "predicted_bases": 991264,
+        "hidden_exact_bases": 971962,
+        "predicted_exact_bases": 971962,
+        "hidden_recovery": 0.9549580175396883,
+        "prediction_precision": 0.9805278916615553,
+        "f1": 0.9675740516756509,
+        "mismatch_events": 95,
+        "insertion_events": 19207,
+        "deletion_events": 45749,
+        "uncovered_hidden_bases": 0
+      },
+      "primary_blocks": 1,
+      "selected_forward_blocks": 1,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "ordinary_f1": 0.9458927888283077,
+      "collinear_metrics": {
+        "hidden_known_bases": 1015939,
+        "predicted_bases": 1029867,
+        "hidden_exact_bases": 953999,
+        "predicted_exact_bases": 953999,
+        "hidden_recovery": 0.9390317725768969,
+        "prediction_precision": 0.9263322351332745,
+        "f1": 0.9326387741555162,
+        "mismatch_events": 146,
+        "insertion_events": 48421,
+        "deletion_events": 46666,
+        "uncovered_hidden_bases": 15128
+      },
+      "primary_blocks": 2,
+      "selected_forward_blocks": 1,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "ordinary_f1": 0.9113114171426909,
+      "collinear_metrics": {
+        "hidden_known_bases": 1014758,
+        "predicted_bases": 1095910,
+        "hidden_exact_bases": 847772,
+        "predicted_exact_bases": 847772,
+        "hidden_recovery": 0.8354425390093008,
+        "prediction_precision": 0.773578122291064,
+        "f1": 0.8033210339096438,
+        "mismatch_events": 310,
+        "insertion_events": 98992,
+        "deletion_events": 7117,
+        "uncovered_hidden_bases": 159559
+      },
+      "primary_blocks": 5,
+      "selected_forward_blocks": 4,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "ordinary_f1": 0.910651935323156,
+      "collinear_metrics": {
+        "hidden_known_bases": 1011935,
+        "predicted_bases": 937016,
+        "hidden_exact_bases": 887408,
+        "predicted_exact_bases": 887408,
+        "hidden_recovery": 0.8769417008009408,
+        "prediction_precision": 0.9470574675352396,
+        "f1": 0.910651935323156,
+        "mismatch_events": 365,
+        "insertion_events": 11195,
+        "deletion_events": 55408,
+        "uncovered_hidden_bases": 68754
+      },
+      "primary_blocks": 3,
+      "selected_forward_blocks": 3,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "ordinary_f1": 0.9376540205056436,
+      "collinear_metrics": {
+        "hidden_known_bases": 1011077,
+        "predicted_bases": 1092539,
+        "hidden_exact_bases": 986232,
+        "predicted_exact_bases": 986232,
+        "hidden_recovery": 0.9754271929833237,
+        "prediction_precision": 0.9026972950164708,
+        "f1": 0.9376540205056436,
+        "mismatch_events": 1798,
+        "insertion_events": 39681,
+        "deletion_events": 4607,
+        "uncovered_hidden_bases": 18440
+      },
+      "primary_blocks": 9,
+      "selected_forward_blocks": 9,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "ordinary_f1": 0.8102334151240935,
+      "collinear_metrics": {
+        "hidden_known_bases": 1010858,
+        "predicted_bases": 1124265,
+        "hidden_exact_bases": 864974,
+        "predicted_exact_bases": 864974,
+        "hidden_recovery": 0.8556829940505986,
+        "prediction_precision": 0.7693684318199001,
+        "f1": 0.8102334151240935,
+        "mismatch_events": 272,
+        "insertion_events": 44247,
+        "deletion_events": 18867,
+        "uncovered_hidden_bases": 126745
+      },
+      "primary_blocks": 4,
+      "selected_forward_blocks": 4,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "ordinary_f1": 0.9471873913253305,
+      "collinear_metrics": {
+        "hidden_known_bases": 1010675,
+        "predicted_bases": 1041792,
+        "hidden_exact_bases": 956862,
+        "predicted_exact_bases": 956862,
+        "hidden_recovery": 0.9467553862517625,
+        "prediction_precision": 0.9184770088462956,
+        "f1": 0.9324018364241666,
+        "mismatch_events": 422,
+        "insertion_events": 64885,
+        "deletion_events": 21842,
+        "uncovered_hidden_bases": 31549
+      },
+      "primary_blocks": 3,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "ordinary_f1": 0.896680220749537,
+      "collinear_metrics": {
+        "hidden_known_bases": 1010053,
+        "predicted_bases": 1049196,
+        "hidden_exact_bases": 922319,
+        "predicted_exact_bases": 922319,
+        "hidden_recovery": 0.913139211506723,
+        "prediction_precision": 0.8790721657345243,
+        "f1": 0.8957819088415243,
+        "mismatch_events": 5178,
+        "insertion_events": 89640,
+        "deletion_events": 6732,
+        "uncovered_hidden_bases": 75824
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 9,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "ordinary_f1": 0.9323537968280494,
+      "collinear_metrics": {
+        "hidden_known_bases": 2482287,
+        "predicted_bases": 2484688,
+        "hidden_exact_bases": 2315489,
+        "predicted_exact_bases": 2315489,
+        "hidden_recovery": 0.9328047079165303,
+        "prediction_precision": 0.9319033214632985,
+        "f1": 0.9323537968280494,
+        "mismatch_events": 1985,
+        "insertion_events": 153286,
+        "deletion_events": 152664,
+        "uncovered_hidden_bases": 12149
+      },
+      "primary_blocks": 2,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "ordinary_f1": 0.9563559992015698,
+      "collinear_metrics": {
+        "hidden_known_bases": 2477883,
+        "predicted_bases": 2649305,
+        "hidden_exact_bases": 2335118,
+        "predicted_exact_bases": 2335118,
+        "hidden_recovery": 0.9423842852951492,
+        "prediction_precision": 0.8814077654328211,
+        "f1": 0.9108766832813621,
+        "mismatch_events": 135,
+        "insertion_events": 143449,
+        "deletion_events": 13619,
+        "uncovered_hidden_bases": 129011
+      },
+      "primary_blocks": 3,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "ordinary_f1": 0.9667268011492368,
+      "collinear_metrics": {
+        "hidden_known_bases": 2468942,
+        "predicted_bases": 2469988,
+        "hidden_exact_bases": 2387298,
+        "predicted_exact_bases": 2387298,
+        "hidden_recovery": 0.9669315844600642,
+        "prediction_precision": 0.9665221045608319,
+        "f1": 0.9667268011492368,
+        "mismatch_events": 221,
+        "insertion_events": 75031,
+        "deletion_events": 64364,
+        "uncovered_hidden_bases": 17059
+      },
+      "primary_blocks": 6,
+      "selected_forward_blocks": 6,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "ordinary_f1": 0.9144092510726893,
+      "collinear_metrics": {
+        "hidden_known_bases": 2466428,
+        "predicted_bases": 2226217,
+        "hidden_exact_bases": 2145499,
+        "predicted_exact_bases": 2145499,
+        "hidden_recovery": 0.8698810587619018,
+        "prediction_precision": 0.9637420790515929,
+        "f1": 0.9144092510726893,
+        "mismatch_events": 5487,
+        "insertion_events": 3893,
+        "deletion_events": 228354,
+        "uncovered_hidden_bases": 87088
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 10,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "ordinary_f1": 0.8592488342361243,
+      "collinear_metrics": {
+        "hidden_known_bases": 2464385,
+        "predicted_bases": 2759484,
+        "hidden_exact_bases": 1984154,
+        "predicted_exact_bases": 1984154,
+        "hidden_recovery": 0.8051315033973994,
+        "prediction_precision": 0.7190308043097913,
+        "f1": 0.7596492178498351,
+        "mismatch_events": 10572,
+        "insertion_events": 81206,
+        "deletion_events": 149620,
+        "uncovered_hidden_bases": 320039
+      },
+      "primary_blocks": 16,
+      "selected_forward_blocks": 15,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "ordinary_f1": 0.9616076424932551,
+      "collinear_metrics": {
+        "hidden_known_bases": 2452303,
+        "predicted_bases": 2367276,
+        "hidden_exact_bases": 2317272,
+        "predicted_exact_bases": 2317272,
+        "hidden_recovery": 0.9449370652810848,
+        "prediction_precision": 0.9788769877276667,
+        "f1": 0.9616076424932551,
+        "mismatch_events": 50,
+        "insertion_events": 49954,
+        "deletion_events": 134981,
+        "uncovered_hidden_bases": 0
+      },
+      "primary_blocks": 1,
+      "selected_forward_blocks": 1,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "ordinary_f1": 0.9632134751781614,
+      "collinear_metrics": {
+        "hidden_known_bases": 2451894,
+        "predicted_bases": 2517480,
+        "hidden_exact_bases": 2393284,
+        "predicted_exact_bases": 2393284,
+        "hidden_recovery": 0.9760960302525313,
+        "prediction_precision": 0.9506665395554285,
+        "f1": 0.9632134751781614,
+        "mismatch_events": 162,
+        "insertion_events": 96136,
+        "deletion_events": 22329,
+        "uncovered_hidden_bases": 36119
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 10,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "ordinary_f1": 0.9344202383237843,
+      "collinear_metrics": {
+        "hidden_known_bases": 2441970,
+        "predicted_bases": 2477200,
+        "hidden_exact_bases": 696828,
+        "predicted_exact_bases": 696828,
+        "hidden_recovery": 0.2853548569392744,
+        "prediction_precision": 0.28129662522202487,
+        "f1": 0.2833112090047711,
+        "mismatch_events": 4222,
+        "insertion_events": 2724,
+        "deletion_events": 7632,
+        "uncovered_hidden_bases": 1733288
+      },
+      "primary_blocks": 28,
+      "selected_forward_blocks": 6,
+      "reverse_aligned_query_bases": 1682245
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "ordinary_f1": 0.8851663455865975,
+      "collinear_metrics": {
+        "hidden_known_bases": 2431544,
+        "predicted_bases": 2470660,
+        "hidden_exact_bases": 2169633,
+        "predicted_exact_bases": 2169633,
+        "hidden_recovery": 0.892286135887321,
+        "prediction_precision": 0.8781592772781363,
+        "f1": 0.8851663455865975,
+        "mismatch_events": 13540,
+        "insertion_events": 146641,
+        "deletion_events": 116729,
+        "uncovered_hidden_bases": 131642
+      },
+      "primary_blocks": 14,
+      "selected_forward_blocks": 14,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "ordinary_f1": 0.8959832522830886,
+      "collinear_metrics": {
+        "hidden_known_bases": 2426556,
+        "predicted_bases": 2572812,
+        "hidden_exact_bases": 2239675,
+        "predicted_exact_bases": 2239675,
+        "hidden_recovery": 0.9229850866825245,
+        "prediction_precision": 0.8705163844074111,
+        "f1": 0.8959832522830886,
+        "mismatch_events": 224,
+        "insertion_events": 231788,
+        "deletion_events": 53845,
+        "uncovered_hidden_bases": 132812
+      },
+      "primary_blocks": 5,
+      "selected_forward_blocks": 5,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "ordinary_f1": 0.8621488912019959,
+      "collinear_metrics": {
+        "hidden_known_bases": 1427785,
+        "predicted_bases": 1523302,
+        "hidden_exact_bases": 1183733,
+        "predicted_exact_bases": 1183733,
+        "hidden_recovery": 0.8290695027612701,
+        "prediction_precision": 0.7770835986560773,
+        "f1": 0.8022352441659634,
+        "mismatch_events": 452,
+        "insertion_events": 199784,
+        "deletion_events": 63900,
+        "uncovered_hidden_bases": 179700
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 7,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "ordinary_f1": 0.9607422912173897,
+      "collinear_metrics": {
+        "hidden_known_bases": 1427686,
+        "predicted_bases": 1412062,
+        "hidden_exact_bases": 1364133,
+        "predicted_exact_bases": 1364133,
+        "hidden_recovery": 0.9554853097950109,
+        "prediction_precision": 0.9660574394042188,
+        "f1": 0.9607422912173897,
+        "mismatch_events": 90,
+        "insertion_events": 39754,
+        "deletion_events": 56709,
+        "uncovered_hidden_bases": 6754
+      },
+      "primary_blocks": 3,
+      "selected_forward_blocks": 3,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "ordinary_f1": 0.7848795923919968,
+      "collinear_metrics": {
+        "hidden_known_bases": 1426674,
+        "predicted_bases": 1317580,
+        "hidden_exact_bases": 1076105,
+        "predicted_exact_bases": 1076105,
+        "hidden_recovery": 0.7542753284913022,
+        "prediction_precision": 0.8167283959987249,
+        "f1": 0.7842604948375769,
+        "mismatch_events": 2853,
+        "insertion_events": 24460,
+        "deletion_events": 165,
+        "uncovered_hidden_bases": 347551
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 8,
+      "reverse_aligned_query_bases": 823
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "ordinary_f1": 0.8477567620831907,
+      "collinear_metrics": {
+        "hidden_known_bases": 1422494,
+        "predicted_bases": 1427796,
+        "hidden_exact_bases": 1207584,
+        "predicted_exact_bases": 1207584,
+        "hidden_recovery": 0.8489202766408857,
+        "prediction_precision": 0.8457678828067875,
+        "f1": 0.8473411477428613,
+        "mismatch_events": 115,
+        "insertion_events": 24594,
+        "deletion_events": 108293,
+        "uncovered_hidden_bases": 106502
+      },
+      "primary_blocks": 3,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 1183
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "ordinary_f1": 0.8562959905249352,
+      "collinear_metrics": {
+        "hidden_known_bases": 1422259,
+        "predicted_bases": 1504159,
+        "hidden_exact_bases": 1252940,
+        "predicted_exact_bases": 1252940,
+        "hidden_recovery": 0.8809506566666128,
+        "prediction_precision": 0.8329837470639739,
+        "f1": 0.8562959905249352,
+        "mismatch_events": 5285,
+        "insertion_events": 130019,
+        "deletion_events": 63808,
+        "uncovered_hidden_bases": 100226
+      },
+      "primary_blocks": 10,
+      "selected_forward_blocks": 10,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "ordinary_f1": 0.9260227869229013,
+      "collinear_metrics": {
+        "hidden_known_bases": 1419683,
+        "predicted_bases": 1357875,
+        "hidden_exact_bases": 1286041,
+        "predicted_exact_bases": 1286041,
+        "hidden_recovery": 0.9058649008264521,
+        "prediction_precision": 0.9470982233268894,
+        "f1": 0.9260227869229013,
+        "mismatch_events": 2551,
+        "insertion_events": 67029,
+        "deletion_events": 78050,
+        "uncovered_hidden_bases": 53041
+      },
+      "primary_blocks": 4,
+      "selected_forward_blocks": 4,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "ordinary_f1": 0.9269427064866358,
+      "collinear_metrics": {
+        "hidden_known_bases": 1418368,
+        "predicted_bases": 1393521,
+        "hidden_exact_bases": 1303230,
+        "predicted_exact_bases": 1303230,
+        "hidden_recovery": 0.9188236057215052,
+        "prediction_precision": 0.9352065738514167,
+        "f1": 0.9269427064866358,
+        "mismatch_events": 1084,
+        "insertion_events": 50871,
+        "deletion_events": 52913,
+        "uncovered_hidden_bases": 61141
+      },
+      "primary_blocks": 7,
+      "selected_forward_blocks": 7,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "ordinary_f1": 0.9603946659082955,
+      "collinear_metrics": {
+        "hidden_known_bases": 1411767,
+        "predicted_bases": 1485671,
+        "hidden_exact_bases": 1391342,
+        "predicted_exact_bases": 1391342,
+        "hidden_recovery": 0.9855323151766545,
+        "prediction_precision": 0.9365074770928422,
+        "f1": 0.9603946659082955,
+        "mismatch_events": 429,
+        "insertion_events": 89973,
+        "deletion_events": 14515,
+        "uncovered_hidden_bases": 5481
+      },
+      "primary_blocks": 5,
+      "selected_forward_blocks": 5,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "ordinary_f1": 0.9459014875744465,
+      "collinear_metrics": {
+        "hidden_known_bases": 1411636,
+        "predicted_bases": 1429163,
+        "hidden_exact_bases": 1343558,
+        "predicted_exact_bases": 1343558,
+        "hidden_recovery": 0.9517736867011043,
+        "prediction_precision": 0.9401013040499929,
+        "f1": 0.9459014875744465,
+        "mismatch_events": 76,
+        "insertion_events": 74177,
+        "deletion_events": 9308,
+        "uncovered_hidden_bases": 58694
+      },
+      "primary_blocks": 2,
+      "selected_forward_blocks": 2,
+      "reverse_aligned_query_bases": 0
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "ordinary_f1": 0.8091250221002283,
+      "collinear_metrics": {
+        "hidden_known_bases": 1407681,
+        "predicted_bases": 1522153,
+        "hidden_exact_bases": 1185301,
+        "predicted_exact_bases": 1185301,
+        "hidden_recovery": 0.8420238676234175,
+        "prediction_precision": 0.778700301480863,
+        "f1": 0.8091250221002283,
+        "mismatch_events": 24279,
+        "insertion_events": 100835,
+        "deletion_events": 14966,
+        "uncovered_hidden_bases": 183135
+      },
+      "primary_blocks": 20,
+      "selected_forward_blocks": 20,
+      "reverse_aligned_query_bases": 0
+    }
+  ],
+  "definition": "Exact-base scoring restricted to a maximum-match forward chain with non-overlapping monotone query and reference intervals.",
+  "limitations": "Conservative alignment diagnostic, not a complete misassembly or copy-number assessment; may discard correct overlapping blocks."
+}
