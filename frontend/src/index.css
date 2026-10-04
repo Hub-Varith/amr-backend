@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Source Serif 4 Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Warm near-black paper, off-white ink. No pure white anywhere. */
+  --color-paper: #121211;
+  --color-raised: #191917;
+  --color-rule: #2c2b28;
+  --color-rule-strong: #403e3a;
+  --color-ink: #e6e1d6;
+  --color-ink-2: #a9a399;
+  --color-ink-3: #78736a;
+
+  /* Call colours. Muted, and used only where they carry meaning. */
+  --color-active: #7f9f63;
+  --color-uncertain: #c4993e;
+  --color-inactive: #c45a42;
+}
+
+html {
+  color-scheme: dark;
+  background-color: var(--color-paper);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 1px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
