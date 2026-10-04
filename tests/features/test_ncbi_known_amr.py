@@ -58,3 +58,55 @@ def test_build_makes_one_wide_row_per_genome() -> None:
     assert features.drop(columns=["genome_id", "species"]).dtypes.eq("int8").all()
     assert not features.isna().any().any()
     assert set(columns.columns) == {"column_name", "source_symbol", "class", "n_genomes_present"}
+
+
+def test_combine_keeps_each_species_values_and_fills_missing_columns_with_zero() -> None:
+    kpneu = pd.DataFrame(
+        {"genome_id": ["573.1"], "species": ["KPNEU"], "gene_blakpc_2": [1], "n_class_beta_lactam": [2]}
+    ).astype({"gene_blakpc_2": "int8", "n_class_beta_lactam": "int8"})
+    ecoli = pd.DataFrame(
+        {"genome_id": ["562.1"], "species": ["ECOLI"], "gene_blactx_m": [1], "n_class_beta_lactam": [1]}
+    ).astype({"gene_blactx_m": "int8", "n_class_beta_lactam": "int8"})
+    kpneu_map = pd.DataFrame(
+        [("gene_blakpc_2", "blaKPC-2", "BETA-LACTAM", 1)],
+        columns=["column_name", "source_symbol", "class", "n_genomes_present"],
+    )
+    ecoli_map = pd.DataFrame(
+        [("gene_blactx_m", "blaCTX-M", "BETA-LACTAM", 1)],
+        columns=["column_name", "source_symbol", "class", "n_genomes_present"],
+    )
+
+    features, column_map = NcbiKnownAmrBuilder.combine([kpneu, ecoli], [kpneu_map, ecoli_map])
+
+    rows = features.set_index("genome_id")
+    assert list(features.columns) == ["genome_id", "species", "gene_blactx_m", "gene_blakpc_2", "n_class_beta_lactam"]
+    assert rows.loc["573.1", "gene_blakpc_2"] == 1
+    assert rows.loc["573.1", "gene_blactx_m"] == 0
+    assert rows.loc["562.1", "gene_blakpc_2"] == 0
+    assert rows.loc["562.1", "n_class_beta_lactam"] == 1
+    assert features.drop(columns=["genome_id", "species"]).dtypes.eq("int8").all()
+    assert not features.isna().any().any()
+    assert list(column_map["column_name"]) == ["gene_blactx_m", "gene_blakpc_2"]
+
+
+def test_combine_adds_genome_counts_for_a_shared_column() -> None:
+    first = pd.DataFrame([("gene_sul1", "sul1", "SULFONAMIDE", 3)],
+                         columns=["column_name", "source_symbol", "class", "n_genomes_present"])
+    second = pd.DataFrame([("gene_sul1", "sul1", "SULFONAMIDE", 4)],
+                          columns=["column_name", "source_symbol", "class", "n_genomes_present"])
+    empty = pd.DataFrame({"genome_id": [], "species": []})
+
+    _, column_map = NcbiKnownAmrBuilder.combine([empty, empty], [first, second])
+
+    assert column_map.set_index("column_name").loc["gene_sul1", "n_genomes_present"] == 7
+
+
+def test_class_table_skips_a_missing_dna_mutation_file(tmp_path) -> None:
+    pd.DataFrame({"#node_id": ["blaKPC"], "class": ["BETA-LACTAM"]}).to_csv(tmp_path / "fam.tsv", sep="\t", index=False)
+    pd.DataFrame({"standard_mutation_symbol": ["gyrA_T83I"], "class": ["QUINOLONE"]}).to_csv(
+        tmp_path / "AMRProt-mutation.tsv", sep="\t", index=False
+    )
+
+    classes = NcbiKnownAmrBuilder.load_class_table(tmp_path, "Pseudomonas_aeruginosa")
+
+    assert classes == {"blaKPC": "BETA-LACTAM", "gyrA_T83I": "QUINOLONE"}

@@ -46,19 +46,24 @@ genomes:
 qc:
 	PYTHONPATH=src python -m genome2mic.qc.run_qc
 
-# Hackathon shortcut (KPNEU): NCBI Pathogen Detection AMR calls + SNP clusters. See docs/HACKATHON_DATA.md.
-NCBI_PD_URL = https://ftp.ncbi.nlm.nih.gov/pathogen/Results/Klebsiella/latest_snps
+# Hackathon shortcut (all 5 species): NCBI Pathogen Detection AMR calls + SNP clusters. See docs/HACKATHON_DATA.md.
+# ncbi-pd skips a species whose files exist, so a rerun never swaps in a newer NCBI version by accident.
+NCBI_PD_BASE = https://ftp.ncbi.nlm.nih.gov/pathogen/Results
 AMRFINDER_DB ?= $(lastword $(wildcard $(HOME)/miniforge3/envs/genome2mic-tools/share/amrfinderplus/data/2*))
 
 ncbi-pd:
 	mkdir -p data/raw/ncbi_pd
-	version=$$(curl -s $(NCBI_PD_URL)/Metadata/ | grep -oE 'PDG[0-9]+\.[0-9]+' | head -1) && \
-	curl -sf -o data/raw/ncbi_pd/kleb.metadata.tsv $(NCBI_PD_URL)/Metadata/$$version.metadata.tsv && \
-	curl -sf -o data/raw/ncbi_pd/kleb.clusters.tsv $(NCBI_PD_URL)/Clusters/$$version.reference_target.cluster_list.tsv && \
-	echo $$version > data/raw/ncbi_pd/VERSION && echo "NCBI Pathogen Detection $$version"
+	python -c "import yaml; [print(key, value['ncbi_pd_group']) for key, value in yaml.safe_load(open('configs/species.yaml'))['species'].items()]" | \
+	while read key group; do \
+		if [ -f data/raw/ncbi_pd/$$key.VERSION ]; then echo "$$key: have $$(cat data/raw/ncbi_pd/$$key.VERSION), skipping"; continue; fi; \
+		version=$$(curl -s $(NCBI_PD_BASE)/$$group/latest_snps/Metadata/ | grep -oE 'PDG[0-9]+\.[0-9]+' | head -1) && \
+		curl -sf -o data/raw/ncbi_pd/$$key.metadata.tsv $(NCBI_PD_BASE)/$$group/latest_snps/Metadata/$$version.metadata.tsv && \
+		curl -sf -o data/raw/ncbi_pd/$$key.clusters.tsv $(NCBI_PD_BASE)/$$group/latest_snps/Clusters/$$version.reference_target.cluster_list.tsv && \
+		echo $$version > data/raw/ncbi_pd/$$key.VERSION && echo "$$key: NCBI Pathogen Detection $$version" || exit 1; \
+	done
 
 hackathon-data:
-	PYTHONPATH=src python -m genome2mic.features.run_hackathon_data --species KPNEU --amrfinder-db $(AMRFINDER_DB)
+	PYTHONPATH=src python -m genome2mic.features.run_hackathon_data --amrfinder-db $(AMRFINDER_DB)
 
 # VM only: upload the handoff files as a new frozen S3 release. Optional: RELEASE=<name>.
 push-data:

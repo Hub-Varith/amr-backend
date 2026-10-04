@@ -31,6 +31,10 @@ class NcbiKnownAmrBuilder:
         families = pd.read_csv(amrfinder_db_dir / "fam.tsv", sep="\t", dtype=str)
         class_by_symbol = dict(zip(families["#node_id"], families["class"].fillna("")))
         for mutation_file in ("AMRProt-mutation.tsv", f"AMR_DNA-{organism}.tsv"):
+            # Not every organism has DNA-level mutations (e.g. Pseudomonas_aeruginosa).
+            if not (amrfinder_db_dir / mutation_file).exists():
+                logger.warning("No AMRFinderPlus mutation table %s; skipping it", mutation_file)
+                continue
             mutations = pd.read_csv(amrfinder_db_dir / mutation_file, sep="\t", dtype=str)
             class_by_symbol.update(zip(mutations["standard_mutation_symbol"], mutations["class"].fillna("")))
         return {symbol: amr_class for symbol, amr_class in class_by_symbol.items() if amr_class}
@@ -105,4 +109,32 @@ class NcbiKnownAmrBuilder:
         )
         logger.info("Known-AMR features: genomes=%s gene/point columns=%s class columns=%s",
                     len(features), presence.shape[1], class_counts.shape[1])
+        return features, column_map
+
+    @staticmethod
+    def combine(
+        feature_tables: list[pd.DataFrame], column_maps: list[pd.DataFrame]
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Stack per-species tables. A column one species never has is 0 for its genomes."""
+        features = pd.concat(feature_tables, ignore_index=True)
+        feature_columns = [column for column in features.columns if column not in ("genome_id", "species")]
+        gene_point_columns = sorted(column for column in feature_columns if not column.startswith("n_class_"))
+        class_columns = sorted(column for column in feature_columns if column.startswith("n_class_"))
+        features[feature_columns] = features[feature_columns].fillna(0).astype("int8")
+        features = features[["genome_id", "species", *gene_point_columns, *class_columns]]
+        features = features.sort_values("genome_id").reset_index(drop=True)
+
+        column_map = (
+            pd.concat(column_maps, ignore_index=True)
+            .groupby("column_name")
+            .agg(
+                source_symbol=("source_symbol", lambda symbols: ",".join(sorted(set(",".join(symbols).split(","))))),
+                amr_class=("class", "first"),
+                n_genomes_present=("n_genomes_present", "sum"),
+            )
+            .reset_index()
+            .rename(columns={"amr_class": "class"})
+        )
+        logger.info("Combined known-AMR: genomes=%s feature columns=%s species=%s",
+                    len(features), len(feature_columns), sorted(features["species"].unique()))
         return features, column_map
