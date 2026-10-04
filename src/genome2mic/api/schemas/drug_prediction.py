@@ -5,11 +5,12 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
 
 from genome2mic.api.schemas.call import Call
+from genome2mic.api.schemas.confidence_level import ConfidenceLevel
 from genome2mic.api.schemas.override import Override
 
 
 class DrugPrediction(BaseModel):
-    """Predicted MIC, 90% band, breakpoints and call for one drug (DATA_CONTRACT.md stage 12). MICs in mg/L."""
+    """Predicted MIC, 90% band, breakpoints, P(active) and call for one drug (DATA_CONTRACT.md stage 12). MICs in mg/L."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -19,6 +20,8 @@ class DrugPrediction(BaseModel):
     band_high: PositiveFloat | None
     s_breakpoint: PositiveFloat | None = None
     r_breakpoint: PositiveFloat | None = None
+    p_active: float | None = Field(default=None, ge=0.0, le=1.0)
+    confidence_level: ConfidenceLevel | None = None
     call: Call
     margin_steps: int | None
     reasons: list[str] = []
@@ -36,6 +39,8 @@ class DrugPrediction(BaseModel):
         if self.s_breakpoint is not None and self.r_breakpoint is not None:
             if self.s_breakpoint > self.r_breakpoint:
                 raise ValueError("Expected s_breakpoint <= r_breakpoint.")
+        if (self.p_active is None) != (self.confidence_level is None):
+            raise ValueError("p_active and confidence_level must be both set or both null.")
         if self.override is not None and self.call is not Call.LIKELY_INACTIVE:
             raise ValueError("A drug with an override must have call likely_inactive.")
         return self

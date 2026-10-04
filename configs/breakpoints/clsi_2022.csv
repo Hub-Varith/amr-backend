@@ -1,2 +1,3 @@
 species,drug,s_breakpoint,r_breakpoint,version,site
-KPNEU,piperacillin-tazobactam,8,16,M100 32nd ed,bloodstream
+KPNEU,piperacillin-tazobactam,8.0,16.0,M100 32nd ed,bloodstream
+ECOLI,piperacillin-tazobactam,8.0,16.0,M100 32nd ed,bloodstream

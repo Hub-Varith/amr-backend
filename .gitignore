@@ -13,3 +13,6 @@ __pycache__/
 !/data/processed/pairs_kept.csv
 # Un-ignore splits.parquet only when the frozen splits exist. The current one is the
 # provisional hackathon split (docs/HACKATHON_DATA.md) and must not be committed.
+
+# Trained models are shared through S3 (docs/MODEL_HANDOFF.md), not git.
+/models

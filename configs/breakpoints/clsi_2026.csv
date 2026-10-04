@@ -1,0 +1,4 @@
+species,drug,s_breakpoint,r_breakpoint,version,site
+ABAU,amikacin,8.0,16.0,M100 36th ed,bloodstream
+ABAU,gentamicin,2.0,4.0,M100 36th ed,bloodstream
+ABAU,tobramycin,2.0,4.0,M100 36th ed,bloodstream

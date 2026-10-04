@@ -1,4 +1,9 @@
 species,drug,s_breakpoint,r_breakpoint,version,site
-KPNEU,amikacin,4,8,M100 33rd ed,bloodstream
-KPNEU,gentamicin,2,4,M100 33rd ed,bloodstream
-KPNEU,tobramycin,2,4,M100 33rd ed,bloodstream
+KPNEU,amikacin,4.0,8.0,M100 33rd ed,bloodstream
+KPNEU,gentamicin,2.0,4.0,M100 33rd ed,bloodstream
+KPNEU,tobramycin,2.0,4.0,M100 33rd ed,bloodstream
+ECOLI,amikacin,4.0,8.0,M100 33rd ed,bloodstream
+ECOLI,gentamicin,2.0,4.0,M100 33rd ed,bloodstream
+ECOLI,tobramycin,2.0,4.0,M100 33rd ed,bloodstream
+PAER,piperacillin-tazobactam,16.0,32.0,M100 33rd ed,bloodstream
+PAER,tobramycin,1.0,2.0,M100 33rd ed,bloodstream
