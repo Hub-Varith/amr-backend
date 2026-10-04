@@ -43,6 +43,11 @@ class BreakpointTable:
             (self.table["species"] == species) & (self.table["drug"] == drug) & (self.table["standard"] == standard)
         ]
         if year is None:
+            # Agreement only means something if the rows reach back to the oldest file of this
+            # standard; otherwise an older, missing version could have had a different value.
+            oldest_year = self.table.loc[self.table["standard"] == standard, "effective_year"].min()
+            if rows.empty or rows["effective_year"].min() > oldest_year:
+                return None
             distinct = rows[["s_breakpoint", "r_breakpoint"]].drop_duplicates()
             if len(distinct) != 1:
                 return None

@@ -19,6 +19,7 @@ def table() -> BreakpointTable:
             ("KPNEU", "ciprofloxacin", "CLSI", 2019, 0.25, 0.5, "M100-29"),
             ("KPNEU", "meropenem", "EUCAST", 2010, 2.0, 8.0, "v1.0"),
             ("KPNEU", "meropenem", "EUCAST", 2019, 2.0, 8.0, "v9.0"),
+            ("KPNEU", "ceftazidime", "CLSI", 2020, 4.0, 8.0, "M100-30"),
         ],
         columns=["species", "drug", "standard", "effective_year", "s_breakpoint", "r_breakpoint", "version"],
     )
@@ -38,6 +39,13 @@ def test_lookup_before_the_first_version_is_none(table: BreakpointTable) -> None
 def test_lookup_without_year_works_only_when_all_versions_agree(table: BreakpointTable) -> None:
     assert table.lookup("KPNEU", "meropenem", "EUCAST", None) == (2.0, 8.0)
     assert table.lookup("KPNEU", "ciprofloxacin", "CLSI", None) is None
+
+
+def test_lookup_without_year_needs_the_pair_in_the_oldest_file(table: BreakpointTable) -> None:
+    # Ceftazidime has one CLSI row, from 2020. A result with no year may predate 2020,
+    # when the breakpoint could have been different, so it must not "agree" by default.
+    assert table.lookup("KPNEU", "ceftazidime", "CLSI", None) is None
+    assert table.lookup("KPNEU", "ceftazidime", "CLSI", 2021) == (4.0, 8.0)
 
 
 def test_lookup_unknown_pair_is_none(table: BreakpointTable) -> None:

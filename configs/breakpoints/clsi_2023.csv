@@ -1,0 +1,4 @@
+species,drug,s_breakpoint,r_breakpoint,version,site
+KPNEU,amikacin,4,8,M100 33rd ed,bloodstream
+KPNEU,gentamicin,2,4,M100 33rd ed,bloodstream
+KPNEU,tobramycin,2,4,M100 33rd ed,bloodstream

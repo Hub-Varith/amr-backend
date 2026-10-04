@@ -1,0 +1,16 @@
+species,drug,s_breakpoint,r_breakpoint,version,site
+KPNEU,amikacin,16,32,M100 30th ed,bloodstream
+KPNEU,aztreonam,4,8,M100 30th ed,bloodstream
+KPNEU,cefoxitin,8,16,M100 30th ed,bloodstream
+KPNEU,ceftazidime,4,8,M100 30th ed,bloodstream
+KPNEU,ceftriaxone,1,2,M100 30th ed,bloodstream
+KPNEU,ciprofloxacin,0.25,0.5,M100 30th ed,bloodstream
+KPNEU,ertapenem,0.5,1,M100 30th ed,bloodstream
+KPNEU,gentamicin,4,8,M100 30th ed,bloodstream
+KPNEU,imipenem,1,2,M100 30th ed,bloodstream
+KPNEU,levofloxacin,0.5,1,M100 30th ed,bloodstream
+KPNEU,meropenem,1,2,M100 30th ed,bloodstream
+KPNEU,piperacillin-tazobactam,16,64,M100 30th ed,bloodstream
+KPNEU,tetracycline,4,8,M100 30th ed,bloodstream
+KPNEU,tobramycin,4,8,M100 30th ed,bloodstream
+KPNEU,trimethoprim-sulfamethoxazole,2,2,M100 30th ed,bloodstream
