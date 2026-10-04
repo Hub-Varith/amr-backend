@@ -509,6 +509,7 @@ multi-species model.
 | `lab_sir` | str | |
 | `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `multitask_aft` |
 | `mu_log2` | float | Optional. Unrounded model output in log2 mg/L, for calibration plots |
+| `p_active` | float | Optional. Calibrated P(MIC ≤ S breakpoint), 0–1. Null when the pair has no breakpoint |
 | `run_id` | str | Config hash, for reproducibility |
 
 Round **up**: a slightly high MIC prediction is the safer error.
@@ -581,12 +582,51 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | `pred_mic` | float | yes | Null when an override skips the model |
 | `band_low`, `band_high` | float | yes | 90% conformal band. All three MIC fields are null together |
 | `s_breakpoint`, `r_breakpoint` | float | yes | Breakpoints used for the call |
+| `p_active` | float | yes | Calibrated P(MIC ≤ S breakpoint), 0–1. Null when there is no breakpoint or an override skips the model |
+| `confidence_level` | str | yes | Level of `p_active` (table below). Null exactly when `p_active` is null |
 | `call` | str | no | `likely_active` / `uncertain` / `likely_inactive` |
 | `margin_steps` | int | yes | Doubling steps below the S breakpoint |
 | `reasons` | list[str] | no | Markers behind the call, e.g. `gyrA S83L` |
 | `override` | str | yes | `natural_resistance` / `strong_marker`. Set → call is `likely_inactive` |
 
-**Call logic:**
+**`p_active` and `confidence_level`** (added 2026-10-03). The raw probability is
+P(MIC ≤ S breakpoint) under the model's normal on log2 MIC. One monotone calibration curve
+per species × drug (isotonic regression on out-of-fold predictions,
+`probability_calibration.json` in the model folder) maps it to `p_active`, so that a shown
+chance matches the observed rate. `confidence_level` names the range `p_active` falls in:
+
+| `p_active` | `confidence_level` |
+| ---------- | ------------------ |
+| < 0.02 | `very_likely_inactive` |
+| 0.02 – < 0.10 | `probably_inactive` |
+| 0.10 – < 0.30 | `leans_inactive` |
+| 0.30 – < 0.70 | `unclear` |
+| 0.70 – < 0.90 | `leans_active` |
+| 0.90 – < 0.98 | `probably_active` |
+| ≥ 0.98 | `very_likely_active` |
+
+The level describes the chance. `call` stays the safety-checked answer: a `probably_active`
+drug can still have `call = uncertain`.
+
+**Call logic.** Two rules; the probability rule applies where the species × drug pair has
+fitted thresholds (`call_thresholds.json` in the model folder), the band rule everywhere else.
+Both files come from `python -m genome2mic.predict.run_fit_calls --run-dir <model folder>`.
+
+Probability rule (added 2026-10-03):
+
+| Condition | Call |
+| --------- | ---- |
+| `p_active` ≥ `active_min` | Likely active |
+| `p_active` ≤ `inactive_max` | Likely inactive |
+| Otherwise | Uncertain — wait for lab |
+
+`active_min` and `inactive_max` are fitted per pair on out-of-fold predictions (never test
+rows) so that VME ≤ 1% and ME ≤ 3% there. A pair needs ≥ 20 lab-resistant and ≥ 20
+lab-susceptible rows. Lab category for fitting comes from the lab interval and the same
+breakpoints; rows that span a breakpoint are left out. `margin_steps` is 0 when the band top
+is above S.
+
+Band rule (fallback):
 
 | Condition | Call |
 | --------- | ---- |

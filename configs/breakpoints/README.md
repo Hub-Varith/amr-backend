@@ -42,8 +42,27 @@ EUCAST gives no breakpoint for cefoxitin (screening only) or tetracycline in
 Enterobacterales, so those two have CLSI rows only. EUCAST systemic aminoglycoside
 breakpoints are in brackets: use only in combination with other therapy.
 
+**All 5 species, CLSI 2020-2026: added 2026-10-03, one source.** Every kept species × drug
+pair with a CLSI MIC breakpoint in each year 2020-2026 (87 of 97 pairs): ECOLI 24, KPNEU 26,
+SAUR 11, PAER 11, ABAU 15. Taken from the AMR R package table only (`msberends/AMR`,
+built from WHONET); systemic rows (no urinary-only, oral-only, or meningitis rows).
+Organism rows used: Enterobacterales (ECOLI, KPNEU), *Staphylococcus aureus* then
+*Staphylococcus* (SAUR), *Pseudomonas aeruginosa* (PAER), *Acinetobacter* (ABAU).
+Printed values 0.06 / 0.12 are stored as 0.0625 / 0.125. **Not cross-checked against a
+second source** except the Enterobacterales rows listed above. A year file holds a row only
+when the value changed (e.g. `clsi_2023` PAER piperacillin-tazobactam and tobramycin,
+`clsi_2025` ABAU minocycline, `clsi_2026` ABAU aminoglycosides).
+
+Left out, because year files cannot express a removed breakpoint or there is none:
+PAER amikacin and gentamicin (CLSI removed the systemic breakpoints), ABAU tetracycline,
+KPNEU tigecycline, colistin and polymyxin-b (CLSI has no susceptible category), SAUR daptomycin.
+
+**Effect on labels:** a rebuild of `labels.parquet` will now turn S/I/R-only CLSI results
+dated 2020 or later into intervals for these pairs. The published releases are unchanged
+until the data owner rebuilds.
+
 **Still not checked:** `clsi_2000.csv` and `clsi_2010.csv` (older than the sources above),
-and every ECOLI row.
+and the ECOLI rows in the EUCAST files.
 
 A result with no year uses a value only when every file agrees **and** the drug is in
 the oldest file of that standard (`clsi_2000`, `eucast_2010`). Otherwise an older,
