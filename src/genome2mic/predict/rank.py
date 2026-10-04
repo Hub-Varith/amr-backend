@@ -49,7 +49,7 @@ from typing import Any
 
 import numpy as np
 
-from genome2mic.config import SPECTRUM_TIERS, Breakpoint, Config, DrugConfig
+from genome2mic.config import SPECTRUM_TIERS, Breakpoint, Config, DrugConfig, column_prefix_matches
 from genome2mic.models import conformal
 from genome2mic.predict.amr_detect import PREFIX_GENE, SUBTYPE_AMR, SUBTYPE_POINT, TYPE_AMR, Marker, column_name
 
@@ -376,7 +376,7 @@ def strong_marker_columns(
             wanted
             and subclass_by_column
             and c.startswith(PREFIX_GENE)
-            and not any(c == e or c.startswith(e) for e in exceptions)
+            and not any(column_prefix_matches(c, e) for e in exceptions)
             and subclass_is_strong(subclass_by_column.get(c), wanted)
         ):
             out.append(c)
@@ -458,7 +458,7 @@ def strong_marker_hits(
                 continue
             if str(marker.symbol).strip().lower() in intrinsic:
                 continue
-            if marker.column and any(marker.column == e or marker.column.startswith(e) for e in exceptions):
+            if marker.column and any(column_prefix_matches(marker.column, e) for e in exceptions):
                 continue
             if not class_tokens(marker.subclass).isdisjoint(wanted):
                 hits.append(marker.symbol)

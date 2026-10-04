@@ -16,10 +16,14 @@ genome FASTA
   -> QC + species ID (MinHash distance to 5 species references; > 0.05 from all of them = no species, no predictions)
   -> AMRFinderPlus 4.2.7 (-n, --plus, -O <organism>, DB 2026-08-07.1)
   -> known-AMR features with the NCBI-release rules (predict/release_features.py; parity checks below)
-  -> one XGBoost AFT model per species x drug (aft_known; bundle runs/hackathon5/models, run 1e4dea5e413f)
+  -> one model per species x drug: aft_b2_select (the AFT model, B2 or their average, chosen inside the
+     training folds; bundle runs/hackathon5/models, run 72a57bc3e199, v0.7 code)
   -> panel-edge cap, round up to the doubling grid, asymmetric cross-conformal band
   -> CLSI 2024 call: likely_active (band_high <= S) / likely_inactive (band_low > R) / uncertain
      overrides: natural resistance -> inactive; strong marker (e.g. carbapenemase for carbapenems) -> inactive
+  -> prob_works: calibrated P(lab MIC <= S breakpoint), shown next to the call (never changes it);
+     strong-marker hits get the pair's smoothed rate (lab S + 1) / (n + 2); the tier never says
+     'works' next to a likely_inactive call
   -> likely-active drugs ranked by spectrum tier, then by margin below the S breakpoint
 ```
 
@@ -89,7 +93,10 @@ A distance of about 0.055 to the species reference is near the species boundary 
 explanations are *K. quasipneumoniae* / *K. variicola* labelled as *K. pneumoniae*, and the
 PA7-like *P. aeruginosa* clade (*P. paraeruginosa*). Refusing to predict is the intended behaviour.
 
-### Results (15 genomes, 233 lab results)
+### Results (15 genomes, 233 lab results; final bundle run 72a57bc3e199)
+
+All 19 reports (15 genomes plus the 4 QC rejections) were regenerated on the final bundle and
+carry `run_id: 72a57bc3e199`.
 
 Columns:
 
@@ -97,49 +104,65 @@ Columns:
 - `ME`: lab S, called likely_inactive.
 - `agree`: lab R called likely_inactive, or lab S called likely_active.
 - `EA`: predicted MIC within ±1 doubling step, counted only on exact (one-step) lab MICs.
+- `lab R told works`: lab R with `prob_works` >= 0.70.
 - `ranked active`: the top 5 likely-active drugs, narrowest spectrum first.
 
-| species | genome | lab results | VME | ME | agree | uncertain | EA | ranked likely-active (top 5) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| KPNEU | 573.24243 | 26 | 0 | 0 | 20 | 3 | 6/6 | none |
-| KPNEU | 573.12886 | 19 | 0 | 0 | 8 | 10 | 5/5 | trimethoprim-sulfamethoxazole, tobramycin, amoxicillin-clavulanic-acid, ampicillin-sulbactam, ceftriaxone |
-| KPNEU | 574.20 | 24 | 0 | 0 | 17 | 5 | 7/7 | none |
-| ECOLI | 562.42835 | 22 | 0 | 0 | 6 | 14 | 1/4 | trimethoprim-sulfamethoxazole, ciprofloxacin, levofloxacin, cefepime |
-| ECOLI | 562.145336 | 18 | 0 | 0 | 6 | 4 | 1/2 | tetracycline, trimethoprim-sulfamethoxazole, ciprofloxacin, ampicillin-sulbactam, ceftriaxone |
-| ECOLI | 562.42842 | 22 | **1** | 0 | 6 | 14 | 1/1 | trimethoprim-sulfamethoxazole, ciprofloxacin, levofloxacin, cefepime |
-| SAUR | 1280.16760 | 11 | 0 | **1** | 3 | 7 | 3/4 | none |
-| SAUR | 1280.51740 | 3 | 0 | 0 | 1 | 2 | 0/1 | cefoxitin, oxacillin, levofloxacin |
-| SAUR | 1280.25977 | 8 | 0 | 0 | 0 | 8 | 4/4 | levofloxacin |
-| PAER | 287.5972 | 13 | 0 | 0 | 0 | 13 | 4/6 | none |
-| PAER | 287.47321 | 7 | 0 | 0 | 0 | 6 | 4/5 | none |
-| PAER | 287.6329 | 13 | 0 | 0 | 7 | 6 | 5/5 | none |
-| ABAU | 470.7392 | 17 | 0 | 0 | 7 | 10 | 6/7 | trimethoprim-sulfamethoxazole |
-| ABAU | 470.7513 | 13 | 0 | 0 | 11 | 1 | 3/5 | trimethoprim-sulfamethoxazole, tetracycline, levofloxacin, ampicillin-sulbactam, ciprofloxacin |
-| ABAU | 470.7393 | 17 | 0 | 0 | 7 | 10 | 5/6 | trimethoprim-sulfamethoxazole |
+| species | genome | lab results | VME | ME | agree | uncertain | EA | lab R told works | ranked likely-active (top 5) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| KPNEU | 573.24243 | 26 | 0 | 0 | 19 | 4 | 6/6 | 0 | none |
+| KPNEU | 573.12886 | 19 | 0 | 0 | 7 | 11 | 5/5 | 0 | tobramycin, amoxicillin-clavulanic-acid, ampicillin-sulbactam, ceftriaxone, cefepime |
+| KPNEU | 574.20 | 24 | 0 | 0 | 16 | 6 | 7/7 | 0 | none |
+| ECOLI | 562.42835 | 22 | 0 | 0 | 3 | 17 | 1/4 | 1 | ciprofloxacin, levofloxacin, cefepime |
+| ECOLI | 562.145336 | 18 | 0 | 0 | 5 | 5 | 1/2 | 0 | tetracycline, ciprofloxacin, ampicillin-sulbactam, ceftriaxone, levofloxacin |
+| ECOLI | 562.42842 | 22 | **1** | 0 | 3 | 17 | 1/1 | 2 | ciprofloxacin, levofloxacin, cefepime |
+| SAUR | 1280.16760 | 11 | 0 | 0 | 3 | 8 | 3/4 | 1 | none |
+| SAUR | 1280.51740 | 3 | 0 | 0 | 1 | 2 | 0/1 | 0 | cefoxitin, oxacillin, levofloxacin |
+| SAUR | 1280.25977 | 8 | 0 | 0 | 0 | 8 | 4/4 | 0 | levofloxacin |
+| PAER | 287.5972 | 13 | 0 | 0 | 0 | 13 | 4/6 | 1 | none |
+| PAER | 287.47321 | 7 | 0 | 0 | 0 | 6 | 3/5 | 0 | none |
+| PAER | 287.6329 | 13 | 0 | 0 | 3 | 10 | 5/5 | 0 | none |
+| ABAU | 470.7392 | 17 | 0 | 0 | 6 | 11 | 7/7 | 0 | trimethoprim-sulfamethoxazole |
+| ABAU | 470.7513 | 13 | 0 | 0 | 9 | 3 | 3/5 | 0 | trimethoprim-sulfamethoxazole, tetracycline, levofloxacin, ciprofloxacin, gentamicin |
+| ABAU | 470.7393 | 17 | 0 | 0 | 6 | 11 | 6/6 | 0 | trimethoprim-sulfamethoxazole |
 
 Lab S/I/R against the call, for all 233 lab results:
 
 | lab | likely_active | likely_inactive | uncertain | total |
 | --- | ---: | ---: | ---: | ---: |
-| R | **1 (VME)** | 65 | 40 | 106 |
-| S | 34 | 1 (ME) | 59 | 94 |
+| R | **1 (VME)** | 53 | 52 | 106 |
+| S | 28 | 0 (ME) | 66 | 94 |
 | I | 1 | 2 | 14 | 17 |
 | no S/I/R (no CLSI breakpoint, or interval straddles one) | 2 | 0 | 14 | 16 |
 
-EA was 55/68 on exact lab MICs.
+Lab S/I/R against the `prob_works` tier (`none` = no calibration: no CLSI breakpoint):
+
+| lab | very likely works (>= 0.90) | probably works (0.70-0.90) | uncertain | probably fails (0.10-0.30) | very likely fails (<= 0.10) | none |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| R | 1 | 4 | 13 | 19 | 62 | 7 |
+| S | 58 | 12 | 8 | 0 | 0 | 16 |
+| I | 3 | 1 | 3 | 4 | 6 | 0 |
+| no S/I/R | 6 | 1 | 0 | 0 | 0 | 9 |
+
+EA was 56/68 on exact lab MICs. Every lab result with its predicted MIC, band, call,
+`prob_works` and `prob_tier` is in `demo_table.csv` / `demo_table.md`.
 
 These counts come from 15 genomes and say nothing reliable about error rates.
 
 **The errors, explained:**
 
 - **VME, ECOLI 562.42842 x cefepime.** The lab MIC is >32 (R). The prediction was 0.25 mg/L
-  (band 0.03-2), so the call was likely_active. AMRFinderPlus finds only blaCMY-2, blaTEM-1,
-  blaEC and efflux genes, and CMY-2 alone does not usually give cefepime resistance. The likely
-  cause is a mechanism outside the known-gene features, such as porin loss. Genome
-  562.42835 (lab cefepime 8, SDD/I) has the same pattern. Known-gene features cannot see this.
-- **ME, SAUR 1280.16760 x clindamycin.** The lab MIC is <=0.25 (S). The prediction was 64 mg/L,
-  so the call was likely_inactive. This pattern fits inducible MLSB resistance from an erm gene:
-  the plain MIC reads S, and a D-test would be needed. That is a guess, not a confirmed cause.
+  (band 0.03-2), so the call was likely_active, with `prob_works` 0.95. AMRFinderPlus finds only
+  blaCMY-2, blaTEM-1, blaEC and efflux genes, and CMY-2 alone does not usually give cefepime
+  resistance. The likely cause is a mechanism outside the known-gene features, such as porin
+  loss. Genome 562.42835 (lab cefepime 8, SDD/I) has the same pattern. Known-gene features cannot
+  see this.
+- **Lab R told works (P >= 0.70) but not called active (4):** ECOLI 562.42835 and 562.42842 x
+  piperacillin-tazobactam (lab >128, predicted 4, P 0.85, call uncertain); SAUR 1280.16760 x
+  daptomycin (lab 2, predicted 1, P 0.86, uncertain); PAER 287.5972 x ceftazidime (lab 128,
+  predicted 4, P 0.71, uncertain). ECOLI piperacillin-tazobactam and SAUR daptomycin are also
+  among the worst pairs out of fold (`results/report.md`, 'Lab R told works').
+- The earlier `aft_known` bundle's ME, SAUR 1280.16760 x clindamycin (lab <=0.25, predicted 64),
+  is gone: the `aft_b2_select` bundle predicts 0.25 mg/L, call uncertain, P 0.83.
 
 All 15 reports have `in_range: false` and `nearest_training_distance: null`. The imported release
 ships no assemblies, so there are no training Mash sketches. Per the call logic, every call should
@@ -183,23 +206,26 @@ The remaining differences come from the AMRFinderPlus software, database and ass
 the converter. NCBI ran an older AMRFinderPlus/DB on the NCBI assembly; we ran 4.2.7 / 2026-08-07.1
 on the BV-BRC assembly. The converter itself reproduces NCBI strings exactly (check a).
 
-## Context: cross-validation (out-of-fold) for the same bundle, `aft_known`
+## Context: cross-validation (out-of-fold) for the same bundle, `aft_b2_select`
 
-Call-level VME is re-derived under CLSI. These figures are provisional because breakpoints are
-unverified outside the 15 checked Enterobacterales drugs. Picking among a few band and model
-settings by out-of-fold score adds a little optimism.
+Out-of-fold CV rows of the main model (`aft_b2_select`; each fold's candidate chosen on the
+other folds, so these rows score the selection procedure, not the single shipped bundle).
+Lab S/I/R re-derived under CLSI 2024. Provisional: breakpoints are unverified outside the 15
+checked Enterobacterales drugs, and picking among a few band and model settings by out-of-fold
+score adds a little optimism. Columns use drugs with >= 30 lab S and >= 30 lab I/R. Danger first.
 
-| species | pairs | pairs with call-level VME <= 1.5% | max call-level VME | median band coverage | median lab-S called likely_active | median EA |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| KPNEU | 29 | 21 | 1.7% (amikacin) | 0.917 | 0.212 | 0.614 |
-| ECOLI | 25 | 21 | 1.3% | 0.948 | 0.269 | 0.729 |
-| SAUR | 12 | 10 | 1.2% | 0.959 | 0.058 | 0.899 |
-| PAER | 14 | 10 | 1.3% | 0.924 | 0.000 | 0.596 |
-| ABAU | 17 | 15 | 1.4% | 0.922 | 0.409 | 0.750 |
+| species | drugs | danger: lab R called likely_active (of all lab R) | confident (P >= 0.9 or <= 0.1) | right when confident | call gives an answer | call right | straight accuracy (forced at 0.5) | forced danger (lab R with P >= 0.5) | median EA | ECE |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| KPNEU | 21 | 0.61% (227/37,021) | 64.9% | 95.8% | 49.3% | 95.4% | 88.0% | 7.0% | 69.3% | 1.2% |
+| ECOLI | 21 | 0.91% (310/34,187) | 82.3% | 98.0% | 44.2% | 95.8% | 94.1% | 6.5% | 77.8% | 0.2% |
+| SAUR | 9 | 0.20% (3/1,464) | 73.9% | 95.8% | 18.2% | 95.5% | 90.7% | 26.5% | 93.7% | 1.8% |
+| PAER | 10 | 0.03% (1/3,735) | 32.3% | 96.4% | 26.6% | 97.9% | 79.2% | 8.9% | 59.9% | 1.8% |
+| ABAU | 15 | 0.33% (24/7,191) | 67.8% | 96.0% | 40.6% | 95.0% | 88.1% | 5.8% | 76.1% | 3.6% |
 
-The pairs missing from the third column are KPNEU amikacin (1.7%) and 19 pairs with no CLSI
-breakpoint in `configs/breakpoints/clsi_2024.csv`. Those 19 pairs have only `uncertain` calls,
-so their call-level VME is undefined.
+Shipped-bundle view (likely-active calls withheld where the shipped gate is closed; pooled over
+all lab-R CV rows of all pairs): call VME 492 / 86,176 (0.6 %); 29.0 % of lab S called likely
+active; 50 of 97 shipped gates open. Per pair and per fold (calling-fold call VME) see
+`runs/hackathon5/results/report.md`.
 
 ## Limitations
 

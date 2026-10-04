@@ -1859,6 +1859,8 @@ def _select_model(
                                         np.concatenate([outer[c][f][1] for f in cv_folds]), pd_, lab_sir, target)
     rule_choice = choose_candidate(bundle_scores)
     has_bp = config.call_breakpoint(pd_.species, pd_.drug) is not None
+    # Natural resistance (override 1) makes every call likely_inactive: nothing to certify, gate ships closed.
+    natural = config.is_naturally_resistant(pd_.species, pd_.drug)
 
     def bundle_params(c: str) -> BandParams:
         """Candidate c's bundle band, gated on c's own out-of-fold calls (the AFT bundle's standard)."""
@@ -1867,7 +1869,7 @@ def _select_model(
                           marker_all, lab_sir, allowed_alphas=allowed)
         own = [(outer[c][f][2], outer[c][f][0]) for f in cv_folds]
         p_ = _oof_gate_check(p_, own, pd_, lab_sir, folds, target, f"{label} [{MODEL_SELECT}:{c}] bundle", cfg.fold_gate_p)
-        return p_ if has_bp or not p_.active_gate_open else replace(p_, active_gate_open=False)
+        return p_ if (has_bp and not natural) or not p_.active_gate_open else replace(p_, active_gate_open=False)
 
     # The selection's nested out-of-fold calls (the aft_b2_select CV rows) under the same two gate rules.
     sel_ok, sel_check = _gate_rules(sel_calls, pd_, lab_sir, folds, target, cfg.fold_gate_p)
@@ -1946,6 +1948,40 @@ def _select_calibration(
     _, by_fold = prob_cal.cross_fit_probabilities(pred_mic, works, marker, pd_.folds[rows], s_bp, natural_resistance=natural)
     full = prob_cal.fit_pair_calibration(pred_mic, works, marker, s_bp, natural_resistance=natural)
     return full, prob_cal.summarize_fits(by_fold)
+
+
+def _bundle_cal_rows(select: SelectOutcome, pd_: PairData, config: Config, marker_all: np.ndarray) -> prob_cal.CalRows:
+    """The bundle candidate's out-of-fold CV rows as :class:`~genome2mic.models.calibration.CalRows`."""
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    cand = select.candidates[select.bundle_choice]
+    rows = np.flatnonzero(~np.isnan(pd_.folds) & ~np.isnan(cand))
+    pred_mic = round_up_to_step_array(2.0 ** np.clip(cand[rows], GRID_MIN_EXPONENT, GRID_MAX_EXPONENT))
+    lab = np.array([rederive_lab_sir(lo, hi, bp) for lo, hi in zip(pd_.lo[rows], pd_.hi[rows])], dtype=object) \
+        if bp is not None else np.full(rows.size, None, dtype=object)
+    return prob_cal.CalRows(
+        pred_mic=pred_mic, works=prob_cal.works_from_sir(lab), marker=np.asarray(marker_all, dtype=bool)[rows],
+        folds=np.asarray(pd_.folds[rows], dtype=np.float64),
+        s_breakpoint=float(bp.s_breakpoint) if bp is not None else None,
+        natural_resistance=config.is_naturally_resistant(pd_.species, pd_.drug),
+    )
+
+
+def _main_cal_rows(table: pd.DataFrame, pd_: PairData, config: Config, marker_all: np.ndarray,
+                   main_model: str) -> tuple[np.ndarray, prob_cal.CalRows]:
+    """Positions of the main model's rows in ``table`` and their :class:`CalRows` (non-CV rows: NaN fold)."""
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    rows = np.flatnonzero(table["model"].astype(object).to_numpy() == main_model)
+    row_of = {str(g): i for i, g in enumerate(pd_.frame["genome_id"].astype(str))}
+    pos = np.array([row_of[str(g)] for g in table["genome_id"].to_numpy()[rows]], dtype=np.int64)
+    is_cv = table["split"].astype(object).to_numpy()[rows] == SPLIT_CV
+    folds = np.where(is_cv, np.asarray(pd_.folds, dtype=np.float64)[pos] if pos.size else np.empty(0), np.nan)
+    return rows, prob_cal.CalRows(
+        pred_mic=pd.to_numeric(table["pred_mic"], errors="coerce").to_numpy(dtype=np.float64)[rows],
+        works=prob_cal.works_from_sir(table["lab_sir_rederived"].to_numpy(dtype=object)[rows]),
+        marker=np.asarray(marker_all, dtype=bool)[pos], folds=folds,
+        s_breakpoint=float(bp.s_breakpoint) if bp is not None else None,
+        natural_resistance=config.is_naturally_resistant(pd_.species, pd_.drug),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -2040,6 +2076,8 @@ class PairResult:
     q_by_model: dict[str, float]
     n_residuals_by_model: dict[str, int]
     timings: dict[str, float] = field(default_factory=dict)
+    prob_inputs: dict[str, Any] | None = None
+    """Inputs of the species-level P(works) pass (:func:`species_probability_pass`, v0.7)."""
 
 
 def train_pair(
@@ -2154,8 +2192,9 @@ def train_pair(
                                                  cfg.band_vme_target, f"{label} [{m}] bundle", cfg.fold_gate_p)
         else:
             params_by_model[m] = symmetric_params(q, cfg.alpha, n)
-        if _bp is None and params_by_model[m].active_gate_open:
-            # No call breakpoint: nothing was certified, so the bundle ships with the gate closed.
+        if (_bp is None or config.is_naturally_resistant(pd_.species, pd_.drug)) and params_by_model[m].active_gate_open:
+            # No call breakpoint, or natural resistance (every call is likely_inactive): nothing was
+            # certified for likely-active calls, so the bundle ships with the gate closed.
             params_by_model[m] = replace(params_by_model[m], active_gate_open=False)
         q_by_model[m] = params_by_model[m].q_up
         n_res[m] = n
@@ -2280,6 +2319,29 @@ def train_pair(
 
     table = pd.concat(preds, ignore_index=True) if preds else pd.DataFrame(columns=list(PREDS_COLUMNS))
     table, calibrations, fold_fits = _add_probabilities(table, pd_, config, marker_all)
+    prob_inputs: dict[str, Any] | None = None
+    if main_model in set(table["model"].astype(str)):
+        main_rows, main_cal_rows = _main_cal_rows(table, pd_, config, marker_all, main_model)
+        bundle_rows = _bundle_cal_rows(select, pd_, config, marker_all) if select is not None else prob_cal.CalRows(
+            pred_mic=main_cal_rows.pred_mic[~np.isnan(main_cal_rows.folds)],
+            works=main_cal_rows.works[~np.isnan(main_cal_rows.folds)],
+            marker=main_cal_rows.marker[~np.isnan(main_cal_rows.folds)],
+            folds=main_cal_rows.folds[~np.isnan(main_cal_rows.folds)],
+            s_breakpoint=main_cal_rows.s_breakpoint, natural_resistance=main_cal_rows.natural_resistance,
+        )
+        prob_inputs = {
+            "main_model": main_model, "main_rows": main_rows, "main": main_cal_rows, "bundle": bundle_rows,
+            "bundle_extra": {
+                "model": main_model,
+                "candidate": None if select is None else select.bundle_choice,
+                "run_id": run_id,
+                "call_standard": list(config.call_standard),
+                "source": (f"out-of-fold CV predictions of the bundle's candidate ({select.bundle_choice}) on every "
+                           "train fold (test split never used)") if select is not None else
+                          "out-of-fold CV predictions of this model on every train fold (test split never used)",
+            },
+            "has_bundle": paths.model_dir(pd_.species, pd_.drug).is_dir(),
+        }
     if select is not None and paths.model_dir(pd_.species, pd_.drug).is_dir():
         # The bundle always applies its own choice, so its map is fit on that candidate's OOF predictions.
         bundle_cal, bundle_fits = _select_calibration(select, pd_, config, marker_all)
@@ -2313,7 +2375,7 @@ def train_pair(
     n_test_rows = int((table["split"] == SPLIT_TEST).sum())
     if n_test_rows:
         append_test_ledger(paths, run_id, pd_.species, pd_.drug, n_test_rows, inputs_sha1=inputs_sha1)
-    return PairResult(pd_.species, pd_.drug, table, main_model, q_by_model, n_res, timings)
+    return PairResult(pd_.species, pd_.drug, table, main_model, q_by_model, n_res, timings, prob_inputs=prob_inputs)
 
 
 def _add_probabilities(
@@ -2369,8 +2431,66 @@ def _add_probabilities(
         calibrations[model] = full
         fold_fits[model] = prob_cal.summarize_fits(by_fold)
     out["prob_works"] = prob
-    out["prob_tier"] = prob_cal.prob_tier(prob)
+    out["prob_tier"] = prob_cal.prob_tier_for_calls(prob, out["call"].astype(object).to_numpy())
     return out, calibrations, fold_fits
+
+
+def species_probability_pass(paths: Paths, species: str, inputs: Mapping[str, Mapping[str, Any]]) -> None:
+    """v0.7 P(works) for the main model of every pair of one species (after all its pairs trained).
+
+    Per pair, the main map is the pair's own isotonic map, the species-pooled map or their
+    shrinkage blend, chosen by cross-fitted Brier score inside the fitting folds
+    (:func:`~genome2mic.models.calibration.species_cross_fit`). Strong-marker rows get one
+    smoothed rate per pair. The main model's CV rows are re-scored (fold ``f`` from folds
+    ``!= f`` only) and ``preds_<SP>_<drug>.parquet`` rewritten; the bundle's
+    ``calibration.json`` is replaced by the species-level fit on the bundle candidate's
+    out-of-fold rows of every pair (:func:`~genome2mic.models.calibration.species_fit`).
+    Other models keep their per-pair maps.
+    """
+    if not inputs:
+        return
+    main_pool = {drug: inp["main"] for drug, inp in inputs.items()}
+    cv_only_main = {
+        drug: prob_cal.CalRows(r.pred_mic, r.works, r.marker, r.folds, r.s_breakpoint, r.natural_resistance)
+        for drug, r in main_pool.items()
+    }
+    main_probs = prob_cal.species_cross_fit(cv_only_main)
+    main_full = prob_cal.species_fit(cv_only_main)
+    bundle_pool = {drug: inp["bundle"] for drug, inp in inputs.items()}
+    bundle_full = prob_cal.species_fit(bundle_pool)
+    bundle_cross = prob_cal.species_cross_fit(bundle_pool)
+    for drug, inp in inputs.items():
+        path = paths.preds(species, drug)
+        table = read_parquet(path) if path.is_file() else None
+        if table is not None:
+            rows = np.asarray(inp["main_rows"], dtype=np.int64)
+            r = main_pool[drug]
+            p, _ = main_probs[drug]
+            non_cv = np.isnan(np.asarray(r.folds, dtype=np.float64))
+            if non_cv.any():
+                p = p.copy()
+                p[non_cv] = main_full[drug][0].predict(np.asarray(r.pred_mic)[non_cv], np.asarray(r.marker)[non_cv])
+            prob = pd.to_numeric(table["prob_works"], errors="coerce").to_numpy(dtype=np.float64).copy()
+            prob[rows] = p
+            table = table.copy()
+            table["prob_works"] = prob
+            tiers = table["prob_tier"].astype(object).to_numpy().copy()
+            tiers[rows] = prob_cal.prob_tier_for_calls(p, table["call"].astype(object).to_numpy()[rows])
+            table["prob_tier"] = pd.Series(tiers, index=table.index).astype(object).where(pd.notna(tiers), None).astype("string")
+            write_parquet(table, path)
+        if inp.get("has_bundle") and paths.model_dir(species, drug).is_dir():
+            fit, record = bundle_full[drug]
+            by_fold = {str(k): v for k, v in sorted(bundle_cross[drug][1].items())}
+            fit.save(
+                paths.model_dir(species, drug) / prob_cal.CALIBRATION_FILE,
+                extra={**dict(inp["bundle_extra"]), "main_source_selection": record, "cross_fitted_by_fold": by_fold,
+                       "selection_rule": "main map = pair / blend / species-pooled isotonic map, chosen by cross-fitted "
+                                         "Brier score inside the training folds (ties to pair); strong-marker rows = "
+                                         "(works + 1) / (n + 2) over the pair's strong-marker rows"},
+            )
+        logger.info("%s x %s: P(works) main source %s (bundle), per-fold %s", species, drug,
+                    bundle_full[drug][1].get("main_source"),
+                    {f: v.get("main_source") for f, v in sorted(main_probs[drug][1].items())})
 
 
 def _typed_preds(table: pd.DataFrame) -> pd.DataFrame:
@@ -3068,10 +3188,16 @@ def run(
             paths=paths, config=config, cfg=cfg, sd=sd, species=species, frames=frames, plans=plans,
             nearest=nearest, logs=logs, run_id=run_id, inputs_sha1=inputs_sha1, pheno_cache=pheno_cache,
         )
+        prob_inputs: dict[str, Any] = {}
         for drug, summary_row, pair_log in _run_pair_jobs(state, drugs, cfg.workers):
             droplog.extend(pair_log)
             trained.setdefault(species, []).append(drug)
+            inputs_ = summary_row.pop("_prob_inputs", None)
+            if inputs_ is not None:
+                prob_inputs[drug] = inputs_
             summaries.append(summary_row)
+        # P(works) needs every pair of the species: the species-pooled map is one of the candidates.
+        species_probability_pass(paths, species, prob_inputs)
         write_species_bundle(paths, sd, splits)
         del sd, frames, plans, nearest
         logger.info("%s: done; species arrays released", species)
@@ -3127,6 +3253,7 @@ def _train_one_pair(state: _PairJobState, drug: str) -> tuple[str, dict[str, Any
         "inputs_sha1": state.inputs_sha1,
         "seconds": round(elapsed, 1),
         **{f"q_{m}": q for m, q in result.q_by_model.items()},
+        "_prob_inputs": result.prob_inputs,
     }
     logger.info("%s x %s: trained in %.1fs (%s)", species, drug, elapsed, result.timings)
     return drug, row, state.logs[drug]

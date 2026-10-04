@@ -105,11 +105,16 @@ class DrugConfig:
     colistin MICs susceptible)."""
 
     def is_strong_column(self, column: str) -> bool:
-        """``column`` matches a ``strong_markers`` prefix and no ``strong_marker_exceptions`` prefix."""
+        """``column`` matches a ``strong_markers`` prefix and no ``strong_marker_exceptions`` prefix.
+
+        Matching is token-aware (:func:`column_prefix_matches`): ``gene_blaoxa_48`` matches
+        ``gene_blaoxa_48`` but never ``gene_blaoxa_485`` (an OXA-50-family enzyme intrinsic
+        to *P. aeruginosa*, not a carbapenemase).
+        """
         text = str(column)
-        if not any(text == prefix or text.startswith(prefix) for prefix in self.strong_markers):
+        if not any(column_prefix_matches(text, prefix) for prefix in self.strong_markers):
             return False
-        return not any(text == prefix or text.startswith(prefix) for prefix in self.strong_marker_exceptions)
+        return not any(column_prefix_matches(text, prefix) for prefix in self.strong_marker_exceptions)
 
 
 @dataclass(frozen=True)
@@ -130,6 +135,30 @@ class Breakpoint:
 # --------------------------------------------------------------------------- #
 # Pure helpers
 # --------------------------------------------------------------------------- #
+
+
+def column_prefix_matches(column: str, prefix: str) -> bool:
+    """Token-aware column-prefix match used by every strong-marker / exception prefix.
+
+    ``column == prefix`` always matches. Otherwise ``column`` must start with ``prefix`` and:
+
+    * a prefix ending in a **digit** names one allele number, so the next character must be
+      ``_`` (or the column ends): ``gene_blaoxa_48`` matches ``gene_blaoxa_48`` and
+      ``gene_blaoxa_48_like`` but not ``gene_blaoxa_485`` / ``_486`` / ``_488``;
+      ``gene_mcr_1`` would not match ``gene_mcr_10``;
+    * a prefix ending in a **letter** (or ``_``) names a family, so any continuation
+      matches: ``gene_blakpc`` -> ``gene_blakpc_2``; ``gene_rmtb`` -> ``gene_rmtb1``.
+    """
+    text, head = str(column), str(prefix)
+    if not head:
+        return False
+    if text == head:
+        return True
+    if not text.startswith(head):
+        return False
+    if head[-1].isdigit():
+        return text[len(head)] == "_"
+    return True
 
 
 def normalize_name(raw: Any) -> str | None:
@@ -510,7 +539,7 @@ def _load_drugs(path: Path) -> tuple[dict[str, DrugConfig], tuple[str, str], dic
                 raise ConfigError(
                     f"{where}: strong marker exception {exception!r} must be a gene_/point_ feature column name"
                 )
-            if not any(exception.startswith(prefix) for prefix in markers):
+            if not any(column_prefix_matches(exception, prefix) for prefix in markers):
                 raise ConfigError(
                     f"{where}: strong marker exception {exception!r} does not narrow any strong_markers prefix"
                 )
@@ -693,6 +722,7 @@ __all__ = [
     "SPECTRUM_TIERS",
     "STANDARDS",
     "SpeciesConfig",
+    "column_prefix_matches",
     "load_config",
     "normalize_name",
     "normalize_standard",

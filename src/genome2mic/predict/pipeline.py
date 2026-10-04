@@ -1067,7 +1067,8 @@ class PredictionPipeline:
 
         prob_works: float | None = None
         if bundle.calibration is not None and bp is not None:
-            # Calibrated on out-of-fold training predictions; strong-marker rows use their own calibration.
+            # Calibrated on out-of-fold training predictions; strong-marker rows get the pair's smoothed
+            # rate (works + 1) / (n + 2) (v0.7), never a d-dependent map.
             prob_works = bundle.calibration.predict_one(pred_mic, strong_marker=bool(hits))
         logger.info(
             "%s x %s: pred MIC %g mg/L (band %g-%g), %s%s, P(works) %s",
@@ -1087,5 +1088,6 @@ class PredictionPipeline:
             "reasons": reasons,
             "override": override,
             "prob_works": prob_works,
-            "prob_tier": prob_cal.tier_of(prob_works),
+            # The displayed tier never contradicts the call (a 'works' tier next to likely_inactive -> uncertain).
+            "prob_tier": prob_cal.tier_for_call(prob_works, call),
         }

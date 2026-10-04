@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from genome2mic.config import (
+    column_prefix_matches,
     BREAKPOINT_SITE,
     SPECTRUM_TIERS,
     Breakpoint,
@@ -609,3 +610,69 @@ def test_strong_marker_exception_must_narrow_a_prefix(configs_copy: Path) -> Non
     path.write_text(text)
     with pytest.raises(ConfigError, match="does not narrow"):
         load_config(configs_copy)
+
+
+# --------------------------------------------------------------------------- #
+# Token-aware strong-marker prefixes (verifier finding: gene_blaoxa_48 matched 485/486/488)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("column", "prefix", "expected"),
+    [
+        ("gene_blaoxa_48", "gene_blaoxa_48", True),
+        ("gene_blaoxa_48_like", "gene_blaoxa_48", True),
+        ("gene_blaoxa_484", "gene_blaoxa_48", False),
+        ("gene_blaoxa_485", "gene_blaoxa_48", False),
+        ("gene_blaoxa_486", "gene_blaoxa_48", False),
+        ("gene_blaoxa_488", "gene_blaoxa_48", False),
+        ("gene_blakpc", "gene_blakpc", True),
+        ("gene_blakpc_2", "gene_blakpc", True),
+        ("gene_blandm_16b", "gene_blandm", True),
+        ("gene_rmtb1", "gene_rmtb", True),
+        ("gene_mcr_10_1", "gene_mcr_1", False),
+        ("gene_mcr_1_1", "gene_mcr_1", True),
+        ("gene_mcr_9_1", "gene_mcr_9", True),
+        ("gene_mcr_10_1", "gene_mcr_10", True),
+        ("gene_blaoxa", "gene_blaoxa_48", False),
+        ("gene_blaoxa_48", "", False),
+    ],
+)
+def test_column_prefix_matches_is_token_aware(column: str, prefix: str, expected: bool) -> None:
+    assert column_prefix_matches(column, prefix) is expected
+
+
+@pytest.mark.parametrize("drug", ["meropenem", "imipenem", "ertapenem", "doripenem", "ceftriaxone", "cefepime"])
+def test_oxa_48_marker_never_matches_oxa_50_family_alleles(config: Config, drug: str) -> None:
+    cfg = config.drugs[drug]
+    assert cfg.is_strong_column("gene_blaoxa_48")
+    # OXA-485/486/488 are OXA-50-family enzymes intrinsic to P. aeruginosa, not carbapenemases.
+    for column in ("gene_blaoxa_484", "gene_blaoxa_485", "gene_blaoxa_486", "gene_blaoxa_488"):
+        assert not cfg.is_strong_column(column), (drug, column)
+    for column in ("gene_blakpc", "gene_blakpc_2", "gene_blakpc_45", "gene_blandm_1", "gene_blandm_16b",
+                   "gene_blaoxa_181", "gene_blaoxa_232", "gene_blavim_2", "gene_blaimp_1"):
+        assert cfg.is_strong_column(column), (drug, column)
+
+
+def test_rmtb1_and_mcr9_exception_with_token_aware_matching(config: Config) -> None:
+    for drug in ("amikacin", "gentamicin", "tobramycin"):
+        assert config.drugs[drug].is_strong_column("gene_rmtb1")
+        assert config.drugs[drug].is_strong_column("gene_rmtb")
+    colistin = config.drugs["colistin"]
+    assert colistin.is_strong_column("gene_mcr_1") and colistin.is_strong_column("gene_mcr_1_26")
+    for column in ("gene_mcr_9", "gene_mcr_9_1", "gene_mcr_9_2", "gene_mcr_10_1"):
+        assert not colistin.is_strong_column(column), column
+
+
+def test_configured_prefixes_match_only_intended_release_columns(config: Config) -> None:
+    """Audit: every configured prefix against the release's known-AMR column names."""
+    release = Path(__file__).resolve().parents[2] / "runs" / "hackathon5" / "data" / "processed" / "known_amr_columns.csv"
+    if not release.is_file():
+        pytest.skip("release known_amr_columns.csv not present")
+    import pandas as pd  # noqa: PLC0415
+
+    names = sorted(set(pd.read_csv(release)["column_name"].astype(str)))
+    meropenem = config.drugs["meropenem"]
+    hits = [c for c in names if meropenem.is_strong_column(c)]
+    assert "gene_blaoxa_48" in hits
+    assert not any(c.startswith("gene_blaoxa_48") and c != "gene_blaoxa_48" for c in hits), hits

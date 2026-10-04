@@ -200,3 +200,55 @@ def test_call_vme_by_fold() -> None:
     # Only cv rows count; a test row in the same table is ignored.
     more = pd.concat([preds, preds.assign(split="test")], ignore_index=True)
     assert m.call_vme_by_fold(more, folds).equals(table)
+
+
+# --------------------------------------------------------------------------- #
+# Expected calibration error (v0.7)
+# --------------------------------------------------------------------------- #
+
+
+def test_expected_calibration_error_by_hand() -> None:
+    # Bin (0.5, 0.7]: 4 rows at P = 0.6, 1 of 4 worked -> gap 0.35; bin (0.9, 1]: 2 rows at P = 0.95, both worked -> 0.05.
+    prob = [0.6, 0.6, 0.6, 0.6, 0.95, 0.95]
+    lab = ["S", "R", "R", "I", "S", "S"]
+    out = m.calibration_error(prob, lab)
+    assert out["n"] == 6
+    assert out["ece"] == pytest.approx((4 * 0.35 + 2 * 0.05) / 6)
+    assert out["max_gap"] == pytest.approx(0.35)
+    assert out["brier"] == pytest.approx(np.mean([(0.6 - 1) ** 2, 0.36, 0.36, 0.36, 0.0025, 0.0025]))
+
+
+def test_expected_calibration_error_skips_unknown_rows_and_handles_empty() -> None:
+    out = m.calibration_error([0.2, np.nan, 0.9], ["R", "S", None])
+    assert out["n"] == 1 and out["ece"] == pytest.approx(0.2)
+    empty = m.calibration_error([np.nan], ["S"])
+    assert empty["n"] == 0 and empty["ece"] is None and empty["brier"] is None
+
+
+def test_calibration_error_summary_per_group() -> None:
+    preds = pd.DataFrame({
+        "species": ["A", "A", "B", "B"],
+        "prob_works": [0.95, 0.95, 0.05, 0.6],
+        "lab_sir_rederived": ["S", "R", "R", "S"],
+    })
+    out = m.calibration_error_summary(preds, group_columns=("species",))
+    assert list(out.columns) == ["species", "n", "ece", "max_gap", "brier"]
+    a = out.loc[out["species"] == "A"].iloc[0]
+    assert a["n"] == 2 and a["ece"] == pytest.approx(0.45)
+    b = out.loc[out["species"] == "B"].iloc[0]
+    assert b["ece"] == pytest.approx((0.05 + 0.4) / 2)
+
+
+def test_lab_r_told_works_by_pair_lists_worst_first() -> None:
+    preds = pd.DataFrame({
+        "species": ["A"] * 5 + ["B"] * 3,
+        "drug": ["x"] * 5 + ["y"] * 3,
+        "prob_works": [0.8, 0.75, 0.2, 0.9, 0.95, 0.71, 0.1, 0.1],
+        "lab_sir_rederived": ["R", "R", "R", "S", "R", "R", "R", "I"],
+    })
+    out = m.told_works_by_pair(preds)
+    assert list(out.columns[:4]) == ["species", "drug", "told_works_rate", "n_told_works"]
+    assert out.iloc[0]["species"] == "A" and out.iloc[0]["told_works_rate"] == pytest.approx(3 / 4)
+    assert out.iloc[0]["n_lab_r"] == 4
+    b = out.loc[out["species"] == "B"].iloc[0]
+    assert b["n_lab_r"] == 2 and b["told_works_rate"] == pytest.approx(0.5)  # lab I is not lab R

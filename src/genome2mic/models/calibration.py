@@ -17,10 +17,21 @@ Overrides keep the probability honest instead of forcing a number:
 * natural resistance (``configs/natural_resistance.csv``) -> ``0``;
 * strong-marker override present (the same rule as the call: ``strong_markers``
   columns and, when the subclass map is available, acquired genes with a
-  ``strong_subclasses`` Subclass) -> a separate isotonic map fit on the override rows
-  only when at least :data:`MIN_OVERRIDE_ROWS` of them exist in the fitting rows,
-  else the constant :data:`OVERRIDE_FALLBACK_PROB` (0.02). The main map is fit on the
-  rows **without** the override, the population it is applied to.
+  ``strong_subclasses`` Subclass) -> **one smoothed rate per pair**,
+  ``(works + 1) / (n + 2)`` over the override rows of the fitting rows (v0.7; never a
+  d-dependent map, which reached 1.0 next to a ``likely_inactive`` call). The main map
+  is fit on the rows **without** the override, the population it is applied to.
+
+Main map source (v0.7, :func:`species_fit` / :func:`species_cross_fit`): per pair, the
+main map is the pair's own isotonic map (``pair``), the species-pooled isotonic map on
+the same ``d`` (``species``: every non-override row of every drug of the species), or
+the shrinkage blend ``w * pair + (1 - w) * species`` with ``w = n_pair / (n_pair + 100)``
+(``blend``). The source is chosen by cross-fitted Brier score **inside the fitting
+folds** (inner folds), ties to ``pair``; the chosen map is then fit on every fitting fold.
+
+Displayed tier (:func:`tier_for_call`): a 'works' tier is never shown next to a
+``likely_inactive`` call, nor a 'fails' tier next to ``likely_active``; both become
+``uncertain``. The probability itself is not changed.
 
 Cross-fitting (:func:`cross_fit_probabilities`): the probability written for a CV row
 of fold ``f`` comes from a map fit on the CV rows of the *other* folds only. The bundle
@@ -57,20 +68,29 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "CALIBRATION_FILE",
     "FAILS_TIERS",
+    "MAIN_SOURCES",
     "MIN_OVERRIDE_ROWS",
     "NATURAL_RESISTANCE_PROB",
     "OVERRIDE_FALLBACK_PROB",
     "PROB_TIERS",
+    "SHRINK_N0",
     "TIER_THRESHOLDS",
     "WORKS_TIERS",
+    "CalRows",
     "PairCalibration",
     "ProbMap",
+    "blend_maps",
     "cross_fit_probabilities",
     "fit_pair_calibration",
     "fit_prob_map",
     "prob_tier",
+    "prob_tier_for_calls",
+    "smoothed_rate",
+    "species_cross_fit",
+    "species_fit",
     "step_distance",
     "summarize_fits",
+    "tier_for_call",
     "tier_of",
     "works_from_sir",
 ]
@@ -98,9 +118,17 @@ TIER_THRESHOLDS: dict[str, float] = {
 """Tier edges: ``>= 0.90``, ``>= 0.70``, ``(0.30, 0.70)``, ``<= 0.30``, ``<= 0.10``."""
 
 MIN_OVERRIDE_ROWS = 30
-"""Strong-marker rows needed in the fitting rows before they get their own isotonic map."""
+"""Legacy (v0.6): override rows needed for an override isotonic map. v0.7 always uses
+:func:`smoothed_rate`; kept so v0.6 ``calibration.json`` files still load."""
 OVERRIDE_FALLBACK_PROB = 0.02
-"""P(works) for strong-marker rows when fewer than :data:`MIN_OVERRIDE_ROWS` were seen."""
+"""Legacy (v0.6) constant for override rows; v0.7 uses :func:`smoothed_rate`."""
+SHRINK_N0 = 100.0
+"""Blend weight ``w = n_pair / (n_pair + SHRINK_N0)`` of the ``blend`` main-map source (fixed, not tuned)."""
+SOURCE_PAIR = "pair"
+SOURCE_BLEND = "blend"
+SOURCE_SPECIES = "species"
+MAIN_SOURCES: tuple[str, ...] = (SOURCE_PAIR, SOURCE_BLEND, SOURCE_SPECIES)
+"""Main-map sources in tie-break preference order (the pair's own map first)."""
 NATURAL_RESISTANCE_PROB = 0.0
 """P(works) under natural resistance (override 1)."""
 
@@ -136,6 +164,39 @@ def prob_tier(p: Any) -> np.ndarray:
     """Vectorised :func:`tier_of`: object array of tier names, ``None`` where ``p`` is null."""
     values = np.asarray(p, dtype=np.float64).ravel()
     return np.array([tier_of(v) for v in values], dtype=object)
+
+
+def tier_for_call(p: float | None, call: str | None) -> str | None:
+    """Displayed tier, capped to agree with the call (the probability is not changed).
+
+    A 'works' tier next to ``likely_inactive`` (e.g. a strong-marker override on a pair
+    where marker carriers often test S) and a 'fails' tier next to ``likely_active``
+    become ``uncertain``. Any other call (``uncertain``, ``None``) keeps :func:`tier_of`.
+    """
+    tier = tier_of(p)
+    if tier is None:
+        return None
+    if call == "likely_inactive" and tier in WORKS_TIERS:
+        return TIER_UNCERTAIN
+    if call == "likely_active" and tier in FAILS_TIERS:
+        return TIER_UNCERTAIN
+    return tier
+
+
+def prob_tier_for_calls(p: Any, calls: Any) -> np.ndarray:
+    """Vectorised :func:`tier_for_call`."""
+    values = np.asarray(p, dtype=np.float64).ravel()
+    call_arr = np.asarray(calls, dtype=object).ravel()
+    if call_arr.size != values.size:
+        raise ValueError(f"calls has {call_arr.size} entries for {values.size} probabilities")
+    return np.array([tier_for_call(v, c if isinstance(c, str) else None) for v, c in zip(values, call_arr)], dtype=object)
+
+
+def smoothed_rate(works: Any) -> tuple[float, int]:
+    """``((works + 1) / (n + 2), n)`` over the rows with a known lab category (Laplace smoothing)."""
+    y = np.asarray(works, dtype=np.float64).ravel()
+    y = y[np.isfinite(y)]
+    return float((y.sum() + 1.0) / (y.size + 2.0)), int(y.size)
 
 
 # --------------------------------------------------------------------------- #
@@ -221,6 +282,24 @@ class ProbMap:
                    n=int(data.get("n", 0)), n_works=int(data.get("n_works", 0)))
 
 
+def blend_maps(pair: ProbMap | None, species: ProbMap | None, w: float) -> ProbMap | None:
+    """``w * pair + (1 - w) * species`` as one :class:`ProbMap` (exact: both are piecewise linear).
+
+    The union of both knot sets carries the blend exactly (each map is linear between its
+    own knots and flat beyond them), so the result is again non-increasing. ``None`` maps
+    fall back to the other one.
+    """
+    if pair is None:
+        return species
+    if species is None:
+        return pair
+    w = float(min(max(w, 0.0), 1.0))
+    xs = np.union1d(np.asarray(pair.x, dtype=np.float64), np.asarray(species.x, dtype=np.float64))
+    ys = w * pair.predict(xs) + (1.0 - w) * species.predict(xs)
+    ys = np.minimum.accumulate(np.clip(ys, 0.0, 1.0))  # guard float noise: non-increasing
+    return ProbMap(x=tuple(float(v) for v in xs), y=tuple(float(v) for v in ys), n=int(pair.n), n_works=int(pair.n_works))
+
+
 def fit_prob_map(d: Any, works: Any) -> ProbMap | None:
     """Isotonic non-increasing fit of ``works`` (0/1) on ``d``; ``None`` without a usable row.
 
@@ -271,6 +350,10 @@ class PairCalibration:
     natural_resistance: bool = False
     n_override: int = 0
     min_override_rows: int = MIN_OVERRIDE_ROWS
+    main_source: str | None = None
+    """v0.7: ``pair`` / ``blend`` / ``species`` (:data:`MAIN_SOURCES`); ``None`` = the pair's own map (v0.6)."""
+    blend_weight: float | None = None
+    """v0.7: weight ``w`` of the pair map in the shipped ``blend`` (also recorded for the other sources)."""
 
     def predict(self, pred_mic: Any, strong_marker: Any = None) -> np.ndarray:
         """``P(works)`` per row (NaN where it cannot be given: no breakpoint, no prediction, no map)."""
@@ -310,7 +393,10 @@ class PairCalibration:
             "override": None if self.override is None else self.override.as_json(),
             "override_constant": None if self.override_constant is None else float(self.override_constant),
             "n_override": int(self.n_override),
+            "override_rule": "smoothed rate (works + 1) / (n + 2) over the pair's strong-marker rows",
             "min_override_rows": int(self.min_override_rows),
+            "main_source": self.main_source,
+            "blend_weight": None if self.blend_weight is None else float(self.blend_weight),
             "tiers": dict(TIER_THRESHOLDS),
         }
 
@@ -328,6 +414,8 @@ class PairCalibration:
             natural_resistance=bool(data.get("natural_resistance", False)),
             n_override=int(data.get("n_override", 0)),
             min_override_rows=int(data.get("min_override_rows", MIN_OVERRIDE_ROWS)),
+            main_source=data.get("main_source"),
+            blend_weight=None if data.get("blend_weight") is None else float(data["blend_weight"]),
         )
 
     def save(self, path: Path, extra: Mapping[str, Any] | None = None) -> None:
@@ -351,11 +439,12 @@ def fit_pair_calibration(
     min_override_rows: int = MIN_OVERRIDE_ROWS,
     override_fallback: float = OVERRIDE_FALLBACK_PROB,
 ) -> PairCalibration:
-    """Fit the main map on the rows without an override and the override map on the rows with one.
+    """Fit the main map on the rows without an override and the override rate on the rows with one.
 
-    The override rows get their own isotonic map only when at least ``min_override_rows``
-    of them have a prediction and a known lab category; otherwise the constant
-    ``override_fallback``.
+    v0.7: the override rows get one smoothed rate ``(works + 1) / (n + 2)`` over those
+    with a prediction and a known lab category (:func:`smoothed_rate`), whatever their
+    predicted MIC. ``min_override_rows`` / ``override_fallback`` are accepted for
+    compatibility and ignored.
     """
     pred = np.asarray(pred_mic, dtype=np.float64).ravel()
     y = np.asarray(works, dtype=np.float64).ravel()
@@ -369,16 +458,16 @@ def fit_pair_calibration(
     d = step_distance(pred, s_breakpoint)
     usable = np.isfinite(d) & np.isfinite(y)
     main = fit_prob_map(d[~marker], y[~marker])
-    n_override = int((usable & marker).sum())
-    override = fit_prob_map(d[marker], y[marker]) if n_override >= min_override_rows else None
+    rate, n_override = smoothed_rate(y[usable & marker])
     return PairCalibration(
         s_breakpoint=float(s_breakpoint),
         main=main,
-        override=override,
-        override_constant=None if override is not None else float(override_fallback),
+        override=None,
+        override_constant=rate,
         natural_resistance=False,
         n_override=n_override,
         min_override_rows=int(min_override_rows),
+        main_source=SOURCE_PAIR,
     )
 
 
@@ -424,7 +513,193 @@ def summarize_fits(fits: Mapping[int, PairCalibration]) -> dict[str, Any]:
         str(k): {
             "n_main": None if v.main is None else int(v.main.n),
             "n_override": int(v.n_override),
-            "override": "isotonic" if v.override is not None else ("constant" if v.override_constant is not None else None),
+            "override": "isotonic" if v.override is not None else ("smoothed_rate" if v.override_constant is not None else None),
+            "override_rate": v.override_constant,
+            "main_source": v.main_source,
         }
         for k, v in sorted(fits.items())
     }
+
+
+# --------------------------------------------------------------------------- #
+# Species-pooled main map, chosen per pair inside the fitting folds (v0.7)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class CalRows:
+    """One species x drug pair's out-of-fold rows for the species-level calibration.
+
+    ``pred_mic`` (rounded-up predicted MIC), ``works`` (1 / 0 / NaN unknown), ``marker``
+    (strong-marker override fires) and ``folds`` (CV fold; NaN = not a CV row, never
+    fits anything) are row-aligned.
+    """
+
+    pred_mic: np.ndarray
+    works: np.ndarray
+    marker: np.ndarray
+    folds: np.ndarray
+    s_breakpoint: float | None
+    natural_resistance: bool = False
+
+    def __post_init__(self) -> None:
+        n = np.asarray(self.pred_mic).size
+        for name in ("works", "marker", "folds"):
+            if np.asarray(getattr(self, name)).size != n:
+                raise ValueError(f"CalRows.{name} has {np.asarray(getattr(self, name)).size} entries for {n} rows")
+
+    @property
+    def active(self) -> bool:
+        """Takes part in the pooled map: has an S breakpoint and is not naturally resistant."""
+        return self.s_breakpoint is not None and not self.natural_resistance
+
+    def d(self) -> np.ndarray:
+        return step_distance(self.pred_mic, self.s_breakpoint)
+
+
+class _SpeciesPool:
+    """Pre-computed arrays and a per-fold-set cache of the species map."""
+
+    def __init__(self, rows_by_pair: Mapping[str, CalRows], n0: float) -> None:
+        self.rows = dict(rows_by_pair)
+        self.n0 = float(n0)
+        self.d: dict[str, np.ndarray] = {}
+        self.y: dict[str, np.ndarray] = {}
+        self.f: dict[str, np.ndarray] = {}
+        self.main_ok: dict[str, np.ndarray] = {}
+        self.marker_ok: dict[str, np.ndarray] = {}
+        pool_d, pool_y, pool_f = [], [], []
+        for key, r in self.rows.items():
+            d = r.d() if r.active else np.full(np.asarray(r.pred_mic).size, np.nan)
+            y = np.asarray(r.works, dtype=np.float64).ravel()
+            f = np.asarray(r.folds, dtype=np.float64).ravel()
+            m = np.asarray(r.marker, dtype=bool).ravel()
+            pred_ok = np.isfinite(np.asarray(r.pred_mic, dtype=np.float64).ravel())
+            self.d[key], self.y[key], self.f[key] = d, y, f
+            self.main_ok[key] = np.isfinite(d) & np.isfinite(y) & np.isfinite(f) & ~m
+            self.marker_ok[key] = pred_ok & np.isfinite(y) & np.isfinite(f) & m
+            if r.active:
+                keep = self.main_ok[key]
+                pool_d.append(d[keep])
+                pool_y.append(y[keep])
+                pool_f.append(f[keep])
+        self.pool_d = np.concatenate(pool_d) if pool_d else np.empty(0)
+        self.pool_y = np.concatenate(pool_y) if pool_y else np.empty(0)
+        self.pool_f = np.concatenate(pool_f) if pool_f else np.empty(0)
+        self._species_cache: dict[frozenset[int], ProbMap | None] = {}
+
+    def species_map(self, folds: frozenset[int]) -> ProbMap | None:
+        if folds not in self._species_cache:
+            keep = np.isin(self.pool_f, list(folds))
+            self._species_cache[folds] = fit_prob_map(self.pool_d[keep], self.pool_y[keep])
+        return self._species_cache[folds]
+
+    def maps(self, key: str, folds: frozenset[int]) -> tuple[dict[str, ProbMap | None], float]:
+        keep = self.main_ok[key] & np.isin(self.f[key], list(folds))
+        pair = fit_prob_map(self.d[key][keep], self.y[key][keep])
+        species = self.species_map(folds)
+        n = 0 if pair is None else pair.n
+        w = n / (n + self.n0)
+        blend = None if pair is None or species is None else blend_maps(pair, species, w)
+        return {SOURCE_PAIR: pair, SOURCE_BLEND: blend, SOURCE_SPECIES: species}, float(w)
+
+    def choose(self, key: str, folds: frozenset[int]) -> tuple[str, dict[str, float | None]]:
+        """Source with the lowest Brier score over inner folds of ``folds`` (ties: :data:`MAIN_SOURCES` order)."""
+        sse = {s: 0.0 for s in MAIN_SOURCES}
+        count = {s: 0 for s in MAIN_SOURCES}
+        missing = {s: False for s in MAIN_SOURCES}
+        if len(folds) >= 2:
+            for g in sorted(folds):
+                inner = frozenset(folds - {g})
+                rows = self.main_ok[key] & (self.f[key] == g)
+                if not rows.any():
+                    continue
+                maps, _ = self.maps(key, inner)
+                for source in MAIN_SOURCES:
+                    if maps[source] is None:
+                        missing[source] = True
+                        continue
+                    p = maps[source].predict(self.d[key][rows])
+                    sse[source] += float(np.sum((p - self.y[key][rows]) ** 2))
+                    count[source] += int(rows.sum())
+        brier: dict[str, float | None] = {
+            s: (sse[s] / count[s]) if count[s] and not missing[s] else None for s in MAIN_SOURCES
+        }
+        scored = [(brier[s], i, s) for i, s in enumerate(MAIN_SOURCES) if brier[s] is not None]
+        if not scored:
+            return SOURCE_PAIR, brier
+        best = min(b for b, _, _ in scored)
+        choice = next(s for b, _, s in sorted(scored, key=lambda t: t[1]) if b <= best + 1e-12)
+        return choice, brier
+
+    def fit(self, key: str, folds: frozenset[int]) -> tuple[PairCalibration, dict[str, Any]]:
+        r = self.rows[key]
+        if not r.active:
+            return PairCalibration(s_breakpoint=r.s_breakpoint, main=None, override=None, override_constant=None,
+                                   natural_resistance=bool(r.natural_resistance)), {"main_source": None}
+        choice, brier = self.choose(key, folds)
+        maps, w = self.maps(key, folds)
+        main = maps[choice]
+        if main is None:  # e.g. the pair has no fitting rows: use what exists
+            choice = next((s for s in MAIN_SOURCES if maps[s] is not None), choice)
+            main = maps[choice]
+        marker_rows = self.marker_ok[key] & np.isin(self.f[key], list(folds))
+        rate, n_override = smoothed_rate(self.y[key][marker_rows])
+        fit = PairCalibration(
+            s_breakpoint=float(r.s_breakpoint), main=main, override=None, override_constant=rate,
+            natural_resistance=False, n_override=n_override, main_source=choice, blend_weight=w,
+        )
+        n_pair = int((self.main_ok[key] & np.isin(self.f[key], list(folds))).sum())
+        return fit, {"main_source": choice, "brier": brier, "blend_weight": w, "n_pair": n_pair,
+                     "n_species": int(np.isin(self.pool_f, list(folds)).sum()), "override_rate": rate,
+                     "n_override": n_override}
+
+
+def _all_folds(pool: _SpeciesPool) -> list[int]:
+    folds: set[int] = set()
+    for f in pool.f.values():
+        folds |= {int(v) for v in f[np.isfinite(f)]}
+    return sorted(folds)
+
+
+def species_fit(
+    rows_by_pair: Mapping[str, CalRows], *, n0: float = SHRINK_N0
+) -> dict[str, tuple[PairCalibration, dict[str, Any]]]:
+    """The shipped calibration per pair: source chosen by CV over every fold, then fit on every fold.
+
+    ``rows_by_pair`` holds every pair of **one species** (out-of-fold rows only).
+    Returns ``pair -> (PairCalibration, record)``; the record has the chosen
+    ``main_source``, the inner Brier score of each source and the row counts.
+    """
+    pool = _SpeciesPool(rows_by_pair, n0)
+    folds = frozenset(_all_folds(pool))
+    return {key: pool.fit(key, folds) for key in pool.rows}
+
+
+def species_cross_fit(
+    rows_by_pair: Mapping[str, CalRows], *, n0: float = SHRINK_N0
+) -> dict[str, tuple[np.ndarray, dict[int, dict[str, Any]]]]:
+    """Cross-fitted ``P(works)`` per pair: fold ``f``'s rows use a source chosen and fit on the other folds.
+
+    Neither the source choice (inner CV over the other folds) nor the pair map, the
+    species map or the override rate ever sees fold ``f``'s labels. Rows with a NaN
+    fold get NaN; natural-resistance pairs get 0; pairs without an S breakpoint NaN.
+    """
+    pool = _SpeciesPool(rows_by_pair, n0)
+    every = _all_folds(pool)
+    out: dict[str, tuple[np.ndarray, dict[int, dict[str, Any]]]] = {}
+    for key, r in pool.rows.items():
+        n = np.asarray(r.pred_mic).size
+        p = np.full(n, np.nan)
+        record: dict[int, dict[str, Any]] = {}
+        f = pool.f[key]
+        marker = np.asarray(r.marker, dtype=bool).ravel()
+        pred = np.asarray(r.pred_mic, dtype=np.float64).ravel()
+        for fold in every:
+            held = f == fold
+            fit, rec = pool.fit(key, frozenset(set(every) - {fold}))
+            record[fold] = rec
+            if held.any():
+                p[held] = fit.predict(pred[held], marker[held])
+        out[key] = (p, record)
+    return out

@@ -45,6 +45,7 @@ class DrugPrediction(BaseModel):
             raise ValueError("A drug with an override must have call likely_inactive.")
         if (self.prob_works is None) != (self.prob_tier is None):
             raise ValueError("prob_works and prob_tier must be both set or both null.")
-        if self.prob_works is not None and self.prob_tier is not ProbTier.from_probability(self.prob_works):
-            raise ValueError("prob_tier does not match prob_works.")
+        # v0.7: the displayed tier is capped to agree with the call ('works' next to likely_inactive -> uncertain).
+        if self.prob_works is not None and self.prob_tier is not ProbTier.for_call(self.prob_works, self.call.value):
+            raise ValueError("prob_tier does not match prob_works and the call.")
         return self

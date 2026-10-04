@@ -166,6 +166,14 @@ CALL_TEXT = (
 )
 """How-to-read sentence for the call-level metrics shown next to raw VME."""
 
+HEADLINE_CV_NOTE = (
+    "Every call VME below says how it is counted. **Calling folds** (the main measure) divides the lab-R isolates "
+    "called likely active by the lab-R isolates of the CV folds that made at least one likely-active call; "
+    "**pooled** divides by every lab-R CV row and is diluted by folds whose gate stayed closed. The main model's "
+    "CV rows score the **selection procedure** (`aft_b2_select`: each fold's candidate and band chosen on the "
+    "other folds), not the single shipped bundle; the section 'Shipped-bundle view' applies the shipped gate."
+)
+
 TEST_NOT_SCORED_TEXT = (
     "_Test set not scored: this is a cross-validation-only run (`train --cv-only`); every number is "
     "out-of-fold on the frozen train folds. The test split is scored once, at the very end._"
@@ -218,6 +226,8 @@ class ReportInputs:
     gates: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
     """Shipped bundle gates: ``models/<SPECIES>/<drug>/conformal.json`` per pair (``active_gate_open``,
     ``fold_call_vme``, ``fold_gate_closed``, ...). Empty when no bundle exists."""
+    calibrations: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
+    """Shipped ``models/<SPECIES>/<drug>/calibration.json`` per pair (v0.7: ``main_source``, override rate)."""
     found: dict[str, bool] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
@@ -416,6 +426,12 @@ def load_inputs(paths: Paths) -> ReportInputs:
                 inputs.gates[(species, drug)] = json.loads(file.read_text(encoding="utf-8"))
             except (OSError, ValueError) as error:
                 inputs.notes.append(f"`models/{species}/{drug}/conformal.json` unreadable ({error}); shipped gate unknown.")
+        for file in sorted(paths.models_dir.glob("*/*/calibration.json")):
+            species, drug = file.parent.parent.name, file.parent.name
+            try:
+                inputs.calibrations[(species, drug)] = json.loads(file.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as error:
+                inputs.notes.append(f"`models/{species}/{drug}/calibration.json` unreadable ({error}).")
     # The index is read after the importances: only the patterns they display are loaded.
     displayed = displayed_unitig_patterns(inputs.importances)
     if paths.processed_dir.is_dir():
@@ -553,7 +569,7 @@ METRICS_HEADERS: tuple[str, ...] = (
     "Model",
     "n",
     "VME % (predicted S, lab R; of lab R)",
-    "Call VME % (lab R called likely active; of lab R)",
+    "Call VME % (lab R called likely active; pooled over all rows of lab R)",
     "Active calls % (lab S called likely active; of lab S)",
     "Uncertain %",
     "ME % (predicted R, lab S; of lab S)",
@@ -572,7 +588,7 @@ lab MICs and print that count (``n_exact`` / ``n_band``) as their ``n``."""
 REDERIVED_HEADERS: tuple[str, ...] = (
     "Model",
     "VME % re-derived (of lab R)",
-    "Call VME % re-derived (of lab R)",
+    "Call VME % re-derived (pooled over all rows; of lab R)",
     "Call ME % re-derived (of lab S)",
     "Active calls % re-derived (of lab S)",
     "Uncertain % re-derived",
@@ -756,6 +772,7 @@ def render_markdown(
 
     parts += _headline_section(inputs)
     parts += _call_safety_section(inputs, config)
+    parts += _shipped_view_section(inputs)
     parts += _model_choice_section(inputs)
     parts += _probability_section(inputs)
     parts += _release_section(inputs)
@@ -782,6 +799,9 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
         preface = [TEST_NOT_SCORED_TEXT, ""]
     with_rederived = set(_REDERIVED_RATE_COLUMNS).issubset(test.columns)
     with_calls = "call_vme_rate_rederived" in test.columns
+    on_cv = bool(preface)  # the test-set headline has no folds, so no calling-fold measure
+    safety_frame = call_safety_by_pair(inputs.preds, inputs.splits) if with_calls and on_cv else pd.DataFrame()
+    safety = {(str(r["species"]), str(r["drug"])): r for r in safety_frame.to_dict(orient="records")}
     rows = []
     for species, drug in sorted({(str(s), str(d)) for s, d in test[["species", "drug"]].drop_duplicates().itertuples(index=False)}):
         pair = figures.subset(test, species=species, drug=drug)
@@ -803,7 +823,15 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
                 fmt_pct(_get(record, "me_rate_rederived"), _get(record, "n_lab_s_rederived")),
                 fmt_pct(_get(record, "categorical_agreement_rederived"), _get(record, "n_cat_rederived")),
             ]
-        if with_calls:
+        if with_calls and on_cv:
+            sf = safety.get((species, drug))
+            row += [
+                fmt_pct(sf["call_vme_calling_folds"], sf["n_lab_r_calling_folds"]) if sf is not None else "n/a",
+                fmt_pct(_get(record, "call_vme_rate_rederived"), _get(record, "n_call_lab_r_rederived")),
+                {True: "open", False: "closed", None: "unknown"}[shipped_gate(inputs.gates, species, drug)],
+                fmt_pct(_get(record, "active_call_rate_s_rederived"), _get(record, "n_call_lab_s_rederived")),
+            ]
+        elif with_calls:
             row += [
                 fmt_pct(_get(record, "call_vme_rate_rederived"), _get(record, "n_call_lab_r_rederived")),
                 fmt_pct(_get(record, "active_call_rate_s_rederived"), _get(record, "n_call_lab_s_rederived")),
@@ -815,10 +843,17 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
     headers = ["Species", "Drug", "Model", "VME % as reported (of lab R)", "ME % as reported (of lab S)", "CA % as reported"]
     if with_rederived:
         headers += ["VME % re-derived (of lab R)", "ME % re-derived (of lab S)", "CA % re-derived"]
-    if with_calls:
-        headers += ["Call VME % re-derived (of lab R)", "Active calls % re-derived (of lab S)"]
+    if with_calls and on_cv:
+        headers += ["Call VME % (calling folds: lab R of folds with >= 1 active call; main measure)",
+                    "Call VME % pooled over all CV rows (reference; diluted by folds without active calls)",
+                    "Shipped gate", "Active calls % re-derived (of lab S)"]
+    elif with_calls:
+        headers += ["Call VME % re-derived (all test rows; of lab R)", "Active calls % re-derived (of lab S)"]
     headers += ["EA % (exact lab MICs)", "n"]
-    return [title, "", *preface, md_table(headers, rows), ""]
+    notes = []
+    if with_calls and preface:
+        notes = [HEADLINE_CV_NOTE, ""]
+    return [title, "", *preface, *notes, md_table(headers, rows), ""]
 
 
 def call_safety_by_pair(preds: pd.DataFrame | None, splits: pd.DataFrame | None, config: Any = None) -> pd.DataFrame:
@@ -1120,7 +1155,8 @@ def _model_choice_section(inputs: ReportInputs) -> list[str]:
         md_table(
             ["Species", "Pairs", "Bundle: AFT", "Bundle: average", "Bundle: B2", "Fell back to AFT (of the AFT bundles)",
              "Same choice in every fold",
-             "Shipped gate open", "Call VME AFT alone (VME / lab R)", "Call VME aft_b2_select (VME / lab R)",
+             "Shipped gate open", "Call VME AFT alone (pooled over all CV rows; VME / lab R)",
+             "Call VME aft_b2_select (pooled over all CV rows; VME / lab R)",
              "Median % lab S active, AFT alone", "Median % lab S active, aft_b2_select",
              "Median EA %, AFT alone", "Median EA %, aft_b2_select"],
             rows,
@@ -1161,7 +1197,7 @@ def _fold_section(by_fold: pd.DataFrame, gates: Mapping[tuple[str, str], Mapping
     ]
     if not above.empty:
         parts += [md_table(
-            ["Species", "Drug", "Fold", "Call VME (of lab R)", "VME", "One-sided p", "Significant", "Shipped gate"],
+            ["Species", "Drug", "Fold", "Call VME (this fold's lab R)", "VME", "One-sided p", "Significant", "Shipped gate"],
             [[r.species, r.drug, int(r.fold), fmt_pct(r.call_vme_rate, r.n_lab_r), int(r.n_vme),
               f"{float(r.p_value):.2g}", "yes" if r.significant else "no",
               {True: "open", False: "closed", None: "unknown"}[shipped_gate(gates, r.species, r.drug)]]
@@ -1175,8 +1211,11 @@ PROB_TEXT = (
     "S breakpoint of the call standard (re-derived; lab I and R count as 'does not work'). It is an isotonic "
     "(never increasing) map from how many doubling steps the predicted MIC sits above the S breakpoint to the "
     "share of lab-S isolates, fit on out-of-fold predictions; each CV row's probability comes from a map fit on "
-    "the other folds only. Natural resistance gives 0; rows with a strong-marker override use a map fit on such "
-    "rows only (or 0.02 when fewer than 30 were seen). Tiers: very likely works >= 90 %, probably works 70-90 %, "
+    "the other folds only. The main map is the pair's own, the species-pooled one or their blend, chosen by "
+    "cross-fitted Brier score inside the training folds (v0.7). Natural resistance gives 0; rows with a "
+    "strong-marker override get one smoothed rate per pair, (lab S + 1) / (n + 2) over such rows of the fitting "
+    "folds (v0.7), and the displayed tier never says 'works' next to a likely-inactive call (nor 'fails' next "
+    "to likely active). Tiers: very likely works >= 90 %, probably works 70-90 %, "
     "uncertain 30-70 %, probably fails 10-30 %, very likely fails <= 10 %. The **call** stays the decision: it is "
     "safety-gated (band vs breakpoint, overrides, active-call gate); the probability is shown next to it."
 )
@@ -1220,7 +1259,7 @@ def _probability_section(inputs: ReportInputs) -> list[str]:
         ])
     parts += [md_table(
         ["Species", "Drugs", "Isolate x drug results",
-         "Danger: lab R called likely active (call VME)", "Danger: lab R told 'works' (P >= 70 %)",
+         "Danger: lab R called likely active (call VME, pooled over all CV rows)", "Danger: lab R told 'works' (P >= 70 %)",
          "Danger: lab R forced 'works' (P >= 50 %)",
          "Confident level given (P >= 70 % or <= 30 %)", "Right when confident", "'Very likely works' actually worked",
          "Call gives an answer", "Call right", "Straight accuracy (forced works/fails at 50 %)", "Brier score"],
@@ -1233,6 +1272,38 @@ def _probability_section(inputs: ReportInputs) -> list[str]:
         "likely inactive (the rest: wait for the lab).",
         "",
     ]
+    err = pd.concat([metrics_mod.calibration_error_summary(rows.assign(species="ALL"), group_columns=("species",)),
+                     metrics_mod.calibration_error_summary(rows, group_columns=("species",))], ignore_index=True)
+    sources = _calibration_sources(inputs.calibrations)
+    if not err.empty:
+        parts += [
+            "### Calibration error per species",
+            "",
+            "Expected calibration error (ECE: bin-size-weighted |mean P - share lab S| over the bins below), the "
+            "largest bin gap and the Brier score, per species. The main map of each pair is its own isotonic map, "
+            "the species-pooled map or their blend (w = n_pair / (n_pair + 100)), chosen by cross-fitted Brier score "
+            "inside the training folds (CV rows of fold f: chosen and fit on the other folds only). Strong-marker "
+            "rows get one smoothed rate per pair, (works + 1) / (n + 2). Shipped choice per species:",
+            "",
+            md_table(["Species", "n", "ECE", "Largest bin gap", "Brier", "Shipped map: pair / blend / species-pooled"],
+                     [[r.species, int(r.n), fmt_pct(r.ece), fmt_pct(r.max_gap), _fmt_float(r.brier, 3),
+                       sources.get(str(r.species), "n/a")] for r in err.itertuples()]),
+            "",
+        ]
+    told = metrics_mod.told_works_by_pair(rows)
+    if not told.empty:
+        worst = told.loc[told["n_lab_r"] >= 10].head(12)
+        parts += [
+            "### Lab R told 'works' (P >= 70 %), worst pairs (lab R >= 10)",
+            "",
+            md_table(["Species", "Drug", "Lab R told works", "Lab R told works (n)", "Lab R with a P"],
+                     [[r.species, r.drug, fmt_pct(r.told_works_rate, r.n_lab_r), int(r.n_told_works), int(r.n_lab_r)]
+                      for r in worst.itertuples()]),
+            "",
+            "The displayed tier never says 'works' next to a likely-inactive call (it shows 'uncertain'); the column "
+            "above counts the probability itself, P >= 70 %, so it is the stricter view.",
+            "",
+        ]
     cal_all = metrics_mod.calibration_table(rows.assign(species="ALL"), group_columns=("species",))
     cal_sp = metrics_mod.calibration_table(rows, group_columns=("species",))
     cal = pd.concat([cal_all, cal_sp], ignore_index=True)
@@ -1246,6 +1317,72 @@ def _probability_section(inputs: ReportInputs) -> list[str]:
             "",
         ]
     return parts
+
+
+def _calibration_sources(calibrations: Mapping[tuple[str, str], Mapping[str, Any]]) -> dict[str, str]:
+    """Per species: how many shipped calibrations use the pair / blend / species-pooled main map."""
+    counts: dict[str, dict[str, int]] = {}
+    for (species, _), record in calibrations.items():
+        source = record.get("main_source")
+        if source is None:
+            continue
+        counts.setdefault(species, {}).setdefault(str(source), 0)
+        counts[species][str(source)] += 1
+    out = {sp: " / ".join(str(c.get(k, 0)) for k in ("pair", "blend", "species")) for sp, c in counts.items()}
+    if counts:
+        out["ALL"] = " / ".join(str(sum(c.get(k, 0) for c in counts.values())) for k in ("pair", "blend", "species"))
+    return out
+
+
+def shipped_view_by_species(
+    preds: pd.DataFrame | None, gates: Mapping[tuple[str, str], Mapping[str, Any]]
+) -> pd.DataFrame:
+    """Main-model CV calls with the **shipped** gate applied, per species (and ALL).
+
+    Pairs whose shipped bundle has ``active_gate_open = false`` withhold every likely-active
+    call (shown as uncertain), exactly as the prediction pipeline does; open pairs keep their
+    out-of-fold calls. Call VME = lab R called likely active / every lab R (re-derived).
+    """
+    rows = _main_rows(preds, "cv")
+    if rows.empty or not gates or not {"call", "lab_sir_rederived"}.issubset(rows.columns):
+        return pd.DataFrame()
+    open_ = np.array([bool(shipped_gate(gates, str(s), str(d))) for s, d in zip(rows["species"], rows["drug"])], dtype=bool)
+    active = rows["call"].astype(object).eq("likely_active").fillna(False).to_numpy(dtype=bool) & open_
+    lab = rows["lab_sir_rederived"].astype(object)
+    is_r = lab.eq("R").fillna(False).to_numpy(dtype=bool)
+    is_s = lab.eq("S").fillna(False).to_numpy(dtype=bool)
+    frame = pd.DataFrame({"species": rows["species"].astype(str).to_numpy(), "drug": rows["drug"].astype(str).to_numpy(),
+                          "open": open_, "vme": active & is_r, "r": is_r, "s": is_s, "act_s": active & is_s})
+    out = []
+    for species, block in [*frame.groupby("species", sort=True), ("ALL", frame)]:
+        pairs = block[["species", "drug"]].drop_duplicates()
+        n_open = int(block.drop_duplicates(["species", "drug"])["open"].sum())
+        n_r, n_s = int(block["r"].sum()), int(block["s"].sum())
+        out.append({"species": species, "pairs": len(pairs), "pairs_gate_open": n_open, "n_lab_r": n_r,
+                    "n_vme": int(block["vme"].sum()), "call_vme_shipped": block["vme"].sum() / n_r if n_r else np.nan,
+                    "n_lab_s": n_s, "active_rate_s_shipped": block["act_s"].sum() / n_s if n_s else np.nan})
+    return pd.DataFrame(out)
+
+
+def _shipped_view_section(inputs: ReportInputs) -> list[str]:
+    view = shipped_view_by_species(inputs.preds, inputs.gates)
+    if view.empty:
+        return []
+    return [
+        "## Shipped-bundle view (out-of-fold calls, shipped gate applied)",
+        "",
+        "What a user of the shipped bundles would have seen on the out-of-fold rows: likely-active calls are kept "
+        "only for pairs whose shipped gate is open (`conformal.json` `active_gate_open`) and withheld (uncertain) "
+        "elsewhere. Call VME here is **pooled over all CV rows of lab R** of the species (closed pairs contribute "
+        "lab R and no VME). The calls themselves are still the selection procedure's out-of-fold calls, not "
+        "re-predictions by the shipped bundle.",
+        "",
+        md_table(["Species", "Pairs", "Pairs with shipped gate open", "Call VME % (shipped view, pooled; of lab R)",
+                  "VME", "Active calls % of lab S (shipped view)"],
+                 [[r.species, int(r.pairs), int(r.pairs_gate_open), fmt_pct(r.call_vme_shipped, r.n_lab_r), int(r.n_vme),
+                   fmt_pct(r.active_rate_s_shipped, r.n_lab_s)] for r in view.itertuples()]),
+        "",
+    ]
 
 
 def _data_section(inputs: ReportInputs) -> list[str]:

@@ -152,7 +152,12 @@ drugs:
       - avycaz
       - zavicefta
     spectrum_tier: 4
-    strong_markers: []
+    # Avibactam does not inhibit metallo-beta-lactamases (class B), so NDM/VIM/IMP producers
+    # are resistant. In the release: 68 of 73 lab-R KPNEU isolates carry one vs 2 of 259 lab-S.
+    strong_markers:
+      - gene_blandm
+      - gene_blavim
+      - gene_blaimp
   aztreonam:
     synonyms: [ATM, AZT, AT, azactam]
     spectrum_tier: 3

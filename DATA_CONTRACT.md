@@ -1,8 +1,18 @@
 # Genome-to-MIC — Data Contract
 
-**Status:** draft v0.6 · **Owner:** Hub · **Last updated:** 2026-10-04
+**Status:** draft v0.7 · **Owner:** Hub · **Last updated:** 2026-10-04
 
-**Changelog:** v0.6 (2026-10-04): probability, per-fold safety and model-choice round on
+**Changelog:** v0.7 (2026-10-04): final review round (cv-only; the test split is never
+read). Strong-marker and exception prefixes are matched token-aware (a prefix ending in a
+digit only matches itself or `prefix_...`: `gene_blaoxa_48` no longer matches the
+*P. aeruginosa* OXA-50-family columns `gene_blaoxa_485/486/488`). `prob_works` for
+strong-marker rows is one smoothed rate per pair, `(works + 1) / (n + 2)`; the main map is
+the pair's own, the species-pooled one or their blend, chosen per pair inside the training
+folds; `prob_tier` never contradicts the call. Natural-resistance pairs ship
+`active_gate_open = false`. `calibration.json` gains keys; the report labels every call
+VME as pooled or calling-fold and adds a shipped-bundle view. No column, dtype or file
+renamed; `run_id` unchanged (code changes show in `inputs_sha1`). Section 7 rows marked v0.7.
+v0.6 (2026-10-04): probability, per-fold safety and model-choice round on
 the provisional 5-species release (cv-only; the test split is never read). The preds
 table gains `prob_works` and `prob_tier` and the model value `aft_b2_select` (stage 10);
 the prediction report's `DrugPrediction` gains optional `prob_works` and `prob_tier`
@@ -574,7 +584,7 @@ multi-species model.
 | `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `aft_b2_select` (v0.6: the shipped model, the per-pair choice of the AFT model, B2 or their average made inside the training folds; section 7) |
 | `run_id` | str | Config hash, for reproducibility |
 | `prob_works` | float | Calibrated probability that the drug works (lab MIC re-derived under the call breakpoint is S), `[0, 1]`. CV rows: calibration fit on the other folds' CV rows only. Test / LOLO rows: the fit on every CV row of that model. 0 under natural resistance. Null for `b0_resfinder` and for pairs without a call breakpoint (v0.6, section 7) |
-| `prob_tier` | str | `very_likely_works` (>= 0.90) / `probably_works` (0.70 to 0.90) / `uncertain` (0.30 to 0.70) / `probably_fails` (0.10 to 0.30) / `very_likely_fails` (<= 0.10); null with `prob_works` (v0.6) |
+| `prob_tier` | str | `very_likely_works` (>= 0.90) / `probably_works` (0.70 to 0.90) / `uncertain` (0.30 to 0.70) / `probably_fails` (0.10 to 0.30) / `very_likely_fails` (<= 0.10); null with `prob_works` (v0.6). v0.7: a 'works' tier next to `likely_inactive` and a 'fails' tier next to `likely_active` become `uncertain` (the probability is unchanged) |
 
 Round **up**: a slightly high MIC prediction is the safer error.
 
@@ -656,8 +666,8 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | `margin_steps` | int | yes | Doubling steps below the S breakpoint |
 | `reasons` | list[str] | no | Markers behind the call, e.g. `gyrA S83L` |
 | `override` | str | yes | `natural_resistance` / `strong_marker`. Set → call is `likely_inactive` |
-| `prob_works` | float | yes | Calibrated probability (0 to 1) that the drug works in the lab, i.e. the lab MIC is at or below the S breakpoint (`calibration.json` of the bundle, fit on out-of-fold training predictions). 0 under natural resistance. When the strong-marker override fires, the override rows' own calibration (or 0.02 when training saw fewer than 30 such rows). Null when the bundle has no `calibration.json` or the pair has no breakpoint. Shown next to the call; it never changes the call (v0.6) |
-| `prob_tier` | str | yes | Tier of `prob_works` (see stage 10). Set exactly when `prob_works` is set and always consistent with it (schema-validated) (v0.6) |
+| `prob_works` | float | yes | Calibrated probability (0 to 1) that the drug works in the lab, i.e. the lab MIC is at or below the S breakpoint (`calibration.json` of the bundle, fit on out-of-fold training predictions). 0 under natural resistance. When the strong-marker override fires, the pair's smoothed rate `(works + 1) / (n + 2)` over the training override rows (v0.7; v0.6: the override rows' own map, or 0.02). Null when the bundle has no `calibration.json` or the pair has no breakpoint. Shown next to the call; it never changes the call (v0.6) |
+| `prob_tier` | str | yes | Tier of `prob_works` (see stage 10). Set exactly when `prob_works` is set (v0.6). v0.7: capped to agree with the call (a 'works' tier next to `likely_inactive` shows `uncertain`, a 'fails' tier next to `likely_active` too) |
 
 **Call logic:**
 
@@ -677,7 +687,10 @@ upgrade or downgrade a call (v0.6).
 2. A strong known marker (e.g. any carbapenemase for meropenem) → inactive,
    regardless of the model. Two rules, both from `configs/drugs.yaml`:
    - `strong_markers`: known-AMR feature columns, matched as column-name prefixes
-     (kept variants such as `gene_blakpc_2` match `gene_blakpc`). Every carbapenemase
+     (kept variants such as `gene_blakpc_2` match `gene_blakpc`). v0.7: matching is
+     token-aware: a prefix ending in a digit matches only itself or `prefix_...`
+     (`gene_blaoxa_48` never matches `gene_blaoxa_485`), one ending in a letter any
+     continuation (`gene_rmtb` matches `gene_rmtb1`). Every carbapenemase
      prefix in `keep_variant.csv` (blaOXA-48, blaOXA-181, blaOXA-232, ...) must be
      listed for the carbapenems and the cephalosporins that carry the list. The 16S
      rRNA methyltransferases (`gene_arma`, `gene_rmta` ... `gene_rmth`, `gene_npma`) are
@@ -828,11 +841,11 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 
 ---
 
-## 7. Additions (v0.2 to v0.6)
+## 7. Additions (v0.2 to v0.7)
 
 Columns and files added on top of v0.1, sorted by file (the v0.4 rows from the real-data port are grouped
 after the first row, then the v0.5 rows from the optimisation and hardening round, then the v0.6 rows from
-the probability, per-fold safety and model-choice round). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
+the probability, per-fold safety and model-choice round, then the v0.7 rows from the final review round). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
 Rows marked v0.3 came with the review fixes, which also changed stage text above (see
 the changelog). A row that replaces an earlier row says so and says what changed.
 
@@ -842,6 +855,16 @@ training folds; the test split is never read. Not shipped (no gain over the tune
 beyond fold noise on the summed lab-S active rate of pairs passing call VME): monotone
 constraints and nested xgboost tuning. B1 and B2 are unchanged. No column, dtype or file
 was renamed.
+
+v0.7 summary: strong-marker prefixes are token-aware; the release audit found only
+`gene_blaoxa_48` matching `gene_blaoxa_484/485/486/488` (OXA-485/486/488 are intrinsic
+*P. aeruginosa* OXA-50-family enzymes; OXA-484, an OXA-48-like carbapenemase in 1 ECOLI
+genome, still forces the carbapenem call through `strong_subclasses`). Strong-marker rows
+get one smoothed `P(works) = (works + 1) / (n + 2)` per pair; the main map is chosen per
+pair from the pair's own isotonic map, the species-pooled map and their blend
+(`w = n_pair / (n_pair + 100)`) by cross-fitted Brier score inside the training folds; the
+displayed tier never contradicts the call; natural-resistance pairs ship the gate closed.
+All fit on train-fold rows; the test split is never read.
 
 v0.6 summary: every drug gets `prob_works`, a calibrated probability that the drug works
 in the lab (isotonic, non-increasing map from the predicted MIC's distance to the S
@@ -911,6 +934,12 @@ read. No column, dtype or file was renamed.
 | `train` / `run-all` CLI, `train.run` | `--amrfinder-db DIR` / `amrfinder_db=`; `--no-model-select` (v0.6) | train | AMRFinderPlus database for the column subclasses (also used for the release feature specs); without it a warning is logged and only the prefix rule applies. `--no-model-select` ships the AFT model |
 | `compare-oof` CLI | `--amrfinder-db DIR` (v0.6) | compare-oof | The recomputed calls (applied identically to both models) use the same subclass rule as training |
 | `TrainConfig` | `fold_gate_p = 0.01`, `model_select = True` (v0.6) | train | Both part of the `run_id` hash |
+| `results/preds_<SPECIES>_<drug>.parquet` | `prob_works` main-model rule; `prob_tier` capped by the call (v0.7) | train | Main model rows: the main map is `pair` / `blend` / `species`, chosen by cross-fitted Brier inside the training folds (fold f: chosen and fit on folds != f, including the species pool). Strong-marker rows: `(works + 1) / (n + 2)` over the pair's override rows of the fitting folds. Other models: per-pair map, same override rate. `prob_tier`: 'works' tiers next to `likely_inactive` and 'fails' tiers next to `likely_active` become `uncertain` |
+| `models/<SPECIES>/<drug>/calibration.json` | `main_source` (`pair` / `blend` / `species`), `blend_weight`, `override_rule`, `main_source_selection` {`main_source`, `brier` {source: inner Brier or null}, `blend_weight`, `n_pair`, `n_species`, `override_rate`, `n_override`}, `selection_rule`; `override` now always null and `override_constant` the smoothed rate; `cross_fitted_by_fold` {fold: same keys as `main_source_selection`} (v0.7) | train | Replaces the v0.6 override map / 0.02 constant. `main` is the shipped (chosen) map. v0.6 files still load (`main_source` null = the pair's own map) |
+| `models/<SPECIES>/<drug>/conformal.json` | `active_gate_open` false for natural-resistance pairs (v0.7) | train | As for pairs without a call breakpoint (v0.6) |
+| Prediction report `DrugPrediction` | `prob_works` for strong-marker hits = the smoothed rate; `prob_tier` = `tier_for_call(prob_works, call)` (v0.7) | predict | The tier never contradicts the call; the probability is unchanged |
+| `configs/drugs.yaml` | strong-marker / exception prefixes are token-aware (v0.7) | config | A prefix ending in a digit only matches `prefix` or `prefix_...`; ending in a letter, any continuation (`config.column_prefix_matches`) |
+| `results/report.md` | headline call VME by calling folds + pooled reference + shipped gate; "Shipped-bundle view" section; calibration error per species; worst pairs by lab R told 'works' (v0.7) | report | Every call VME header says pooled vs calling folds |
 | `data/interim/_references/references.msh` | new file (v0.3) | Snakefile (`mash_references`) | Mash sketch of every `data/raw/references/<SPECIES>.fasta`, the reference side of every per-genome `mash dist` |
 | `data/processed/drop_log_<stage>.csv` | new files | every stage | `stage, reason, n_dropped, detail` for every filter, including zero counts |
 | `data/processed/drop_log_evaluate.csv` | reason `lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage` (v0.3) | evaluate | Count of prediction rows left out of the exact-MIC metrics (not dropped from the preds) |

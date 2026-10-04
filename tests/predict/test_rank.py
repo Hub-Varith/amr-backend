@@ -375,7 +375,7 @@ def test_intrinsic_exclusion_applies_to_the_column_prefix_rule(config: Config) -
     # A per-allele column that a prefix would match (hypothetical config) is still excluded.
     from dataclasses import replace as dc_replace
 
-    drug_cfg = dc_replace(config.drugs["meropenem"], strong_markers=("gene_blaoxa_6",), strong_subclasses=())
+    drug_cfg = dc_replace(config.drugs["meropenem"], strong_markers=("gene_blaoxa",), strong_subclasses=())
     symbols = {"gene_blaoxa_66": ("blaOXA-66",)}
     assert rank.strong_marker_hits(symbols, drug_cfg) == ["blaOXA-66"]
     assert rank.strong_marker_hits(symbols, drug_cfg, intrinsic_symbols=config.intrinsic_symbols("ABAU")) == []
@@ -455,3 +455,13 @@ def test_strong_marker_exceptions_apply_at_prediction_time(config: Config) -> No
     assert rank.strong_marker_hits({"gene_mcr_9_1": ("mcr-9.1",)}, colistin, markers) == []
     hits = rank.strong_marker_hits({"gene_mcr_1_1": ("mcr-1.1",)}, colistin, [])
     assert hits == ["mcr-1.1"]
+
+
+@pytest.mark.parametrize("symbol,column", [("blaOXA-485", "gene_blaoxa_485"), ("blaOXA-486", "gene_blaoxa_486"),
+                                           ("blaOXA-488", "gene_blaoxa_488")])
+def test_oxa_50_family_alleles_do_not_hit_the_oxa_48_prefix(config: Config, symbol: str, column: str) -> None:
+    for drug in ("meropenem", "ceftriaxone", "cefepime"):
+        assert rank.strong_marker_hits({column: (symbol,)}, config.drugs[drug]) == [], (drug, symbol)
+    assert rank.strong_marker_hits({"gene_blaoxa_48": ("blaOXA-48",)}, config.drugs["meropenem"]) == ["blaOXA-48"]
+    cols = rank.strong_marker_columns([column, "gene_blaoxa_48", "gene_blakpc_2", "gene_blandm_1"], config.drugs["meropenem"])
+    assert cols == ["gene_blaoxa_48", "gene_blakpc_2", "gene_blandm_1"]

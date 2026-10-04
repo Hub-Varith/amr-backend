@@ -1176,7 +1176,9 @@ def test_preds_carry_cross_fitted_probabilities(project: dict) -> None:
     assert has.any()
     p = preds.loc[has, "prob_works"].to_numpy(dtype=float)
     assert ((p >= 0) & (p <= 1)).all()
-    assert preds.loc[has, "prob_tier"].tolist() == cal.prob_tier(p).tolist()
+    assert preds.loc[has, "prob_tier"].tolist() == cal.prob_tier_for_calls(p, preds.loc[has, "call"].astype(object).to_numpy()).tolist()
+    inactive = has & (preds["call"] == "likely_inactive")
+    assert not preds.loc[inactive, "prob_tier"].isin(list(cal.WORKS_TIERS)).any()
     splits = pd.read_parquet(paths.splits).set_index("genome_id")["fold"]
     checked = 0
     for (species, drug), pair in preds.groupby(["species", "drug"]):
@@ -1216,6 +1218,15 @@ def test_bundle_ships_calibration_and_fold_records(project: dict) -> None:
         assert fit.s_breakpoint == pytest.approx(bp.s_breakpoint)
         record = json.loads((drug_dir / cal.CALIBRATION_FILE).read_text())
         assert record["model"] == meta["model"] and set(record["cross_fitted_by_fold"])
+        if config.is_naturally_resistant(species, drug):
+            # Every call is likely_inactive under natural resistance: the gate ships closed (v0.7).
+            assert conformal["active_gate_open"] is False
+        else:
+            # v0.7: species-level choice of the main map; strong-marker rows get one smoothed rate.
+            assert record["main_source"] in cal.MAIN_SOURCES and record["override"] is None
+            assert record["override_constant"] is not None and 0.0 < record["override_constant"] < 1.0
+            assert record["main_source_selection"]["main_source"] == record["main_source"]
+            assert all(v["main_source"] in cal.MAIN_SOURCES for v in record["cross_fitted_by_fold"].values())
         if not config.is_naturally_resistant(species, drug):
             assert isinstance(conformal["fold_call_vme"], list) and conformal["fold_call_vme"]
             assert {"fold", "n_lab_r", "n_vme", "p_value", "significant"} <= set(conformal["fold_call_vme"][0])

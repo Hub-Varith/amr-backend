@@ -1104,3 +1104,91 @@ def call_vme_by_fold(
         out = out.astype({"fold": "int64", "calling": bool, "n_lab_r": "int64", "n_vme": "int64",
                           "call_vme_rate": "float64", "p_value": "float64", "significant": bool})
     return out.reset_index(drop=True)
+
+
+# ------------------------------------------------------- calibration error (v0.7)
+
+
+CALIBRATION_ERROR_COLUMNS: tuple[str, ...] = ("n", "ece", "max_gap", "brier")
+"""Columns of :func:`calibration_error_summary` after the group columns."""
+TOLD_WORKS_THRESHOLD = 0.70
+"""'Told works' = P(works) >= 0.70 (a 'works' tier)."""
+
+
+def calibration_error(
+    prob: ArrayLike, lab_sir: ArrayLike, edges: Sequence[float] = DEFAULT_PROB_BINS
+) -> dict[str, float | int | None]:
+    """Expected calibration error over :data:`DEFAULT_PROB_BINS`, the largest bin gap and the Brier score.
+
+    ``ece = sum_b n_b / N * |mean P_b - share lab S_b|``; ``max_gap`` = the largest bin
+    ``|mean P - share lab S|``; rows need a probability and a lab category (I and R = did
+    not work). Rates are ``None`` without a usable row.
+    """
+    p = _as_prob_array(prob)
+    lab = _as_sir_array(lab_sir, "lab_sir")
+    _check_same_length(prob=p, lab_sir=lab)
+    keep = ~np.isnan(p) & np.array([v is not None for v in lab], dtype=bool)
+    n = int(keep.sum())
+    if n == 0:
+        return {"n": 0, "ece": None, "max_gap": None, "brier": None}
+    pk = p[keep]
+    works = (lab[keep] == "S").astype(float)
+    edge_arr = np.asarray(list(edges), dtype=np.float64)
+    codes = np.asarray(pd.cut(pk, edge_arr, right=True, include_lowest=True, labels=False), dtype=np.float64)
+    ece, gap = 0.0, 0.0
+    for code in np.unique(codes[~np.isnan(codes)]):
+        in_bin = codes == code
+        diff = abs(float(pk[in_bin].mean()) - float(works[in_bin].mean()))
+        ece += int(in_bin.sum()) / n * diff
+        gap = max(gap, diff)
+    return {"n": n, "ece": float(ece), "max_gap": float(gap), "brier": float(np.mean((pk - works) ** 2))}
+
+
+def calibration_error_summary(
+    preds: pd.DataFrame,
+    group_columns: Sequence[str] = ("species", "model", "split"),
+    lab_column: str = REDERIVED_SIR_COLUMN,
+) -> pd.DataFrame:
+    """:func:`calibration_error` per group (default species x model x split)."""
+    columns = [*group_columns, *CALIBRATION_ERROR_COLUMNS]
+    if PROB_COLUMN not in preds.columns or lab_column not in preds.columns or preds.empty:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in columns})
+    rows = []
+    for key, block in preds.groupby(list(group_columns), sort=True, dropna=False):
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        row = dict(zip(group_columns, key_tuple))
+        row.update(calibration_error(block[PROB_COLUMN], block[lab_column]))
+        rows.append(row)
+    out = pd.DataFrame(rows, columns=columns)
+    out["n"] = out["n"].astype("int64")
+    for c in ("ece", "max_gap", "brier"):
+        out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
+    return out
+
+
+def told_works_by_pair(
+    preds: pd.DataFrame,
+    threshold: float = TOLD_WORKS_THRESHOLD,
+    lab_column: str = REDERIVED_SIR_COLUMN,
+) -> pd.DataFrame:
+    """Per species x drug: lab R told the drug works (``P >= threshold``) over lab R with a probability.
+
+    Danger first, sorted worst first (rate, then count). Columns: ``species``, ``drug``,
+    ``told_works_rate``, ``n_told_works``, ``n_lab_r``.
+    """
+    columns = ["species", "drug", "told_works_rate", "n_told_works", "n_lab_r"]
+    need = {"species", "drug", PROB_COLUMN, lab_column}
+    if preds.empty or not need.issubset(preds.columns):
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in columns})
+    p = _as_prob_array(preds[PROB_COLUMN])
+    lab = _as_sir_array(preds[lab_column], lab_column)
+    is_r = (lab == "R") & ~np.isnan(p)
+    told = is_r & (np.nan_to_num(p, nan=-1.0) >= threshold - _TOL)
+    frame = pd.DataFrame({"species": preds["species"].astype(str).to_numpy(), "drug": preds["drug"].astype(str).to_numpy(),
+                          "_r": is_r, "_told": told})
+    out = frame.groupby(["species", "drug"], sort=True).agg(n_lab_r=("_r", "sum"), n_told_works=("_told", "sum")).reset_index()
+    out = out.loc[out["n_lab_r"] > 0].copy()
+    out["told_works_rate"] = out["n_told_works"] / out["n_lab_r"]
+    out = out.sort_values(["told_works_rate", "n_told_works", "species", "drug"], ascending=[False, False, True, True])
+    out = out[columns].astype({"n_told_works": "int64", "n_lab_r": "int64", "told_works_rate": "float64"})
+    return out.reset_index(drop=True)

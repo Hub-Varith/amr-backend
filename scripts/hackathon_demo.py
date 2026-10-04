@@ -183,6 +183,7 @@ def cmd_compare(args: argparse.Namespace) -> None:
             "genome_id": record.genome_id,
             "species_lab": record.species,
             "species_pred": report["species"],
+            "run_id": report.get("run_id"),
             "qc_pass": report["qc_pass"],
             "n_predicted": len(report["predictions"]),
             "ranked_active": ", ".join(r["drug"] if isinstance(r, dict) else str(r) for r in report["ranked_active"][:5]),
@@ -216,13 +217,21 @@ def cmd_compare(args: argparse.Namespace) -> None:
                 "pred_mic": pred.get("pred_mic") if pred else None,
                 "band": f"{pred['band_low']:g}-{pred['band_high']:g}" if pred and pred.get("band_low") is not None else None,
                 "call": call,
+                "prob_works": None if not pred or pred.get("prob_works") is None else round(float(pred["prob_works"]), 3),
+                "prob_tier": pred.get("prob_tier") if pred else None,
                 "override": pred.get("override") if pred else None,
                 "outcome": outcome,
                 "within_1_step": ea,
+                "run_id": report.get("run_id"),
             })
     detail = pd.DataFrame(rows)
     out = root / "demo"
     detail.to_csv(out / "demo_table.csv", index=False)
+    with (out / "demo_table.md").open("w") as handle:
+        run_ids = sorted({str(r) for r in detail["run_id"].dropna().unique()}) if not detail.empty else []
+        handle.write(f"run_id: {', '.join(run_ids) or 'n/a'}\n\n")
+        handle.write(detail.drop(columns=["run_id"]).to_markdown(index=False, disable_numparse=True))
+        handle.write("\n")
     pd.DataFrame(summary).to_csv(out / "demo_genomes_summary.csv", index=False)
     per_genome = (
         detail.groupby(["species", "genome_id"], sort=False)
@@ -237,8 +246,14 @@ def cmd_compare(args: argparse.Namespace) -> None:
         )
         .reset_index()
     )
-    per_genome = per_genome.merge(pd.DataFrame(summary)[["genome_id", "species_pred", "ranked_active"]], on="genome_id", how="left")
-    per_genome = per_genome[["species", "genome_id", "species_pred", "n_lab", "vme", "me", "agree", "uncertain", "no_call", "ea", "ranked_active"]]
+    prob = detail.assign(_p=pd.to_numeric(detail["prob_works"], errors="coerce"),
+                         _r=detail["lab_sir"].eq("R"), _s=detail["lab_sir"].eq("S"))
+    told = (prob.assign(_told_r=prob["_r"] & (prob["_p"] >= 0.70))
+            .groupby("genome_id").agg(lab_r_told_works=("_told_r", "sum")).reset_index())
+    per_genome = per_genome.merge(told, on="genome_id", how="left")
+    per_genome = per_genome.merge(pd.DataFrame(summary)[["genome_id", "species_pred", "run_id", "ranked_active"]], on="genome_id", how="left")
+    per_genome = per_genome[["species", "genome_id", "species_pred", "n_lab", "vme", "me", "agree", "uncertain", "no_call", "ea",
+                             "lab_r_told_works", "ranked_active", "run_id"]]
     per_genome.to_csv(out / "demo_per_genome.csv", index=False)
     print(per_genome.to_markdown(index=False, disable_numparse=True))
     excluded_csv = out / "genomes_excluded.csv"

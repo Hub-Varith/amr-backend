@@ -1135,3 +1135,35 @@ def test_shipped_candidate_names_the_fallback() -> None:
     assert report._shipped_candidate(gates, "KPNEU", "meropenem") == "avg"
     assert report._shipped_candidate(gates, "ABAU", "imipenem") == "-"
     assert report._shipped_candidate(gates, "PAER", "cefepime") == "-"
+
+
+def test_probability_section_has_per_species_calibration_error_and_told_works_list() -> None:
+    inputs = _safety_inputs({})
+    inputs.calibrations = {("KPNEU", "meropenem"): {"main_source": "species"}, ("KPNEU", "ciprofloxacin"): {"main_source": "pair"}}
+    text = "\n".join(report._probability_section(inputs))
+    assert "### Calibration error per species" in text
+    row = next(line for line in text.splitlines() if line.startswith("| KPNEU |") and "/" in line)
+    assert row.rstrip().endswith("| 1 / 0 / 1 |")
+    assert "### Lab R told 'works' (P >= 70 %), worst pairs" in text
+    header = next(line for line in text.splitlines() if line.startswith("| Species | Drugs |"))
+    assert "pooled over all CV rows" in header
+
+
+def test_shipped_view_withholds_active_calls_where_the_shipped_gate_is_closed() -> None:
+    gates = {("KPNEU", "meropenem"): {"active_gate_open": False}, ("KPNEU", "ciprofloxacin"): {"active_gate_open": True}}
+    inputs = _safety_inputs(gates)
+    view = report.shipped_view_by_species(inputs.preds, gates)
+    kp = view.loc[view["species"] == "KPNEU"].iloc[0]
+    # Only ciprofloxacin (open) keeps its likely-active calls: its fold-1 VME rows count, meropenem's are withheld.
+    cip = inputs.preds.loc[inputs.preds["drug"] == "ciprofloxacin"]
+    n_vme_cip = int(((cip["call"] == "likely_active") & (cip["lab_sir_rederived"] == "R")).sum())
+    assert kp["pairs"] == 2 and kp["pairs_gate_open"] == 1 and kp["n_vme"] == n_vme_cip
+    assert kp["n_lab_r"] == int((inputs.preds["lab_sir_rederived"] == "R").sum())
+    text = "\n".join(report._shipped_view_section(inputs))
+    assert "## Shipped-bundle view" in text and "pooled over all CV rows of lab R" in text
+    assert report.shipped_view_by_species(inputs.preds, {}).empty
+
+
+def test_every_call_vme_header_says_how_it_is_counted() -> None:
+    assert "pooled over all rows" in report.METRICS_HEADERS[3]
+    assert "pooled over all rows" in report.REDERIVED_HEADERS[2]

@@ -351,7 +351,7 @@ Since the review fixes (DATA_CONTRACT v0.3):
   Every table was entered from memory; `docs/BREAKPOINT_VERIFICATION.md` and
   `docs/breakpoint_verification_checklist.csv` list what to verify, in priority order.
 
-Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
+Real data (DATA_CONTRACT v0.4 to v0.7, 2026-10-03/04):
 
 - Root `runs/hackathon5` (gitignored): provisional local release
   `2026-10-04-hackathon+pd5-local` (not an S3 release; its splits are provisional, used as
@@ -363,9 +363,11 @@ Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
   call flagged low confidence.
 - `train --cv-only`: out-of-fold CV preds plus the final bundle on all train rows; test
   rows are never loaded or scored, no ledger row. The test split stays untouched until
-  the user asks for the single test run. Current bundle run `1b841ac91682` (v0.6,
-  trained with `--amrfinder-db`; the previous run `07e65644a16d` is backed up in
-  `/tmp/g2m_prob_prev`).
+  the user asks for the single test run. Current bundle run `1b841ac91682` (v0.7 code,
+  trained with `--amrfinder-db`; `inputs_sha1` ABAU 62e51aae541c, ECOLI e3a9a9aa52ec,
+  KPNEU 60f7f3de175e, PAER 00647d3edeff, SAUR d043ff75b8c8. The run id names the
+  configuration, which did not change; the v0.6 bundle of the same run id is backed up in
+  `/tmp/g2m_final_prev`).
 - Panel caps: each raw log2 prediction is clipped to the fit rows' finite-bound range
   ±1 step before rounding up (stored in `conformal.json`, applied at prediction).
 - Call-level metrics (`call_vme_rate` right after `vme_rate`, then `call_me_rate`,
@@ -373,15 +375,16 @@ Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
   Only the 15 CLSI Enterobacterales drugs Hub checked (KPNEU, ECOLI) are verified; every
   other S/I/R and call metric is provisional.
 - Band: tuned asymmetric cross-conformal band with the active-call gate (default; see
-  "Uncertainty"). Gate open on 52 of 97 shipped bundles (run `07e65644a16d`: 69, of which
-  21 were pairs without a call breakpoint or with natural resistance that now ship
-  closed; AFT alone under the v0.6 rules: 49). Out of fold (`aft_b2_select` CV rows, CLSI
-  2024 re-derived), 90 of 97 pairs pass call VME ≤ 1.5 % over the calling folds with no
-  significant fold (96 pooled). 47 of them ship likely-active calls, 22 pass with the shipped
-  gate closed, 21 by natural resistance or no breakpoint. Of the 7 failing pairs, 3 ship an
-  open AFT bundle whose own out-of-fold calls pass (ABAU levofloxacin 0/544, ECOLI
-  ceftazidime 13/1073, KPNEU gentamicin 16/1314). Call VME over all CV rows: 566 / 86,176
-  lab R. The gate needs ≥ 66 lab-R rows in the calling folds, so rare-resistance drugs
+  "Uncertainty"). Gate open on 50 of 97 shipped bundles (v0.7: pairs without a call
+  breakpoint and natural-resistance pairs, e.g. KPNEU ampicillin, ABAU ceftriaxone, ship
+  closed). Out of fold (`aft_b2_select` CV rows, CLSI 2024 re-derived), 90 of 97 pairs
+  pass call VME ≤ 1.5 % over the calling folds with no significant fold (96 pooled). 47 of
+  them ship likely-active calls, 22 pass with the shipped gate closed, 21 by natural
+  resistance or no breakpoint. Of the 7 failing pairs, 3 ship an open AFT bundle whose own
+  out-of-fold calls pass (ABAU levofloxacin, ECOLI ceftazidime, KPNEU gentamicin). Call
+  VME pooled over all CV rows: 565 / 86,176 lab R; shipped-bundle view (calls withheld
+  where the shipped gate is closed): 492 / 86,176 (0.6 %), 29.0 % of lab S called likely
+  active. The report labels every call VME as pooled or calling-fold. The gate needs ≥ 66 lab-R rows in the calling folds, so rare-resistance drugs
   (SAUR vancomycin, daptomycin) never get likely-active calls, by design.
 - Model choice (`aft_b2_select`, v0.6): bundles ship AFT 45, average 29, B2 23 (3 AFT
   bundles are fallbacks from an uncertified average). Against AFT alone on the same CV
@@ -389,12 +392,21 @@ Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
   is 15.8 % vs 15.1 %. Only 40 of 97 pairs make the same choice in every fold. The KPNEU
   start drugs ship AFT and are unchanged: ceftriaxone 53.5 % of lab S active, VME 16/2760;
   ciprofloxacin 4.1 %, 1/3342; meropenem 24.8 %, 21/2452, EA 46.5 %.
-- P(works) (v0.6): out of fold, the pooled calibration tracks closely (0.9-1 bin 97.9 %
-  predicted, 97.8 % observed; 0-0.1 bin 2.1 % vs 2.6 %). The danger columns per species
-  (lab R called likely active / told 'works' at P ≥ 70 %) are in the report section
-  "Probability that the drug works". The worst is SAUR: 21 % of lab R in a works tier,
-  mostly clindamycin (139 of 197 lab R at P ≥ 70 %, none called likely active), although
-  the SAUR call VME is only 0.2 %.
+- P(works) (v0.6, v0.7): isotonic map from the predicted MIC's distance to the S
+  breakpoint, cross-fitted by fold. v0.7: per pair the main map is the pair's own, the
+  species-pooled one or their blend (w = n_pair / (n_pair + 100)), chosen by cross-fitted
+  Brier inside the training folds (shipped: pair 16, blend 43, species 17; 21 pairs have
+  no map: no breakpoint or natural resistance); strong-marker rows get one smoothed rate
+  (works + 1) / (n + 2) per pair; the displayed tier never says 'works' next to a
+  likely-inactive call. Out-of-fold ECE (main model): ABAU 3.6 % (v0.6 4.3 %), PAER 1.8 %
+  (2.5 %), SAUR 1.5 %, KPNEU 1.2 % (0.8 %), ECOLI 0.2 %. ABAU's 0.5-0.7 bin is still off
+  (64 % predicted, 43 % observed, n = 276). Worst pairs by lab R told 'works' (P ≥ 70 %):
+  KPNEU ceftazidime-avibactam 68/73 (no strong markers configured for it), SAUR
+  daptomycin 18/23, SAUR clindamycin 151/197, ECOLI piperacillin-tazobactam 330/453.
+- Strong-marker prefixes are token-aware (v0.7): `gene_blaoxa_48` no longer matched the
+  *P. aeruginosa* OXA-50-family columns `gene_blaoxa_485/486/488`, which had forced
+  wrong likely-inactive calls (PAER call answers 34.9 % -> 26.6 %, call right 89.2 % ->
+  97.9 %).
 - Exact-MIC rows weigh 2x in the AFT fit (`--exact-weight 2.0`, default); every row
   still trains, nothing is imputed. Not shipped (no gain beyond fold noise): monotone
   constraints and nested xgboost tuning.
@@ -408,7 +420,8 @@ Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
   `export PATH=$HOME/micromamba/envs/amrfinder/bin:$PATH`. Demo:
   `scripts/hackathon_demo.py` and `reports/hackathon_demo/README.md` (15 genomes absent
   from the splits; it checks that the pipeline runs and does not validate the model; its
-  tables were made with the earlier bundle run `1e4dea5e413f`).
+  tables were regenerated on the final bundle run `1b841ac91682`, v0.7 code, with
+  `prob_works` per drug).
 - `configs/intrinsic_markers.csv`: 403 ABAU OXA-51-family symbols that never trigger the
   strong-marker override, at prediction or in training-time calls. They stay features.
 - Caveats: CV numbers are selection-biased (see "Safety and claims"). Cross-conformal
