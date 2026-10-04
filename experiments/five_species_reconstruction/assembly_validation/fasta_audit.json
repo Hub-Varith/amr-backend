@@ -1,0 +1,101 @@
+[
+  {
+    "species": "ABAU",
+    "level": "00",
+    "contigs": 10,
+    "bases": 3948190,
+    "n50": 2529073,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "ABAU",
+    "level": "01",
+    "contigs": 4,
+    "bases": 3927891,
+    "n50": 3902031,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "ABAU",
+    "level": "02",
+    "contigs": 3,
+    "bases": 3915337,
+    "n50": 3901894,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "ECOLI",
+    "level": "00",
+    "contigs": 4,
+    "bases": 4869846,
+    "n50": 4753752,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "ECOLI",
+    "level": "02",
+    "contigs": 2,
+    "bases": 4901847,
+    "n50": 4791843,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "KPNEU",
+    "level": "00",
+    "contigs": 2,
+    "bases": 5324186,
+    "n50": 5156083,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "KPNEU",
+    "level": "01",
+    "contigs": 2,
+    "bases": 5324421,
+    "n50": 5156309,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "PAER",
+    "level": "00",
+    "contigs": 9,
+    "bases": 6855338,
+    "n50": 3625334,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "PAER",
+    "level": "01",
+    "contigs": 1,
+    "bases": 7140507,
+    "n50": 7140507,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "PAER",
+    "level": "02",
+    "contigs": 1,
+    "bases": 7139413,
+    "n50": 7139413,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  },
+  {
+    "species": "SAUR",
+    "level": "00",
+    "contigs": 356,
+    "bases": 3910977,
+    "n50": 12109,
+    "ambiguous_n": 0,
+    "invalid_characters": 0
+  }
+]

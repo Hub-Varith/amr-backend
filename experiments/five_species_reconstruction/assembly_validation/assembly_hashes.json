@@ -1,0 +1,13 @@
+{
+  "experiments/five_species_reconstruction/results/SAUR/00/assembly.fasta": "ba11f8fc3bb3ed6d6fdee4a09b118e31dd7aa04c5403dfbc00de10d8915e8c00",
+  "experiments/five_species_reconstruction/results/PAER/02/assembly.fasta": "624f7b80406cc4c3dd9204cf300c5d32e0ced8621448e828bcd2f7bcfcdd798b",
+  "experiments/five_species_reconstruction/results/PAER/00/assembly.fasta": "3f0e77db62c1478261016d6434b689e619d755f578be786d4331ccc6084a3293",
+  "experiments/five_species_reconstruction/results/PAER/01/assembly.fasta": "c3493c2f448ec72d0bbade469af9301273d7bbeaf41fa90d2d6a2515c3cb7ef3",
+  "experiments/five_species_reconstruction/results/ECOLI/02/assembly.fasta": "85829b6361528f2025ef20eba2ab7be41c42e5482384daa83e8b15851c08def4",
+  "experiments/five_species_reconstruction/results/ECOLI/00/assembly.fasta": "c28e68f6079ec24ea3f54c4f5c45cd6635f0359fe7b7d64b00f2b9b657015858",
+  "experiments/five_species_reconstruction/results/KPNEU/00/assembly.fasta": "4d5d6a5ac1045d8f32013a56c3c47027a5f8e1475eb1d3a4c77cd565f43a6aba",
+  "experiments/five_species_reconstruction/results/KPNEU/01/assembly.fasta": "68c8babe696aba1eab0e86e584e7474a11ba4bd0db984b2bad8f66f0bdd07b49",
+  "experiments/five_species_reconstruction/results/ABAU/02/assembly.fasta": "7ee719148c93ebcfa09cd10992e9f8b256d966a58477699c7a81a52556917a14",
+  "experiments/five_species_reconstruction/results/ABAU/00/assembly.fasta": "d48b08a65ef0899f339400b1c44906b19e6e37b0fc3a096557a4b54b41552bef",
+  "experiments/five_species_reconstruction/results/ABAU/01/assembly.fasta": "85d4b52da87db460955956b49140954164ca9c213a0fb0fba08f6059c8c5dc78"
+}
