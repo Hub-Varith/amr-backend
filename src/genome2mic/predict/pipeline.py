@@ -19,12 +19,15 @@ Steps of :meth:`PredictionPipeline.run` (``.context/DESIGN.md`` predict section)
    ``in_range`` = that distance is within ``qc.max_mash_distance`` and the species has models.
 3. Known AMR via :mod:`genome2mic.predict.amr_detect` (AMRFinderPlus CLI, a sidecar
    TSV, or -- for synthetic bundles only -- the bundle's ``markers.fasta``), with the
-   training row filter and column rules.
+   training row filter and column rules. Bundles trained on an imported NCBI release
+   (``manifest.json`` ``feature_naming: ncbi_release``) use the release rules instead
+   (:mod:`genome2mic.predict.release_features`, ``models/<SPECIES>/feature_spec.json``).
 4. Unitig pattern vector via ``genome2mic.features.unitigs.query_kmer_set`` against the
    bundle's fixed k-mer set, loaded once by :meth:`PredictionPipeline.load` (only
    when a drug model uses unitig features).
-5. Per drug: ``pred_mic`` (rounded **up** to the doubling grid), conformal band,
-   call, ``margin_steps``, reasons.
+5. Per drug: ``pred_mic`` (rounded **up** to the doubling grid), conformal band
+   (asymmetric ``q_up`` / ``q_low`` when the bundle has them), call (``likely_active``
+   withheld when the bundle's ``active_gate_open`` is false), ``margin_steps``, reasons.
 6. Overrides: natural resistance (model skipped, MIC fields null) and strong
    markers (``drugs.yaml`` ``strong_markers`` prefixes and ``strong_subclasses`` of
    acquired genes; MIC fields kept).
@@ -43,7 +46,7 @@ Bundle layout (written by ``models/train.py``)::
     models/<SPECIES>/unitig_index.parquet  optional; pattern_id -> col_index
     models/<SPECIES>/<drug>/features.json  {model_class, known_columns, unitig_cols, class_by_column,
                                             feature_names, unitig_kmer_set_sha1}
-    models/<SPECIES>/<drug>/conformal.json {q}
+    models/<SPECIES>/<drug>/conformal.json {q, [q_up, q_low, active_gate_open], [cap_low_log2, cap_high_log2]}
     models/<SPECIES>/<drug>/meta.json      free-form
     models/<SPECIES>/<drug>/...            whatever MODEL_CLASSES[model_class].load(dir) reads
 
@@ -83,7 +86,7 @@ from genome2mic.errors import Genome2MicError
 from genome2mic.io import read_fasta
 from genome2mic.mic import GRID_MAX_EXPONENT, GRID_MIN_EXPONENT, round_up_to_step
 from genome2mic.models.base import FORBIDDEN_FEATURES
-from genome2mic.predict import amr_detect, rank
+from genome2mic.predict import amr_detect, rank, release_features
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,8 @@ __all__ = [
 ]
 
 MANIFEST_FILE = "manifest.json"
+FEATURE_NAMING_DEFAULT = "genome2mic"
+"""``manifest.json`` ``feature_naming`` when absent: ``features/known_amr.py`` column rules."""
 REFERENCE_SKETCHES_FILE = "reference_sketches.npz"
 MARKERS_FILE = "markers.fasta"
 TRAIN_SKETCHES_FILE = "train_sketches.npz"
@@ -156,6 +161,12 @@ class DrugBundle:
     """Panel-edge caps in log2 mg/L (``conformal.json`` ``cap_low_log2`` / ``cap_high_log2``,
     from all train rows): the raw prediction is clipped to them before rounding up, as in
     training. ``None`` for bundles written before capping existed."""
+    q_low: float | None = None
+    """Lower half-width in steps of the tuned asymmetric band (``conformal.json`` ``q_low``;
+    ``q`` is then the upper half-width ``q_up``). ``None``: symmetric ``+-q`` band."""
+    active_gate_open: bool = True
+    """``conformal.json`` ``active_gate_open``: False means training could not certify
+    call-level VME <= 1.5 % for this pair, so ``likely_active`` becomes ``uncertain``."""
 
     @property
     def n_features(self) -> int:
@@ -179,6 +190,10 @@ class SpeciesBundle:
     unitig_kmers: Path | None
     drugs: dict[str, DrugBundle]
     kmer_set: Any | None = None
+    feature_spec: Any | None = None
+    """``release_features.ReleaseFeatureSpec`` from ``models/<SPECIES>/feature_spec.json`` when
+    the bundle was trained on an imported NCBI release (``manifest.json`` ``feature_naming:
+    ncbi_release``); ``None`` for bundles built with ``features/known_amr.py`` naming."""
 
     @property
     def needs_unitigs(self) -> bool:
@@ -327,6 +342,7 @@ class PredictionPipeline:
         self.reference_k: int = sk.K
         self.species_bundles: dict[str, SpeciesBundle] = {}
         self.markers_fasta: Path | None = None
+        self.feature_naming: str = FEATURE_NAMING_DEFAULT
         self._loaded = False
 
     # ------------------------------------------------------------------ load
@@ -361,6 +377,10 @@ class PredictionPipeline:
         synthetic = manifest.get("synthetic", False)
         if not isinstance(synthetic, bool):
             raise BundleError(f"{manifest_path}: 'synthetic' must be true or false, got {synthetic!r}")
+        feature_naming = manifest.get("feature_naming", FEATURE_NAMING_DEFAULT)
+        if feature_naming not in (FEATURE_NAMING_DEFAULT, release_features.FEATURE_NAMING_NCBI_RELEASE):
+            raise BundleError(f"{manifest_path}: unknown feature_naming {feature_naming!r}")
+        self.feature_naming = feature_naming
 
         config = load_config(self.configs_dir)
 
@@ -424,9 +444,18 @@ class PredictionPipeline:
     def _load_species(self, species: str, drugs: Sequence[Any], config: Config) -> SpeciesBundle:
         directory = self.models_dir / species
         train_path = directory / TRAIN_SKETCHES_FILE
-        if not train_path.is_file():
-            raise FileNotFoundError(f"Training sketches not found: {train_path}")
-        train_ids, train_sketches, train_k = _load_sketch_file(train_path)
+        if train_path.is_file():
+            train_ids, train_sketches, train_k = _load_sketch_file(train_path)
+        else:
+            # An imported data release ships no assemblies, so its bundles carry no
+            # training sketches: the distance is unknown and every call is reported
+            # out of range (low confidence), never silently in range.
+            logger.warning(
+                "%s: %s not found (bundle trained on an imported release without Mash sketches); "
+                "nearest_training_distance is null and calls are flagged low confidence",
+                species, train_path,
+            )
+            train_ids, train_sketches, train_k = [], np.empty((0, 0), dtype=np.uint64), 0
         kmers = directory / UNITIG_KMERS_FILE
         unitig_kmers = kmers if kmers.is_file() else None
 
@@ -441,6 +470,22 @@ class PredictionPipeline:
                 raise BundleError(f"manifest: species.{species}: duplicate drug {drug!r}")
             loaded[drug] = self._load_drug(species, drug, directory / raw_drug, unitig_kmers is not None)
 
+        feature_spec = None
+        if self.feature_naming == release_features.FEATURE_NAMING_NCBI_RELEASE:
+            spec_path = directory / release_features.FEATURE_SPEC_FILE
+            if not spec_path.is_file():
+                raise BundleError(
+                    f"{spec_path} is missing: this bundle was trained on an imported NCBI release "
+                    "(feature_naming: ncbi_release); write it with `genome2mic release-feature-spec --root ROOT`"
+                )
+            try:
+                feature_spec = release_features.ReleaseFeatureSpec.load(spec_path)
+            except (ValueError, json.JSONDecodeError) as error:
+                raise BundleError(f"{spec_path}: {error}") from error
+            logger.info(
+                "%s: release feature rules (AMRFinderPlus DB %s, %d class symbols)",
+                species, feature_spec.amrfinder_db_version, len(feature_spec.class_by_symbol),
+            )
         kmer_set = None
         if unitig_kmers is not None and self._unitig_query is None and any(b.unitig_cols for b in loaded.values()):
             kmer_set = self._load_kmer_set(species, unitig_kmers, loaded)
@@ -461,6 +506,7 @@ class PredictionPipeline:
             unitig_kmers=unitig_kmers,
             drugs=loaded,
             kmer_set=kmer_set,
+            feature_spec=feature_spec,
         )
 
     @staticmethod
@@ -593,6 +639,20 @@ class PredictionPipeline:
         q_raw = conformal.get("q")
         if isinstance(q_raw, bool) or not isinstance(q_raw, (int, float)) or not math.isfinite(q_raw) or q_raw < 0:
             raise BundleError(f"{drug_dir / CONFORMAL_FILE}: 'q' must be a finite non-negative number of steps")
+        q_low: float | None = None
+        gate_open = True
+        if "q_up" in conformal or "q_low" in conformal:
+            # Tuned asymmetric band (train.TrainConfig.band == "asym_tuned").
+            for key in ("q_up", "q_low"):
+                v = conformal.get(key)
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+                    raise BundleError(f"{drug_dir / CONFORMAL_FILE}: {key!r} must be a finite non-negative number of steps")
+            q_raw = float(conformal["q_up"])
+            q_low = float(conformal["q_low"])
+            gate_raw = conformal.get("active_gate_open")
+            if not isinstance(gate_raw, bool):
+                raise BundleError(f"{drug_dir / CONFORMAL_FILE}: 'active_gate_open' must be true or false")
+            gate_open = gate_raw
         caps: tuple[float, float] | None = None
         cap_raw = (conformal.get("cap_low_log2"), conformal.get("cap_high_log2"))
         if cap_raw != (None, None):
@@ -647,6 +707,8 @@ class PredictionPipeline:
             unitig_cols=unitig_cols,
             class_by_column=class_by_column,
             q=float(q_raw),
+            q_low=q_low,
+            active_gate_open=gate_open,
             meta=meta,
             unitig_kmer_set_sha1=kmer_set_sha1.strip() if isinstance(kmer_set_sha1, str) else None,
             caps=caps,
@@ -782,26 +844,45 @@ class PredictionPipeline:
             report["ranked_active"] = rank.rank_active(predictions, config)
             return report
 
-        train_query = genome_sketch(bundle.train_k, bundle.train_sketches.shape[1])
-        nearest = float(np.min(sk.distances_to(train_query, bundle.train_sketches, bundle.train_k)))
-        in_range = nearest <= config.qc_max_mash_distance
-        logger.info(
-            "Sample %s: nearest training genome at Mash distance %.4g (%s)",
-            sample_id,
-            nearest,
-            "in range" if in_range else "out of range: calls are low confidence",
-        )
+        nearest: float | None
+        if bundle.train_sketches.size == 0:
+            nearest, in_range = None, False
+            logger.warning("Sample %s: no training sketches in the %s bundle; distance unknown, calls are low confidence", sample_id, species)
+        else:
+            train_query = genome_sketch(bundle.train_k, bundle.train_sketches.shape[1])
+            nearest = float(np.min(sk.distances_to(train_query, bundle.train_sketches, bundle.train_k)))
+            in_range = nearest <= config.qc_max_mash_distance
+            logger.info(
+                "Sample %s: nearest training genome at Mash distance %.4g (%s)",
+                sample_id,
+                nearest,
+                "in range" if in_range else "out of range: calls are low confidence",
+            )
 
-        detections = amr_detect.detect(
-            fasta,
-            species,
-            config,
-            amrfinder_tsv=self._amrfinder_tsv,
-            markers_fasta=self.markers_fasta,
-            detectors=self._amr_detectors,
-            droplog=droplog,
-        )
-        row = amr_detect.known_amr_row(detections, config)
+        if bundle.feature_spec is not None:
+            # Imported NCBI release: every Type == AMR row, converted with the release rules.
+            detections = amr_detect.detect(
+                fasta,
+                species,
+                config,
+                amrfinder_tsv=self._amrfinder_tsv,
+                markers_fasta=self.markers_fasta,
+                detectors=self._amr_detectors,
+                droplog=droplog,
+                parser=release_features.read_amrfinder_rows,
+            )
+            row = release_features.release_known_amr_row(detections, bundle.feature_spec)
+        else:
+            detections = amr_detect.detect(
+                fasta,
+                species,
+                config,
+                amrfinder_tsv=self._amrfinder_tsv,
+                markers_fasta=self.markers_fasta,
+                detectors=self._amr_detectors,
+                droplog=droplog,
+            )
+            row = amr_detect.known_amr_row(detections, config)
         pattern_vector = self._unitig_vector(bundle, fasta) if bundle.needs_unitigs else None
 
         predictions: list[dict[str, Any]] = []
@@ -930,21 +1011,33 @@ class PredictionPipeline:
                 bundle.species, bundle.drug, pred_log2, clipped,
             )
         pred_mic = round_up_to_step(2.0**clipped)
-        band_low, band_high = rank.conformal_band(pred_mic, bundle.q)
+        if bundle.q_low is None:
+            band_low, band_high = rank.conformal_band(pred_mic, bundle.q)
+        else:
+            band_low, band_high = rank.conformal_band_asym(pred_mic, bundle.q, bundle.q_low)
 
         bp = config.call_breakpoint(bundle.species, bundle.drug)
         if bp is None:
             logger.warning("%s x %s: no %s breakpoint; call is uncertain", bundle.species, bundle.drug, config.call_standard)
         call, margin = rank.call_from_band(band_low, band_high, bp)
+        gated = False
+        if call == rank.CALL_LIKELY_ACTIVE and not bundle.active_gate_open:
+            # Same gate as training (conformal.gate_calls): the pair never certified call VME.
+            call, margin, gated = rank.CALL_UNCERTAIN, None, True
 
         override: str | None = None
-        hits = rank.strong_marker_hits(row.symbols_by_column, config.drugs.get(bundle.drug), row.markers)
+        hits = rank.strong_marker_hits(
+            row.symbols_by_column, config.drugs.get(bundle.drug), row.markers,
+            intrinsic_symbols=config.intrinsic_symbols(bundle.species),
+        )
         if hits:
             call, margin, override = rank.CALL_LIKELY_INACTIVE, None, rank.OVERRIDE_STRONG_MARKER
             reasons = hits
             logger.info("%s x %s: strong marker override by %s", bundle.species, bundle.drug, hits)
         else:
             reasons = rank.reasons_for(bundle.drug, row.markers, bundle.class_by_column)
+            if gated:
+                reasons = [*reasons, rank.ACTIVE_GATE_REASON]
 
         logger.info(
             "%s x %s: pred MIC %g mg/L (band %g-%g), %s%s",

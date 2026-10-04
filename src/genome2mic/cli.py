@@ -146,6 +146,20 @@ def cmd_import_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_release_feature_spec(args: argparse.Namespace) -> int:
+    from genome2mic.predict import release_features  # noqa: PLC0415
+
+    paths = _resolve_paths(args)
+    config = _load_config(paths)
+    written = release_features.write_specs_for_root(
+        paths, config, Path(args.amrfinder_db) if args.amrfinder_db else None
+    )
+    for path in written:
+        print(f"release-feature-spec: wrote {path}")
+    print(f"release-feature-spec: {paths.models_manifest} feature_naming = {release_features.FEATURE_NAMING_NCBI_RELEASE}")
+    return 0
+
+
 def cmd_compare_oof(args: argparse.Namespace) -> int:
     from genome2mic.eval import oof_compare  # noqa: PLC0415
 
@@ -257,6 +271,9 @@ def _train_config(args: argparse.Namespace) -> Any:
         lolo=not args.no_lolo and not getattr(args, "cv_only", False),
         ablation=args.ablation,
         cv_only=getattr(args, "cv_only", False),
+        workers=max(1, int(getattr(args, "workers", 1) or 1)),
+        band=getattr(args, "band", "asym_tuned") or "asym_tuned",
+        exact_weight=float(getattr(args, "exact_weight", 2.0)),
     )
 
 
@@ -466,6 +483,22 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--top-k", type=int, default=2000, help="unitig columns kept per fold")
     parser.add_argument("--min-count", type=int, default=5, help="known-AMR rare-feature filter (training genomes)")
     parser.add_argument("--nthread", type=int, default=4, help="xgboost threads")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="train the drugs of a species in this many worker processes (each uses --nthread "
+             "xgboost threads); results are identical to --workers 1, only wall time changes",
+    )
+    parser.add_argument(
+        "--exact-weight", dest="exact_weight", type=float, default=2.0,
+        help="sample weight of exact-MIC rows relative to censored / S/I/R-only rows in the AFT models "
+             "(default 2.0; 1.0 = unweighted)",
+    )
+    parser.add_argument(
+        "--band", choices=("asym_tuned", "symmetric"), default="asym_tuned",
+        help="uncertainty band: asym_tuned (default; asymmetric cross-conformal band whose upper level is "
+             "tuned inside the training folds for call-level VME <= 1.5%%, active calls withheld when no "
+             "level certifies it) or symmetric (the original +-q band at 90%%)",
+    )
     parser.add_argument("--train-seed", dest="train_seed", type=int, default=7, help="seed for in-fold holdouts and xgboost")
     parser.add_argument("--max-rounds", type=int, default=400)
     parser.add_argument("--early-stopping-rounds", type=int, default=20)
@@ -511,6 +544,14 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--s3-release", default=None, metavar="NAME", help="download s3://g2m-data-v1/releases/NAME/ with aws s3 sync first")
     p.add_argument("--aws-profile", dest="aws_profile", default=None, metavar="NAME", help="AWS CLI profile for --s3-release")
     p.set_defaults(func=cmd_import_release)
+
+    p = sub.add_parser(
+        "release-feature-spec",
+        help="bundle trained on an imported NCBI release: write models/<SP>/feature_spec.json (release feature rules)",
+    )
+    _add_common(p)
+    p.add_argument("--amrfinder-db", default=None, help="AMRFinderPlus database dir (default: next to amrfinder on PATH)")
+    p.set_defaults(func=cmd_release_feature_spec)
 
     p = sub.add_parser("ingest", help="raw AST -> labels.parquet, label_counts.csv, pairs_kept.csv")
     _add_common(p); _add_ingest_args(p); p.set_defaults(func=cmd_ingest)

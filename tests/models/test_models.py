@@ -319,6 +319,36 @@ class TestXgbAft:
 
 
 # --------------------------------------------------------------------- B2XgbSteps
+class TestXgbAftSampleWeight:
+    """``sample_weight`` (training up-weights exact MIC rows, TrainConfig.exact_weight)."""
+
+    def test_uniform_weights_equal_unweighted(self, data: Synthetic) -> None:
+        a = XgbAft(seed=3, nthread=1, max_rounds=60).fit(data.X, data.lo, data.hi, FEATURE_NAMES)
+        b = XgbAft(seed=3, nthread=1, max_rounds=60).fit(
+            data.X, data.lo, data.hi, FEATURE_NAMES, sample_weight=np.full(len(data.lo), 7.0)
+        )
+        assert np.allclose(a.predict_log2(data.X), b.predict_log2(data.X), atol=1e-6)
+
+    def test_exact_row_weights_change_the_fit_and_are_recorded(self, data: Synthetic, tmp_path: Path) -> None:
+        w = np.where(data.exact, 2.0, 1.0)
+        a = XgbAft(seed=3, nthread=1, max_rounds=60).fit(data.X, data.lo, data.hi, FEATURE_NAMES)
+        b = XgbAft(seed=3, nthread=1, max_rounds=60).fit(data.X, data.lo, data.hi, FEATURE_NAMES, sample_weight=w)
+        assert not np.allclose(a.predict_log2(data.X), b.predict_log2(data.X))
+        b.save(tmp_path / "m")
+        import json  # noqa: PLC0415
+
+        assert json.loads((tmp_path / "m" / "params.json").read_text())["sample_weighted"] is True
+        loaded = XgbAft.load(tmp_path / "m")
+        assert np.allclose(loaded.predict_log2(data.X), b.predict_log2(data.X))
+
+    @pytest.mark.parametrize("bad", [np.zeros(3), np.array([1.0, np.nan, 1.0]), np.array([1.0, -1.0, 1.0])])
+    def test_bad_weights_are_refused(self, bad: np.ndarray) -> None:
+        X = sp.csr_matrix(np.array([[1, 0], [0, 1], [1, 1]], dtype=np.int8))
+        with pytest.raises(ValueError, match="sample_weight"):
+            XgbAft(max_rounds=5).fit(X, np.array([1.0, 2.0, 4.0]), np.array([2.0, 4.0, 8.0]), ["gene_a", "gene_b"],
+                                     sample_weight=bad)
+
+
 class TestB2XgbSteps:
     def test_trains_on_exact_rows_only_and_logs_the_drop(self, data: Synthetic) -> None:
         log = DropLog("b2_test")

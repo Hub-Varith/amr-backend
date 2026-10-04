@@ -28,7 +28,15 @@ from genome2mic.features import known_amr
 from genome2mic.ingest import release
 from genome2mic.mic import panel_caps_log2
 from genome2mic.models import train
-from genome2mic.models.conformal import conformal_q
+from genome2mic.models.conformal import (
+    asym_band,
+    asym_quantiles,
+    robust_q_low,
+    conformal_q,
+    gate_calls,
+    signed_residual_steps,
+    tune_band,
+)
 from genome2mic.paths import Paths
 from genome2mic.predict import rank
 from genome2mic.splits import lineages, make_splits
@@ -258,27 +266,98 @@ def test_cv_predictions_respect_their_fold_caps(imported: dict) -> None:
         assert steps.min() >= np.floor(lo) - 1e-9 and steps.max() <= np.ceil(hi) + 1e-9, (drug, fold)
 
 
-def test_cv_bands_are_cross_conformal(imported: dict) -> None:
-    """Fold f's band half-width equals q from the exact residuals of the other folds only."""
+def _lab_obj(series: pd.Series) -> np.ndarray:
+    return series.astype(object).where(series.notna(), None).to_numpy()
+
+
+def test_cv_bands_are_tuned_cross_conformal(imported: dict) -> None:
+    """Fold f's band (and active-call gate) is re-derived from the other folds' OOF rows only.
+
+    Upper level: :func:`tune_band` on the other folds (nested cross-conformal call VME);
+    half-widths: signed exact residuals of the other folds; band: :func:`asym_band`.
+    """
     paths: Paths = imported["paths"]
+    config = imported["config"]
     preds = _all_preds(imported)
     splits = pd.read_parquet(paths.splits)
+    known = pd.read_parquet(paths.known_amr).set_index("genome_id")
     frame = preds.loc[preds["model"] == "aft_known"].merge(splits[["genome_id", "fold"]], on="genome_id")
-    checked = 0
+    checked = gated = 0
     for drug, block in frame.groupby("drug"):
+        block = block.reset_index(drop=True)
+        bp = config.call_breakpoint("KPNEU", drug)
+        nat = config.is_naturally_resistant("KPNEU", drug)
+        pred = block["pred_mic"].to_numpy(float)
+        p = np.log2(pred)
+        lo, hi = block["lab_lower"].to_numpy(float), block["lab_upper"].to_numpy(float)
         exact = block["lab_exact"].to_numpy(bool)
-        resid = np.abs(np.log2(block["pred_mic"].to_numpy(float)) - np.log2(block["lab_upper"].to_numpy(float)))
+        lab = _lab_obj(block["lab_sir_rederived"])
         folds = block["fold"].to_numpy(float)
-        for fold in np.unique(folds):
-            others = exact & (folds != fold)
-            if others.sum() < 20:
-                continue
-            q = conformal_q(resid[others], 0.10)
-            rows = block.loc[(folds == fold)]
-            width = np.log2(rows["band_high"].to_numpy(float)) - np.log2(rows["pred_mic"].to_numpy(float))
-            assert np.allclose(width, np.ceil(q - 1e-9)), (drug, fold, q, set(width))
+        marker = np.asarray(rank.strong_marker_mask(known.loc[block["genome_id"]], config.drugs.get(drug)), dtype=bool)
+
+        def calls_fn(idx, low, high, bp=bp, nat=nat, marker=marker):
+            return rank.call_array(low, high, bp, natural_resistance=nat, strong_marker=marker[idx])
+
+        all_folds = sorted(int(f) for f in np.unique(folds))
+        for fold in all_folds:
+            others = [f for f in all_folds if f != fold]
+            a, gate, _ = tune_band(p, lo, hi, exact, lab, folds, others, calls_fn, callable_pair=bp is not None and not nat)
+            cal = np.isin(folds, others)
+            r = signed_residual_steps(p[cal], lo[cal], hi[cal], exact_rows=exact[cal])
+            q_up, q_low, certified = asym_quantiles(r, a, 0.05)
+            by_fold = [signed_residual_steps(p[folds == g], lo[folds == g], hi[folds == g], exact_rows=exact[folds == g])
+                       for g in others]
+            q_low, _ = robust_q_low(by_fold, q_low, 0.05, 0.10)
+            rows = np.where(folds == fold)[0]
+            low, high = asym_band(pred[rows], q_up, q_low)
+            assert np.array_equal(low, block["band_low"].to_numpy(float)[rows]), (drug, fold)
+            assert np.array_equal(high, block["band_high"].to_numpy(float)[rows]), (drug, fold)
+            expected = gate_calls(calls_fn(rows, low, high), gate and certified)
+            assert list(_lab_obj(block["call"])[rows]) == list(expected), (drug, fold)
+            gated += int(not (gate and certified))
             checked += 1
     assert checked > 0
+
+
+def test_bundle_carries_the_tuned_band_and_the_pipeline_reads_it(imported: dict) -> None:
+    from genome2mic.predict.pipeline import PredictionPipeline  # noqa: PLC0415
+
+    paths: Paths = imported["paths"]
+    found = 0
+    for conf_path in sorted(paths.models_dir.glob("KPNEU/*/conformal.json")):
+        conf = json.loads(conf_path.read_text())
+        assert conf["band_kind"] == "asymmetric_tuned"
+        assert conf["q"] == conf["q_up"] and conf["q_low"] >= 0 and isinstance(conf["active_gate_open"], bool)
+        assert conf["alpha_up"] in train.TrainConfig().band_alpha_grid or conf["alpha_up"] == 0.05
+        assert set(conf["band_cross_conformal_by_fold"]) == set(conf["q_cross_conformal_by_fold"])
+        # The bundle is never narrower than a level a fold validated, and stays closed when no fold opened.
+        calling = [f for f in conf["band_cross_conformal_by_fold"].values() if f["active_gate_open"]]
+        shared = [a for a in train.TrainConfig().band_alpha_grid if all(a in f["passing_alpha_up"] for f in calling)]
+        if conf["inner_call_vme_ucb"] is not None:  # callable pair whose bundle gate opened
+            assert calling and conf["alpha_up"] in shared and conf["alpha_up"] in conf["passing_alpha_up"]
+            assert conf["allowed_alpha_up"] == shared
+            if conf["active_gate_open"]:
+                assert conf["oof_call_vme_ucb"] is not None and conf["oof_call_vme_ucb"] <= 0.015 + 1e-12
+        elif conf["allowed_alpha_up"] is not None and not calling:
+            assert conf["active_gate_open"] is False
+        found += 1
+    assert found
+    # The release ships no reference sketches, so load the drug bundles one by one.
+    predictor = PredictionPipeline(paths.models_dir, REPO_CONFIGS)
+    predictor.config = imported["config"]
+    for conf_path in sorted(paths.models_dir.glob("KPNEU/*/conformal.json")):
+        drug = conf_path.parent.name
+        bundle = predictor._load_drug("KPNEU", drug, conf_path.parent, False)
+        conf = json.loads(conf_path.read_text())
+        assert bundle.q == conf["q_up"] and bundle.q_low == conf["q_low"]
+        assert bundle.active_gate_open is conf["active_gate_open"]
+
+
+def test_symmetric_band_option_changes_the_run_id(imported: dict) -> None:
+    paths: Paths = imported["paths"]
+    tuned = train.TrainConfig(cv_only=True)
+    sym = train.TrainConfig(cv_only=True, band="symmetric")
+    assert train.compute_run_id(tuned, paths.splits) != train.compute_run_id(sym, paths.splits)
 
 
 def test_call_column_follows_the_pipeline_rule(imported: dict) -> None:
@@ -286,7 +365,9 @@ def test_call_column_follows_the_pipeline_rule(imported: dict) -> None:
     preds = _all_preds(imported)
     assert "call" in preds.columns
     known = pd.read_parquet(imported["paths"].known_amr).set_index("genome_id")
-    for (drug, model), block in preds.groupby(["drug", "model"]):
+    splits = pd.read_parquet(imported["paths"].splits)[["genome_id", "fold"]]
+    preds = preds.merge(splits, on="genome_id")
+    for (drug, model, fold), block in preds.groupby(["drug", "model", "fold"]):
         bp = config.call_breakpoint("KPNEU", drug)
         marker = rank.strong_marker_mask(known.loc[block["genome_id"]], config.drugs.get(drug))
         expected = rank.call_array(
@@ -294,7 +375,8 @@ def test_call_column_follows_the_pipeline_rule(imported: dict) -> None:
             natural_resistance=config.is_naturally_resistant("KPNEU", drug), strong_marker=marker,
         )
         got = block["call"].astype(object).where(block["call"].notna(), None).to_numpy()
-        assert list(got) == list(expected), (drug, model)
+        # The fold's active-call gate either is open (rule as is) or withholds every likely_active.
+        assert list(got) in (list(expected), list(gate_calls(expected, False))), (drug, model, fold)
     ampicillin = preds.loc[preds["drug"] == "ampicillin", "call"]
     if len(ampicillin):
         assert (ampicillin == "likely_inactive").all(), "KPNEU ampicillin: natural resistance override"
@@ -425,3 +507,26 @@ def test_cli_compare_oof_end_to_end(imported: dict, tmp_path: Path, capsys: pyte
     assert code == 0
     assert (tmp_path / "cli_out" / "oof_compare.md").is_file()
     assert "compare-oof:" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- --workers
+
+
+def test_workers_give_identical_preds_to_a_sequential_run(imported: dict, release_dir: Path, tmp_path: Path) -> None:
+    """Pairs trained in worker processes produce identical predictions (and never deadlock after
+    the parent process has already run xgboost, as the ``imported`` fixture has)."""
+    paths = Paths(root=tmp_path / "root", configs_dir=REPO_CONFIGS)
+    config = imported["config"]
+    release.run(paths, config, release_dir=release_dir)
+    cfg = train.TrainConfig(**{**imported["cfg"].__dict__, "workers": 2})
+    assert train.compute_run_id(cfg, paths.splits) == train.compute_run_id(imported["cfg"], paths.splits)
+    summary = train.run(paths, config, train_config=cfg)
+    seq = imported["trained"]
+    assert summary[["species", "drug", "n_rows"]].equals(seq[["species", "drug", "n_rows"]])
+    for species, drug in zip(summary["species"], summary["drug"]):
+        a = pd.read_parquet(imported["paths"].preds(species, drug))
+        b = pd.read_parquet(paths.preds(species, drug))
+        pd.testing.assert_frame_equal(a, b)
+    a_log = pd.read_csv(imported["paths"].processed_dir / "drop_log_train.csv")
+    b_log = pd.read_csv(paths.processed_dir / "drop_log_train.csv")
+    pd.testing.assert_frame_equal(a_log, b_log)

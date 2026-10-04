@@ -98,6 +98,12 @@ DETECTION_COLUMNS: tuple[str, ...] = (
 
 SIDECAR_SUFFIX = ".amrfinder.tsv"
 
+AMRFINDER_THREADS = 4
+"""Threads for the default :class:`AmrFinderCli` backend."""
+
+TsvParser = Callable[..., pd.DataFrame]
+"""``(tsv_path, droplog, backend=...) -> detection table`` (:data:`DETECTION_COLUMNS`)."""
+
 PREFIX_GENE = "gene_"
 PREFIX_POINT = "point_"
 PREFIX_CLASS = "n_class_"
@@ -293,9 +299,10 @@ class AmrFinderCli:
 
     name = "amrfinder_cli"
 
-    def __init__(self, executable: str = "amrfinder", threads: int = 1) -> None:
+    def __init__(self, executable: str = "amrfinder", threads: int = 1, parser: TsvParser | None = None) -> None:
         self.executable = executable
         self.threads = int(threads)
+        self.parser: TsvParser = parser if parser is not None else parse_amrfinder_tsv
 
     def available(self, fasta: Path) -> bool:
         return shutil.which(self.executable) is not None
@@ -311,7 +318,7 @@ class AmrFinderCli:
                 command += ["-O", config.species[species].amrfinder_organism]
             logger.info("Running %s", " ".join(command))
             subprocess.run(command, check=True, capture_output=True, text=True)
-            return parse_amrfinder_tsv(out, droplog, backend=self.name)
+            return self.parser(out, droplog, backend=self.name)
 
 
 def sidecar_path(fasta: Path) -> Path:
@@ -325,8 +332,9 @@ class PrecomputedAmrFinder:
 
     name = "precomputed"
 
-    def __init__(self, tsv_path: Path | None = None) -> None:
+    def __init__(self, tsv_path: Path | None = None, parser: TsvParser | None = None) -> None:
         self.tsv_path = Path(tsv_path) if tsv_path is not None else None
+        self.parser: TsvParser = parser if parser is not None else parse_amrfinder_tsv
 
     def resolve(self, fasta: Path) -> Path | None:
         """The TSV to read: the explicit path if given, else the sidecar if it exists."""
@@ -343,7 +351,7 @@ class PrecomputedAmrFinder:
         path = self.resolve(fasta)
         if path is None or not path.is_file():
             raise FileNotFoundError(f"No AMRFinder TSV for {fasta} (looked for {sidecar_path(fasta)})")
-        return parse_amrfinder_tsv(path, droplog, backend=self.name)
+        return self.parser(path, droplog, backend=self.name)
 
 
 def _header_value(value: str | None) -> str | None:
@@ -501,22 +509,25 @@ def detect(
     markers_fasta: Path | None = None,
     detectors: Sequence[AmrDetector] | None = None,
     droplog: DropLog | None = None,
+    parser: TsvParser | None = None,
 ) -> pd.DataFrame:
     """Detect known AMR determinants in ``fasta`` with the first available backend.
 
     Order: an explicitly given ``amrfinder_tsv`` wins; otherwise ``amrfinder`` on
     ``PATH``, then a sidecar ``<fasta>.amrfinder.tsv``, then :class:`MarkerScan` on
     ``markers_fasta`` (pass it only for synthetic bundles). ``detectors`` replaces
-    that list entirely (tests, custom deployments). Raises :class:`ToolNotAvailable`
-    with the ways to provide a backend when none can run.
+    that list entirely (tests, custom deployments). ``parser`` replaces the AMRFinderPlus
+    TSV reader of the default backends (bundles trained on an imported NCBI release use
+    ``release_features.read_amrfinder_rows``, which keeps every ``Type == AMR`` row).
+    Raises :class:`ToolNotAvailable` with the ways to provide a backend when none can run.
     """
     fasta = Path(fasta)
     if detectors is None:
         chain: list[AmrDetector] = []
         if amrfinder_tsv is not None:
-            chain.append(PrecomputedAmrFinder(amrfinder_tsv))
-        chain.append(AmrFinderCli())
-        chain.append(PrecomputedAmrFinder())
+            chain.append(PrecomputedAmrFinder(amrfinder_tsv, parser=parser))
+        chain.append(AmrFinderCli(threads=AMRFINDER_THREADS, parser=parser))
+        chain.append(PrecomputedAmrFinder(parser=parser))
         if markers_fasta is not None:
             chain.append(MarkerScan(markers_fasta))
         detectors = chain

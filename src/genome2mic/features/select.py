@@ -142,10 +142,17 @@ def known_feature_columns(X_known: pd.DataFrame) -> list[str]:
     Raises ``ContractViolation`` if the table carries a forbidden column at all;
     other unprefixed columns (``genome_id``, ``species``) are ignored, and any
     unexpected unprefixed column is reported at WARNING.
+
+    Columns come back grouped in :data:`KNOWN_PREFIXES` order (``gene_``, then
+    ``point_``, then ``n_class_``), keeping the table's order within a group, so the
+    model's feature order (and with it xgboost's column sampling) does not depend
+    on how a release happened to lay out its columns (a multi-species release sorts
+    ``n_class_`` before ``point_``).
     """
     columns = [str(c) for c in X_known.columns]
     assert_no_forbidden([c for c in columns if c.strip().lower() not in ("genome_id", "species")])
     features = [c for c in columns if c.startswith(KNOWN_PREFIXES)]
+    features.sort(key=lambda c: next(i for i, p in enumerate(KNOWN_PREFIXES) if c.startswith(p)))
     stray = [c for c in columns if c not in features and c.strip().lower() not in ("genome_id", "species")]
     if stray:
         logger.warning("select_known: ignoring %d unprefixed non-feature columns: %s", len(stray), stray[:10])

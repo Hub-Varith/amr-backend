@@ -40,6 +40,7 @@ DRUGS_FILE = "drugs.yaml"
 BREAKPOINTS_DIR = "breakpoints"
 NATURAL_RESISTANCE_FILE = "natural_resistance.csv"
 KEEP_VARIANT_FILE = "keep_variant.csv"
+INTRINSIC_MARKERS_FILE = "intrinsic_markers.csv"
 
 BREAKPOINT_COLUMNS: tuple[str, ...] = (
     "species",
@@ -53,6 +54,7 @@ BREAKPOINT_COLUMNS: tuple[str, ...] = (
 BREAKPOINT_SITE = "bloodstream"
 NATURAL_RESISTANCE_COLUMNS: tuple[str, ...] = ("species", "drug", "note")
 KEEP_VARIANT_COLUMNS: tuple[str, ...] = ("family_prefix", "note")
+INTRINSIC_MARKERS_COLUMNS: tuple[str, ...] = ("species", "symbol", "family", "note")
 
 STANDARDS: tuple[str, ...] = ("EUCAST", "CLSI")
 STANDARD_ALIASES: Mapping[str, str] = {"NCCLS": "CLSI"}
@@ -204,6 +206,7 @@ class Config:
     natural_resistance: frozenset[tuple[str, str]] = field(repr=False)
     keep_variant: tuple[str, ...] = field(repr=False)
     synonym_map: dict[str, str] = field(repr=False)
+    intrinsic_markers: dict[str, frozenset[str]] = field(default_factory=dict, repr=False)
 
     # -- drugs ------------------------------------------------------------- #
 
@@ -303,6 +306,21 @@ class Config:
         normalized = self.normalize_drug(drug)
         return normalized is not None and (species, normalized) in self.natural_resistance
 
+    def intrinsic_symbols(self, species: str | None) -> frozenset[str]:
+        """Lower-cased AMRFinderPlus symbols intrinsic to ``species`` (``intrinsic_markers.csv``).
+
+        These chromosomal genes never trigger the strong-marker override (e.g. the
+        OXA-51-like genes every *A. baumannii* carries are reported with Subclass
+        ``CARBAPENEM``). They stay model features.
+        """
+        if species is None:
+            return frozenset()
+        return self.intrinsic_markers.get(species, frozenset())
+
+    def is_intrinsic_marker(self, species: str | None, symbol: str) -> bool:
+        """True if ``symbol`` is an intrinsic chromosomal gene of ``species`` (case-insensitive)."""
+        return str(symbol).strip().lower() in self.intrinsic_symbols(species)
+
     def keep_variant_prefixes(self) -> tuple[str, ...]:
         """Gene-family prefixes whose exact variant number is kept as a feature."""
         return self.keep_variant
@@ -329,6 +347,7 @@ def load_config(configs_dir: Path | str) -> Config:
     breakpoints = _load_breakpoints(root / BREAKPOINTS_DIR, species, drugs)
     natural_resistance = _load_natural_resistance(root / NATURAL_RESISTANCE_FILE, species, drugs)
     keep_variant = _load_keep_variant(root / KEEP_VARIANT_FILE)
+    intrinsic_markers = _load_intrinsic_markers(root / INTRINSIC_MARKERS_FILE, species)
 
     if call_standard not in breakpoints:
         raise ConfigError(
@@ -346,6 +365,7 @@ def load_config(configs_dir: Path | str) -> Config:
         natural_resistance=natural_resistance,
         keep_variant=keep_variant,
         synonym_map=synonym_map,
+        intrinsic_markers=intrinsic_markers,
     )
     logger.info(
         "Loaded configs from %s: %d species, %d drugs, %d synonyms, %d breakpoint tables "
@@ -603,6 +623,27 @@ def _load_natural_resistance(
             raise ConfigError(f"{where}: duplicate row for {key}")
         pairs.add(key)
     return frozenset(pairs)
+
+
+def _load_intrinsic_markers(path: Path, species: Mapping[str, SpeciesConfig]) -> dict[str, frozenset[str]]:
+    """``species -> lower-cased symbols`` from ``intrinsic_markers.csv``; optional file (absent -> empty)."""
+    if not path.is_file():
+        logger.warning("%s not found: no intrinsic-gene exclusion from the strong-marker override", path.name)
+        return {}
+    out: dict[str, set[str]] = {}
+    for line_no, row in enumerate(_read_csv_rows(path, INTRINSIC_MARKERS_COLUMNS), start=2):
+        where = f"{path.name}: line {line_no}"
+        if row["species"] not in species:
+            raise ConfigError(f"{where}: unknown species {row['species']!r}")
+        symbol = (row["symbol"] or "").strip().lower()
+        if not symbol:
+            raise ConfigError(f"{where}: empty symbol")
+        bucket = out.setdefault(row["species"], set())
+        if symbol in bucket:
+            raise ConfigError(f"{where}: duplicate symbol {row['symbol']!r} for {row['species']}")
+        bucket.add(symbol)
+    logger.info("Loaded %s: %s", path.name, {k: len(v) for k, v in sorted(out.items())})
+    return {k: frozenset(v) for k, v in out.items()}
 
 
 def _load_keep_variant(path: Path) -> tuple[str, ...]:

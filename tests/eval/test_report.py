@@ -1009,3 +1009,23 @@ def test_makefile_demo_copy_uses_the_labelling_copier() -> None:
     makefile = (Path(__file__).resolve().parents[2] / "Makefile").read_text(encoding="utf-8")
     recipe = makefile[makefile.index("demo-copy:") :].split("\n\n")[0]
     assert "genome2mic.eval.demo" in recipe
+
+
+def test_call_safety_counts_vme_over_calling_folds_only() -> None:
+    from genome2mic.eval.report import call_safety_by_pair  # noqa: PLC0415
+
+    # Fold 0 makes active calls (1 VME among its 10 lab R); fold 1 makes none (100 lab R).
+    gids = [f"g{i}" for i in range(130)]
+    fold = [0] * 20 + [1] * 110
+    lab = ["R"] * 10 + ["S"] * 10 + ["R"] * 100 + ["S"] * 10
+    call = ["likely_active"] + ["uncertain"] * 9 + ["likely_active"] * 10 + ["uncertain"] * 110
+    preds = pd.DataFrame({
+        "species": "KPNEU", "drug": "meropenem", "model": "aft_known", "split": "cv",
+        "genome_id": gids, "call": call, "lab_sir_rederived": lab,
+    })
+    splits = pd.DataFrame({"genome_id": gids, "fold": fold})
+    row = call_safety_by_pair(preds, splits).iloc[0]
+    assert row["n_vme"] == 1 and row["n_lab_r"] == 110 and row["pass_pooled"]  # 1 / 110 dilutes to 0.9 %
+    assert row["n_calling_folds"] == 1 and row["n_lab_r_calling_folds"] == 10
+    assert row["call_vme_calling_folds"] == pytest.approx(0.1) and not row["pass_calling_folds"]
+    assert row["status"] == "active_calls" and row["worst_calling_fold_vme"] == pytest.approx(0.1)

@@ -234,7 +234,10 @@ def _rescore(
         lab_sir[idx] = [derive_lab_sir(s, a, b, bp) for s, a, b in zip(sub["reported_sir"], lo, hi)]
         rederived[idx] = [rederive_lab_sir(a, b, bp) for a, b in zip(lo, hi)]
         rows = known.reindex(sub["genome_id"].tolist())
-        marker = rank.strong_marker_mask(rows.fillna(0), config.drugs.get(drug))
+        marker = rank.strong_marker_mask(
+            rows.fillna(0), config.drugs.get(drug),
+            exclude_columns=rank.intrinsic_columns(config.intrinsic_symbols(species)),
+        )
         call[idx] = rank.call_array(
             sub["band_low"].to_numpy(dtype=float), sub["band_high"].to_numpy(dtype=float), bp,
             natural_resistance=config.is_naturally_resistant(species, drug), strong_marker=marker,

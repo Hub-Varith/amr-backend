@@ -358,3 +358,15 @@ def test_select_unitigs_peak_memory_is_below_one_float_copy(monkeypatch) -> None
     # The old code held two float64 copies (12 B per stored entry each) plus the int8 slice at
     # once (~29 B per entry); now: one int8 block (5 B per entry) plus bounded chunk temporaries.
     assert peak < 9 * U.nnz, (peak, U.nnz)
+
+
+def test_known_feature_columns_are_grouped_by_prefix_whatever_the_table_order() -> None:
+    """A release that sorts n_class_ before point_ yields the same feature order as one that does not."""
+    import pandas as pd
+
+    from genome2mic.features import select as _select
+
+    table = pd.DataFrame(
+        columns=["genome_id", "species", "gene_b", "gene_a", "n_class_x", "point_z", "n_class_w", "point_y"]
+    )
+    assert _select.known_feature_columns(table) == ["gene_b", "gene_a", "point_z", "point_y", "n_class_x", "n_class_w"]

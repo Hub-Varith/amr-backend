@@ -98,12 +98,48 @@ EXACT_ROWS_TEXT = (
 
 CV_COVERAGE_NOTE = (
     "CV bands are cross-conformal: the band on each fold's rows is calibrated on the out-of-fold residuals "
-    "of the other folds only, so CV coverage is an out-of-fold estimate, not the calibration set itself."
+    "of the other folds only, so CV coverage is an out-of-fold estimate, not the calibration set itself. "
+    "The band is asymmetric (`train --band asym_tuned`, the default): the lower end is the 95 % level of "
+    "the over-prediction residuals, widened to the largest leave-one-fold-out value (and at least the "
+    "symmetric 90 % half-width) when the leave-one-fold-out values disagree by more than one step; the upper "
+    "level (92 to 99.5 %) is chosen per drug inside those other folds as the narrowest whose nested "
+    "cross-conformal call VME passes (n_VME + 1) / (n_lab_R + 1) <= 1.5 % counted over the folds that "
+    "actually issue likely-active calls (a fold with no active call cannot dilute the others). The shipped "
+    "bundle is tuned the same way on every fold but may only use a level that also passed in every CV fold "
+    "that issues calls; if no fold opened its gate, or the folds share no passing level, the bundle's gate "
+    "stays closed. The bundle's gate also stays closed unless the out-of-fold CV calls themselves pass "
+    "(n_VME + 1) / (n_lab_R + 1) <= 1.5 % over the folds that issued active calls, so a drug listed below as "
+    "failing over its calling folds ships with likely-active calls withheld. When "
+    "no level passes (for example fewer than 66 lab-R isolates in the calling folds), likely-active calls are "
+    "withheld for that drug and shown as uncertain."
 )
 """Footnote under every cross-validation metrics table (training computes one ``q`` per fold
 from the residuals of the other folds; the bundle's ``q`` uses every residual)."""
 
-CV_BAND_HEADER = "Band coverage % (90% band; exact lab MICs; cross-conformal, see note)"
+HONESTY_NOTES: tuple[str, ...] = (
+    "**Exact MICs weigh double.** In the AFT fit, rows with one exact doubling-step MIC have sample weight 2 "
+    "and censored / S/I/R-only rows weight 1 (`--exact-weight 2.0`); every row still trains and nothing is "
+    "imputed.",
+    "**Selection bias.** About 6 point-model candidates and about 29 band variants were compared on these same "
+    "out-of-fold rows before this configuration was kept, so every CV number here is selection-biased "
+    "(optimistic) until the single test-set run.",
+    "**Cross-conformal tuning.** A fold's band is tuned and calibrated on the other folds' out-of-fold "
+    "residuals; those residuals came from models whose training data included that fold, so the band is not "
+    "fully nested. A fully nested re-check (fold f excluded from every model behind its band) gave the same "
+    "verdict.",
+    "**What the folds measure.** Folds are NCBI SNP clusters: CV measures generalisation to new SNP clusters, "
+    "not to new lineages (sequence types or international clones).",
+    "**Pass counts.** Whenever a number of pairs 'passing' call VME <= 1.5 % is quoted, it is split into pairs "
+    "that make likely-active calls and pairs that pass only because no active call is made (gate closed in "
+    "every fold, natural resistance, or no call breakpoint); see the call-safety summary.",
+)
+"""Honesty bullets of the how-to-read section (review findings on weighting, selection and fold design)."""
+
+COVERAGE_FLOOR = 0.85
+"""Pairs with out-of-fold band coverage below this are listed in the call-safety summary."""
+
+
+CV_BAND_HEADER = "Band coverage % (tuned band; exact lab MICs; cross-conformal, see note)"
 """Band-coverage header of the CV tables (marks the column the footnote refers to)."""
 
 REDERIVED_TEXT = (
@@ -511,7 +547,7 @@ METRICS_HEADERS: tuple[str, ...] = (
     "EA % (within +/-1 step; exact lab MICs)",
     "Exact agreement % (exact lab MICs)",
     "AUROC (R vs S)",
-    "Band coverage % (90% band; exact lab MICs)",
+    "Band coverage % (conformal band; exact lab MICs)",
     "Band width (doubling steps)",
 )
 """Column order of every metrics table: VME first after the key columns. Categorical
@@ -691,18 +727,20 @@ def render_markdown(
         f"- {REDERIVED_TEXT}",
         f"- {CALL_TEXT}",
         "- Rates are shown as percentages with their denominator `n`. Band coverage is the share of exact "
-        "lab MICs inside the 90 % conformal band; band width is in doubling steps over every row with a band. "
+        "lab MICs inside the conformal band; band width is in doubling steps over every row with a band. "
         f"{CV_COVERAGE_NOTE}",
         f"- {TARGETS_TEXT}",
         "- `test set` = lineage-held-out genomes scored once at the end; `CV` = out-of-fold predictions on "
         "the train split; external and leave-one-lineage-out (LOLO) sets are listed separately. A LOLO "
         "lineage is a train cluster refitted without that lineage, so its rows never overlap the test set.",
+        *(f"- {line}" for line in HONESTY_NOTES),
         "",
     ]
     if inputs.synthetic:
         parts += ["_All numbers below come from synthetic data (see the banner above)._", ""]
 
     parts += _headline_section(inputs)
+    parts += _call_safety_section(inputs, config)
     parts += _release_section(inputs)
     parts += _data_section(inputs)
     parts += _results_sections(inputs, figure_paths, report_path, config)
@@ -764,6 +802,158 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
         headers += ["Call VME % re-derived (of lab R)", "Active calls % re-derived (of lab S)"]
     headers += ["EA % (exact lab MICs)", "n"]
     return [title, "", *preface, md_table(headers, rows), ""]
+
+
+def call_safety_by_pair(preds: pd.DataFrame | None, splits: pd.DataFrame | None, config: Any = None) -> pd.DataFrame:
+    """Per species x drug (main model, CV rows): call VME pooled and over the calling folds only.
+
+    A *calling fold* is a fold with at least one ``likely_active`` call. ``status`` is
+    ``no_call_breakpoint``, ``natural_resistance``, ``no_active_calls`` (gate closed in
+    every fold, or no row qualified) or ``active_calls``. Empty frame when the inputs
+    lack the needed columns.
+    """
+    need = {"species", "drug", "model", "split", "genome_id", "call", "lab_sir_rederived"}
+    if preds is None or splits is None or not need.issubset(preds.columns) or "fold" not in splits.columns:
+        return pd.DataFrame()
+    cv = preds.loc[preds["split"] == "cv"]
+    if cv.empty:
+        return pd.DataFrame()
+    fold_of = splits.drop_duplicates("genome_id").set_index("genome_id")["fold"]
+    rows = []
+    for (species, drug), pair in cv.groupby(["species", "drug"], sort=True):
+        model = figures.pick_model(pair["model"])
+        if model is None:
+            continue
+        block = pair.loc[pair["model"] == model]
+        fold = pd.to_numeric(block["genome_id"].map(fold_of), errors="coerce").to_numpy(dtype=float)
+        active = block["call"].astype(object).eq("likely_active").fillna(False).to_numpy(dtype=bool)
+        lab = block["lab_sir_rederived"].astype(object)
+        is_r = lab.eq("R").fillna(False).to_numpy(dtype=bool)
+        is_s = lab.eq("S").fillna(False).to_numpy(dtype=bool)
+        calling = {float(f) for f in np.unique(fold[active]) if not np.isnan(f)}
+        in_calling = np.isin(fold, list(calling))
+        n_r, n_vme = int(is_r.sum()), int((is_r & active).sum())
+        n_r_calling = int((is_r & in_calling).sum())
+        worst = 0.0
+        for f in calling:
+            in_f = fold == f
+            n_rf = int((is_r & in_f).sum())
+            if n_rf:
+                worst = max(worst, float((is_r & active & in_f).sum()) / n_rf)
+        nat = bool(config.is_naturally_resistant(species, drug)) if config is not None else False
+        no_bp = (config.call_breakpoint(species, drug) is None) if config is not None else bool(block["call"].isna().all())
+        status = ("no_call_breakpoint" if no_bp else "natural_resistance" if nat
+                  else "active_calls" if active.any() else "no_active_calls")
+        rows.append({
+            "species": species, "drug": drug, "model": model, "status": status,
+            "n_lab_r": n_r, "n_vme": n_vme, "call_vme_pooled": n_vme / n_r if n_r else np.nan,
+            "n_calling_folds": len(calling), "n_lab_r_calling_folds": n_r_calling,
+            "call_vme_calling_folds": n_vme / n_r_calling if n_r_calling else np.nan,
+            "worst_calling_fold_vme": worst if calling else np.nan,
+            "active_rate_s": float((active & is_s).sum()) / int(is_s.sum()) if is_s.any() else np.nan,
+        })
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    frame["pass_pooled"] = frame["call_vme_pooled"].fillna(0.0) <= 0.015 + 1e-12
+    frame["pass_calling_folds"] = frame["call_vme_calling_folds"].fillna(0.0) <= 0.015 + 1e-12
+    return frame
+
+
+def sir_contradictions(preds: pd.DataFrame | None) -> pd.DataFrame:
+    """Per species (main model, CV rows): reported S/I/R vs the S/I/R re-derived from the row's own MIC.
+
+    ``r_to_s`` = reported R whose MIC re-derives to S under the call breakpoint; ``s_to_r`` the reverse.
+    """
+    need = {"species", "drug", "model", "split", "lab_sir", "lab_sir_rederived"}
+    if preds is None or not need.issubset(preds.columns):
+        return pd.DataFrame()
+    cv = preds.loc[preds["split"] == "cv"]
+    keep = []
+    for (_, _), pair in cv.groupby(["species", "drug"], sort=True):
+        model = figures.pick_model(pair["model"])
+        if model is not None:
+            keep.append(pair.loc[pair["model"] == model])
+    if not keep:
+        return pd.DataFrame()
+    rows = pd.concat(keep, ignore_index=True)
+    rep, red = rows["lab_sir"].astype(object), rows["lab_sir_rederived"].astype(object)
+    both = (rep.notna() & red.notna()).to_numpy(dtype=bool)
+    rep_r, rep_s = rep.eq("R").fillna(False).to_numpy(dtype=bool), rep.eq("S").fillna(False).to_numpy(dtype=bool)
+    red_r, red_s = red.eq("R").fillna(False).to_numpy(dtype=bool), red.eq("S").fillna(False).to_numpy(dtype=bool)
+    same = np.array([a == b for a, b in zip(rep.fillna("").to_numpy(), red.fillna("").to_numpy())], dtype=bool)
+    out = pd.DataFrame({
+        "species": rows["species"].to_numpy(),
+        "both": both,
+        "r_to_s": both & rep_r & red_s,
+        "s_to_r": both & rep_s & red_r,
+        "any_disagree": both & ~same,
+    }).groupby("species", sort=True).sum().reset_index()
+    return out.rename(columns={"both": "rows_with_both"})
+
+
+def _call_safety_section(inputs: ReportInputs, config: Any = None) -> list[str]:
+    table = call_safety_by_pair(inputs.preds, inputs.splits, config)
+    if table.empty:
+        return []
+    parts = [
+        "## Call-safety summary (main model, out-of-fold, VME first)",
+        "",
+        "Call VME = lab R (re-derived) called likely active. *Pooled* divides by every lab-R row; *calling folds* "
+        "divides only by the lab-R rows of folds that made at least one likely-active call, so folds whose gate "
+        "was closed cannot dilute it. A pair 'passes' at <= 1.5 %.",
+        "",
+    ]
+    rows = []
+    for species, block in table.groupby("species", sort=True):
+        passing = block.loc[block["pass_pooled"]]
+        rows.append([
+            species, len(block), int(block["pass_pooled"].sum()), int(block["pass_calling_folds"].sum()),
+            int((passing["status"] == "active_calls").sum()),
+            int((passing["status"] == "no_active_calls").sum()),
+            int(passing["status"].isin(["natural_resistance", "no_call_breakpoint"]).sum()),
+            _fmt_value(round(100 * float(block.loc[block["status"] == "active_calls", "active_rate_s"].median()), 1))
+            if (block["status"] == "active_calls").any() else "n/a",
+        ])
+    parts += [md_table(
+        ["Species", "Pairs", "Pass call VME (pooled)", "Pass call VME (calling folds)",
+         "Passing with active calls", "Passing: no active call (gate closed)", "Passing: natural resistance / no breakpoint",
+         "Median active % of lab S (pairs with active calls)"],
+        rows,
+    ), ""]
+    failing = table.loc[~table["pass_calling_folds"]]
+    if not failing.empty:
+        parts += ["Pairs above 1.5 % call VME over their calling folds:", "", md_table(
+            ["Species", "Drug", "Call VME pooled", "Call VME calling folds", "Worst calling fold", "Calling folds"],
+            [[r.species, r.drug, fmt_pct(r.call_vme_pooled, r.n_lab_r), fmt_pct(r.call_vme_calling_folds, r.n_lab_r_calling_folds),
+              fmt_pct(r.worst_calling_fold_vme), r.n_calling_folds] for r in failing.itertuples()],
+        ), ""]
+    metrics = inputs.metrics
+    if metrics is not None and {"band_coverage", "n_exact"}.issubset(metrics.columns):
+        cv = figures.subset(metrics, split="cv")
+        low = []
+        for (species, drug), pair in cv.groupby(["species", "drug"], sort=True):
+            model = figures.pick_model(pair["model"])
+            record = pair.loc[pair["model"] == model].iloc[0]
+            cov = record.get("band_coverage")
+            if not _isna(cov) and float(cov) < COVERAGE_FLOOR:
+                low.append([species, drug, fmt_pct(cov, record.get("n_exact"))])
+        parts += [f"Pairs with out-of-fold band coverage below {100 * COVERAGE_FLOOR:.0f} % (exact lab MICs): "
+                  + (str(len(low)) if low else "none."), ""]
+        if low:
+            parts += [md_table(["Species", "Drug", "Band coverage"], low), ""]
+    contra = sir_contradictions(inputs.preds)
+    if not contra.empty:
+        parts += [
+            "**Data-quality note.** The gap between as-reported and re-derived VME is driven by release rows whose "
+            "reported S/I/R contradicts their own MIC under the call breakpoint (CV rows of the main model; a "
+            "breakpoint revision between the lab's standard and the call standard can also cause it):",
+            "",
+            md_table(["Species", "Rows with both", "Reported R, MIC says S", "Reported S, MIC says R", "Any disagreement"],
+                     [[r.species, int(r.rows_with_both), int(r.r_to_s), int(r.s_to_r), int(r.any_disagree)] for r in contra.itertuples()]),
+            "",
+        ]
+    return parts
 
 
 def _data_section(inputs: ReportInputs) -> list[str]:
@@ -1004,6 +1194,8 @@ __all__ = [
     "metrics_table",
     "read_unitig_index",
     "rederived_metrics_table",
+    "call_safety_by_pair",
+    "sir_contradictions",
     "render_markdown",
     "run",
 ]

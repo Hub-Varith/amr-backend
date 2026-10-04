@@ -11,8 +11,12 @@ Implements the ``train.py`` part of the models section in ``.context/DESIGN.md``
    for ``aft_known_unitig`` the unitig ranking target is the label residual after
    the known-AMR features, see :func:`_residual_target`), predict fold ``f`` ->
    out-of-fold predictions written with ``split = 'cv'``.
-3. Conformal ``q`` per model from the OOF residuals on exact rows
+3. Conformal band per model from the OOF residuals on exact rows
    (:mod:`genome2mic.models.conformal`); the test set never calibrates anything.
+   Default (``TrainConfig.band = "asym_tuned"``): asymmetric band whose upper level is
+   chosen inside the calibration folds for call-level VME <= 1.5 %, with an
+   active-call gate (:func:`_band_params`); CV rows use bands tuned and calibrated on
+   the other folds only.
    "Exact" is ``lab_exact`` (:func:`genome2mic.mic.lab_exact_mask`): a one-step lab
    interval whose ``method`` is not ``disk`` -- a disk-diffusion ``I``-only row with
    a one-step ``I`` range (CLSI meropenem ``(1, 2]``) is not a measured MIC. The
@@ -59,7 +63,8 @@ Implements the ``train.py`` part of the models section in ``.context/DESIGN.md``
        models/<SPECIES>/<drug>/model.ubj + params.json      (XgbAft.save)
        models/<SPECIES>/<drug>/features.json  model_class, known_columns, unitig_cols, class_by_column,
                                               feature_names, unitig_kmer_set_sha1
-       models/<SPECIES>/<drug>/conformal.json q, alpha, n_residuals
+       models/<SPECIES>/<drug>/conformal.json q, alpha, n_residuals, caps, q_up, q_low, alpha_up,
+                                              alpha_low, active_gate_open (+ per-fold record)
        models/<SPECIES>/<drug>/meta.json      free-form training record (incl. inputs_sha1)
        models/<SPECIES>/<drug>/importance.json [{feature, gain}, ...]
 
@@ -89,13 +94,15 @@ import hashlib
 import json
 import logging
 import math
+import multiprocessing as mp
 import os
 import re
 import shutil
 import time
 import zipfile
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -118,7 +125,25 @@ from genome2mic.models.base import (
     validate_intervals,
     write_json,
 )
-from genome2mic.models.conformal import DEFAULT_ALPHA, band, conformal_q, residual_steps, write_conformal
+from genome2mic.models.conformal import (
+    DEFAULT_ALPHA,
+    DEFAULT_ALPHA_GRID,
+    DEFAULT_ALPHA_LOW,
+    DEFAULT_VME_TARGET,
+    BandParams,
+    asym_quantiles,
+    calling_fold_vme,
+    conformal_q,
+    gate_calls,
+    passing_levels,
+    residual_steps,
+    robust_q_low,
+    signed_residual_steps,
+    vme_certified,
+    symmetric_params,
+    tune_band,
+    write_conformal,
+)
 from genome2mic.paths import Paths
 
 logger = logging.getLogger(__name__)
@@ -216,6 +241,9 @@ _MIN_FIT_ROWS = 10
 PHENO_TABLE = Path("resfinder") / "pheno_table.txt"
 SYNTHETIC_MARKER = "SYNTHETIC_DATA.md"
 _FALLBACK_Q_STEPS = 2.0
+BAND_ASYM_TUNED = "asym_tuned"
+BAND_SYMMETRIC = "symmetric"
+BAND_MODES = (BAND_ASYM_TUNED, BAND_SYMMETRIC)
 """Band half-width used when too few exact OOF residuals exist to certify coverage."""
 _NEAREST_QUERY_BLOCK = 128
 """Query genomes per distance block in :func:`_species_nearest` (memory: block x n_ref float64)."""
@@ -240,7 +268,24 @@ class TrainConfig:
         top_k: Unitig columns kept per fold after the frequency window.
         min_freq, max_freq: Unitig training-frequency window.
         alpha: Conformal miscoverage (0.10 -> 90 % bands).
-        nthread: xgboost threads per fit (pairs run sequentially).
+        nthread: xgboost threads per fit.
+        exact_weight: Sample weight of exact-MIC training rows (``lab_exact``) relative
+            to censored / S/I/R-only / disk rows in the AFT models (lever L7; 1.0 = off).
+            Every row still trains; nothing is imputed. B1 and B2 are unaffected.
+        band: ``"asym_tuned"`` (default): asymmetric cross-conformal band whose upper
+            miscoverage level is chosen per pair from ``band_alpha_grid`` (largest first)
+            as the first level whose nested cross-conformal call-level VME inside the
+            training folds passes ``(n_vme + 1) / (n_lab_R + 1) <= band_vme_target``, both
+            counts pooled only over the folds that issue ``likely_active`` calls; the
+            bundle may only use a level that also passed in every CV fold that issues
+            calls. Lower level fixed at ``band_alpha_low`` (widened by
+            :func:`~genome2mic.models.conformal.robust_q_low` when leave-one-fold-out
+            values disagree); if no level passes, ``likely_active`` calls are withheld
+            (gate closed). ``"symmetric"``: the original ``+-q`` band at
+            ``alpha`` with no gate.
+        workers: Pairs of one species trained concurrently in spawned worker processes
+            (1 = sequential). Not part of :meth:`as_dict` / the run id: every pair is
+            fitted independently with its own seeds, so the outputs do not depend on it.
         seed: Seed for the in-fold holdouts and xgboost sampling.
         max_rounds, early_stopping_rounds: Passed to the xgboost models.
         lolo: Run leave-one-lineage-out fits for the pair's ``lolo_lineage`` values.
@@ -268,6 +313,12 @@ class TrainConfig:
     ablation: bool = False
     cv_only: bool = False
     panel_cap: bool = True
+    workers: int = 1
+    exact_weight: float = 2.0
+    band: str = BAND_ASYM_TUNED
+    band_alpha_grid: tuple[float, ...] = DEFAULT_ALPHA_GRID
+    band_alpha_low: float = DEFAULT_ALPHA_LOW
+    band_vme_target: float = DEFAULT_VME_TARGET
 
     def effective_models(self, has_unitigs: bool) -> list[str]:
         out = [m for m in self.models if m in MODEL_CLASSES]
@@ -297,6 +348,11 @@ class TrainConfig:
             "ablation": self.ablation,
             "cv_only": self.cv_only,
             "panel_cap": self.panel_cap,
+            "exact_weight": float(self.exact_weight),
+            "band": self.band,
+            "band_alpha_grid": [float(a) for a in self.band_alpha_grid],
+            "band_alpha_low": float(self.band_alpha_low),
+            "band_vme_target": float(self.band_vme_target),
         }
 
 
@@ -836,16 +892,21 @@ def _fit(
     groups: np.ndarray | None,
     droplog: DropLog,
     exact_rows: np.ndarray | None = None,
+    exact_weight: float = 1.0,
 ) -> Any:
     """Fit a model, passing ``groups``/``droplog``/``exact_rows`` only to the models that accept them.
 
     ``exact_rows`` (the fit rows' ``lab_exact``) restricts B2's exact-MIC training rows;
-    the interval models (B1, AFT) use every interval, disk rows included.
+    the interval models (B1, AFT) use every interval, disk rows included. For the AFT
+    models, ``exact_weight != 1`` up-weights the ``exact_rows`` (``TrainConfig.exact_weight``).
     """
     if model.name == MODEL_B1:
         return model.fit(X, lo, hi, names)
     if model.name == MODEL_B2:
         return model.fit(X, lo, hi, names, groups=groups, droplog=droplog, exact_rows=exact_rows)
+    if exact_weight != 1.0 and exact_rows is not None:
+        weight = np.where(np.asarray(exact_rows, dtype=bool), float(exact_weight), 1.0)
+        return model.fit(X, lo, hi, names, groups=groups, sample_weight=weight)
     return model.fit(X, lo, hi, names, groups=groups)
 
 
@@ -871,7 +932,7 @@ def _fit_predict(
         raise ValueError(f"{pd_.species} x {pd_.drug} [{model_id}]: no features survived selection")
     model = _new_model(model_id, cfg)
     _fit(model, X[train_idx], pd_.lo[train_idx], pd_.hi[train_idx], names, pd_.groups[train_idx], droplog,
-         exact_rows=pd_.lab_exact[train_idx])
+         exact_rows=pd_.lab_exact[train_idx], exact_weight=cfg.exact_weight)
     pred = np.asarray(model.predict_log2(X[predict_idx]), dtype=np.float64) if predict_idx.size else np.empty(0)
     return pred, model, feats, names
 
@@ -929,16 +990,40 @@ def apply_caps(pred_log2: np.ndarray, caps: tuple[float, float] | None) -> np.nd
     return np.clip(pred, caps[0], caps[1])
 
 
-def pair_calls(pd_: PairData, idx: np.ndarray, band_low: np.ndarray, band_high: np.ndarray, config: Config) -> np.ndarray:
+def pair_marker(pd_: PairData, config: Config) -> np.ndarray:
+    """Override-2 strong-marker flag for every row of the pair (see :func:`pair_calls`)."""
+    from genome2mic.predict import rank  # noqa: PLC0415  (avoids a predict <-> models import cycle)
+
+    return np.asarray(rank.strong_marker_mask(
+        pd_.X_known, config.drugs.get(pd_.drug),
+        exclude_columns=rank.intrinsic_columns(config.intrinsic_symbols(pd_.species)),
+    ), dtype=bool)
+
+
+def pair_calls(
+    pd_: PairData,
+    idx: np.ndarray,
+    band_low: np.ndarray,
+    band_high: np.ndarray,
+    config: Config,
+    marker_all: np.ndarray | None = None,
+) -> np.ndarray:
     """Calls for rows ``idx`` with the prediction pipeline's rule and overrides (:func:`rank.call_array`).
 
     Override 2 uses the column-prefix rule on the genome's full known-AMR row (every
-    column of the species, not only the model's selected features).
+    column of the species, not only the model's selected features), minus the
+    species' intrinsic genes (``intrinsic_markers.csv``), as the pipeline does.
     """
     from genome2mic.predict import rank  # noqa: PLC0415  (avoids a predict <-> models import cycle)
 
     bp = config.call_breakpoint(pd_.species, pd_.drug)
-    marker = rank.strong_marker_mask(pd_.X_known.iloc[idx], config.drugs.get(pd_.drug))
+    if marker_all is not None:
+        marker = np.asarray(marker_all, dtype=bool)[idx]
+    else:
+        marker = rank.strong_marker_mask(
+            pd_.X_known.iloc[idx], config.drugs.get(pd_.drug),
+            exclude_columns=rank.intrinsic_columns(config.intrinsic_symbols(pd_.species)),
+        )
     return rank.call_array(
         band_low, band_high, bp,
         natural_resistance=config.is_naturally_resistant(pd_.species, pd_.drug),
@@ -950,7 +1035,7 @@ def finish_predictions(
     pd_: PairData,
     idx: np.ndarray,
     pred_log2: np.ndarray,
-    q: float,
+    q: float | BandParams,
     split: str,
     model_id: str,
     run_id: str,
@@ -962,14 +1047,17 @@ def finish_predictions(
 
     ``caps`` (:func:`genome2mic.mic.panel_caps_log2` of the fit rows) clips the raw
     log2 prediction before rounding up; ``None`` when the caller already capped.
+    ``q`` is a :class:`BandParams` (asymmetric band + active-call gate) or a plain
+    float (symmetric ``+-q`` band, gate open).
     """
+    params = q if isinstance(q, BandParams) else symmetric_params(float(q), DEFAULT_ALPHA, 0)
     pred_log2 = apply_caps(pred_log2, caps)
     clipped = np.clip(pred_log2, GRID_MIN_EXPONENT, GRID_MAX_EXPONENT)
     n_clip = int((clipped != pred_log2).sum())
     if n_clip:
         logger.warning("%s x %s [%s/%s]: %d prediction(s) clipped to the MIC grid edges", pd_.species, pd_.drug, model_id, split, n_clip)
     pred_mic = round_up_to_step_array(2.0**clipped)
-    band_low, band_high = band(pred_mic, q)
+    band_low, band_high = params.band(pred_mic)
     bp = config.call_breakpoint(pd_.species, pd_.drug)
     sub = pd_.frame.iloc[idx]
     lab_sir = [derive_lab_sir(s, float(lo), float(hi), bp) for s, lo, hi in zip(sub["sir"], pd_.lo[idx], pd_.hi[idx])]
@@ -993,7 +1081,7 @@ def finish_predictions(
             "nearest_training_distance": np.asarray(nearest, dtype=np.float64),
             "lab_sir_rederived": rederived,
             "lab_exact": pd_.lab_exact[idx],
-            "call": pair_calls(pd_, idx, band_low, band_high, config),
+            "call": gate_calls(pair_calls(pd_, idx, band_low, band_high, config), params.active_gate_open),
         },
         columns=list(PREDS_COLUMNS),
     )
@@ -1288,6 +1376,138 @@ def _conformal(
     return float(q), int(residuals.size)
 
 
+def _rounded_up_log2(pred_log2: np.ndarray) -> np.ndarray:
+    """``log2`` of the grid-clipped, rounded-up MIC (what the preds file reports); NaN stays NaN."""
+    clipped = np.clip(np.asarray(pred_log2, dtype=np.float64), GRID_MIN_EXPONENT, GRID_MAX_EXPONENT)
+    return np.log2(round_up_to_step_array(2.0**clipped))
+
+
+def _band_params(
+    pred_log2_oof: np.ndarray,
+    pd_: PairData,
+    cfg: TrainConfig,
+    config: Config,
+    cal_folds: Sequence[int],
+    label: str,
+    marker_all: np.ndarray | None = None,
+    lab_sir: np.ndarray | None = None,
+    *,
+    allowed_alphas: Sequence[float] | None = None,
+) -> BandParams:
+    """Tuned asymmetric band from the OOF predictions of ``cal_folds`` only (lever L5).
+
+    The upper level is the narrowest level of
+    :func:`genome2mic.models.conformal.passing_levels` (nested cross-conformal call-level
+    VME inside ``cal_folds``, counted only over the folds that issue active calls); the
+    half-widths are then calibrated on every exact residual of ``cal_folds``. The lower
+    half-width goes through :func:`genome2mic.models.conformal.robust_q_low` (widened when
+    its leave-one-fold-out values disagree by more than one step). Lab S/I/R is
+    re-derived under the call breakpoint; calls use :func:`pair_calls` (the pipeline's
+    rule and overrides). The caller passes the folds *other than* the one being banded
+    (cross-conformal) or all folds for the bundle.
+
+    ``allowed_alphas`` (bundle only, :func:`bundle_allowed_alphas`) keeps only the levels
+    that also passed in every fold that issues calls; an empty sequence closes the gate.
+    """
+    p = _rounded_up_log2(pred_log2_oof)
+    folds = pd_.folds
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    callable_pair = bp is not None and not config.is_naturally_resistant(pd_.species, pd_.drug)
+    if not callable_pair:
+        lab = np.full(pd_.n, None, dtype=object)
+    elif lab_sir is not None:
+        lab = lab_sir
+    else:
+        lab = np.array([rederive_lab_sir(lo, hi, bp) for lo, hi in zip(pd_.lo, pd_.hi)], dtype=object)
+    if marker_all is None and callable_pair:
+        marker_all = pair_marker(pd_, config)
+    passed: list[tuple[float, float]] = []
+    if callable_pair:
+        passed = passing_levels(
+            p, pd_.lo, pd_.hi, pd_.lab_exact, lab, folds, cal_folds,
+            lambda idx, low, high: pair_calls(pd_, idx, low, high, config, marker_all),
+            grid=cfg.band_alpha_grid, alpha_low=cfg.band_alpha_low, target=cfg.band_vme_target,
+        )
+        usable = passed if allowed_alphas is None else [(a, u) for a, u in passed
+                                                        if any(abs(a - b) < 1e-12 for b in allowed_alphas)]
+        if usable:
+            alpha_up, gate_open, ucb = usable[0][0], True, usable[0][1]
+        else:
+            alpha_up, gate_open, ucb = float(cfg.band_alpha_grid[-1]), False, None
+    else:
+        alpha_up, gate_open, ucb = 0.05, True, None
+    cal_list = [int(f) for f in cal_folds]
+    cal = np.isin(folds, cal_list) & ~np.isnan(p)
+    signed = signed_residual_steps(p[cal], pd_.lo[cal], pd_.hi[cal], exact_rows=pd_.lab_exact[cal])
+    q_up, q_low, certified = asym_quantiles(signed, alpha_up, cfg.band_alpha_low)
+    by_fold = []
+    for g in cal_list:
+        rows = cal & (folds == g)
+        by_fold.append(signed_residual_steps(p[rows], pd_.lo[rows], pd_.hi[rows], exact_rows=pd_.lab_exact[rows]))
+    q_low, widened = robust_q_low(by_fold, q_low, cfg.band_alpha_low, cfg.alpha)
+    if widened:
+        logger.info("%s: leave-one-fold-out lower half-widths disagree by > 1 step; lower end widened to %.2f steps",
+                    label, q_low)
+    if not gate_open:
+        logger.info("%s: no upper level met call VME <= %.1f%% in the calling training folds%s; likely_active calls withheld",
+                    label, 100 * cfg.band_vme_target, "" if allowed_alphas is None else " (and in every calling CV fold)")
+    elif not certified:
+        logger.warning("%s: %d exact residuals cannot certify the chosen upper level %.3g; likely_active calls withheld",
+                       label, signed.size, alpha_up)
+    return BandParams(
+        q_up=q_up, q_low=q_low, alpha_up=alpha_up, alpha_low=cfg.band_alpha_low,
+        active_gate_open=bool(gate_open and certified), n_residuals=int(signed.size), inner_vme_ucb=ucb,
+        q_low_widened=widened, passing_alphas=tuple(a for a, _ in passed),
+        allowed_alphas=None if allowed_alphas is None else tuple(float(a) for a in allowed_alphas),
+    )
+
+
+def _oof_gate_check(
+    params: BandParams,
+    cv_calls: Sequence[tuple[np.ndarray, np.ndarray]],
+    pd_: PairData,
+    lab_sir: np.ndarray | None,
+    folds: np.ndarray,
+    target: float,
+    label: str,
+) -> BandParams:
+    """Close the bundle's active-call gate unless the out-of-fold CV calls pass the call-VME rule.
+
+    The rule is :func:`~genome2mic.models.conformal.vme_certified` on the VMEs and lab-R
+    rows pooled over the CV folds that issued at least one ``likely_active`` call
+    (:func:`~genome2mic.models.conformal.calling_fold_vme`). Only train-fold rows are
+    read. Uncallable pairs (``lab_sir`` None) and already-closed gates are returned as is.
+    """
+    if lab_sir is None or not params.active_gate_open or params.inner_vme_ucb is None or not cv_calls:
+        return params
+    idx = np.concatenate([i for _, i in cv_calls])
+    calls = np.concatenate([c for c, _ in cv_calls])
+    k, n_r, n_folds = calling_fold_vme(calls, lab_sir[idx], folds[idx])
+    ucb = (k + 1) / (n_r + 1)
+    if n_folds and vme_certified(k, n_r, target):
+        return replace(params, oof_call_vme_ucb=ucb)
+    logger.info("%s: out-of-fold call VME over %d calling fold(s) is %d / %d lab R (UCB %.3f > %.3f); "
+                "bundle likely_active calls withheld", label, n_folds, k, n_r, ucb, target)
+    return replace(params, active_gate_open=False, oof_call_vme_ucb=ucb)
+
+
+def bundle_allowed_alphas(params_cv: Mapping[int, BandParams], grid: Sequence[float]) -> tuple[float, ...] | None:
+    """Upper levels the bundle may use: those that passed in every CV fold that issues calls.
+
+    A fold "issues calls" when its cross-conformal gate opened. The result is the grid
+    levels found in the ``passing_alphas`` of every such fold (grid order); empty when no
+    fold opened its gate (the bundle's gate then stays closed) or the folds share no
+    passing level. ``None`` when there are no folds (no restriction).
+    """
+    if not params_cv:
+        return None
+    calling = [p_ for p_ in params_cv.values() if p_.active_gate_open]
+    if not calling:
+        return ()
+    return tuple(float(a) for a in grid
+                 if all(any(abs(a - b) < 1e-12 for b in p_.passing_alphas) for p_ in calling))
+
+
 # --------------------------------------------------------------------------- #
 # ResFinder baseline (b0)
 # --------------------------------------------------------------------------- #
@@ -1446,23 +1666,59 @@ def train_pair(
 
     # --- Conformal: q for the bundle from every OOF residual; the CV rows' own bands are
     # cross-conformal (fold f's rows use q calibrated on the residuals of the other folds).
+    # With cfg.band == "asym_tuned" the upper level and the active-call gate are tuned
+    # inside the calibration folds too (nested: fold f's level never sees fold f).
     folds_arr = pd_.folds
     q_cv: dict[str, dict[int, float]] = {}
+    params_cv: dict[str, dict[int, BandParams]] = {}
+    params_by_model: dict[str, BandParams] = {}
+    cv_calls: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {}
+    cv_folds = sorted(int(g.fold) for g in plan.cv)
+    band_marker = pair_marker(pd_, config) if cfg.band == BAND_ASYM_TUNED else None
+    _bp = config.call_breakpoint(pd_.species, pd_.drug)
+    band_lab = np.array([rederive_lab_sir(lo, hi, _bp) for lo, hi in zip(pd_.lo, pd_.hi)], dtype=object) \
+        if cfg.band == BAND_ASYM_TUNED and _bp is not None else None
     for m in models:
         q, n = _conformal(oof[m], pd_, cfg, droplog, f"{label} [{m}]")  # NaN outside train rows
-        q_by_model[m] = q
-        n_res[m] = n
         q_cv[m] = {}
+        params_cv[m] = {}
         quiet = DropLog(STAGE)
         for group in plan.cv:
             other = ~np.isnan(folds_arr) & (folds_arr != group.fold)
-            q_f, _ = _conformal(oof[m], pd_, cfg, quiet, f"{label} [{m}] fold {group.fold}", rows=other)
-            q_cv[m][int(group.fold)] = q_f  # type: ignore[arg-type]
+            if cfg.band == BAND_ASYM_TUNED:
+                others = [f for f in cv_folds if f != int(group.fold)]
+                params_f = _band_params(oof[m], pd_, cfg, config, others, f"{label} [{m}] fold {group.fold}",
+                                        band_marker, band_lab)
+            else:
+                q_f, n_f = _conformal(oof[m], pd_, cfg, quiet, f"{label} [{m}] fold {group.fold}", rows=other)
+                params_f = symmetric_params(q_f, cfg.alpha, n_f)
+            q_cv[m][int(group.fold)] = params_f.q_up
+            params_cv[m][int(group.fold)] = params_f
             has = group.predict_idx[~np.isnan(oof[m][group.predict_idx])]
             if has.size:
-                preds.append(finish_predictions(pd_, has, oof[m][has], q_f, SPLIT_CV, m, run_id, oof_nearest[has], config))
-        logger.info("%s [%s]: conformal q=%.2f steps from %d exact OOF residuals (bundle); cross-conformal fold q %s",
-                    label, m, q, n, q_cv[m])
+                cv_frame = finish_predictions(pd_, has, oof[m][has], params_f, SPLIT_CV, m, run_id, oof_nearest[has], config)
+                preds.append(cv_frame)
+                cv_calls.setdefault(m, []).append((cv_frame["call"].to_numpy(dtype=object), has))
+        # Bundle: tuned on every fold, but never narrower than a level a fold validated
+        # (conservative: only levels that passed in every calling fold; see bundle_allowed_alphas).
+        if cfg.band == BAND_ASYM_TUNED:
+            params_by_model[m] = _band_params(oof[m], pd_, cfg, config, cv_folds, f"{label} [{m}] bundle",
+                                              band_marker, band_lab,
+                                              allowed_alphas=bundle_allowed_alphas(params_cv[m], cfg.band_alpha_grid))
+            params_by_model[m] = _oof_gate_check(params_by_model[m], cv_calls.get(m, []), pd_, band_lab, folds_arr,
+                                                 cfg.band_vme_target, f"{label} [{m}] bundle")
+        else:
+            params_by_model[m] = symmetric_params(q, cfg.alpha, n)
+        q_by_model[m] = params_by_model[m].q_up
+        n_res[m] = n
+        bundle_params = params_by_model[m]
+        logger.info(
+            "%s [%s]: band %s q_up=%.2f q_low=%.2f (alpha_up %.3g, gate %s) from %d exact OOF residuals (bundle); "
+            "cross-conformal fold (alpha_up, gate) %s",
+            label, m, bundle_params.kind, bundle_params.q_up, bundle_params.q_low, bundle_params.alpha_up,
+            "open" if bundle_params.active_gate_open else "closed", n,
+            {f: (p_.alpha_up, p_.active_gate_open) for f, p_ in params_cv[m].items()},
+        )
 
     # --- Final fit on all train rows -> bundle (+ test unless cv_only) -------------
     t0 = time.perf_counter()
@@ -1473,12 +1729,13 @@ def train_pair(
     for m in models:
         pred, model, feats_used, names = _fit_predict(pd_, m, train_all, test_idx, cfg, droplog, feats=selected[m])
         if test_idx.size:
-            preds.append(finish_predictions(pd_, test_idx, pred, q_by_model[m], SPLIT_TEST, m, run_id, test_nearest, config,
+            preds.append(finish_predictions(pd_, test_idx, pred, params_by_model[m], SPLIT_TEST, m, run_id, test_nearest, config,
                                             caps=final_caps))
         if m == main_model:
             _write_pair_bundle(
                 paths, config, sd, pd_, cfg, model, feats_used, names, q_by_model[m], n_res[m], run_id,
                 train_all.size, test_idx.size, inputs_sha1=inputs_sha1, caps=final_caps, q_cv=q_cv[m],
+                band_params=params_by_model[m], band_params_cv=params_cv[m],
             )
     timings["final_s"] = time.perf_counter() - t0
 
@@ -1505,7 +1762,7 @@ def train_pair(
                 except ValueError as error:
                     logger.warning("%s [%s] LOLO %s: %s; skipped", label, m, lineage, error)
                     continue
-                preds.append(finish_predictions(pd_, group.predict_idx, pred, q_by_model[m], group.split, m, run_id, lolo_nearest, config,
+                preds.append(finish_predictions(pd_, group.predict_idx, pred, params_by_model[m], group.split, m, run_id, lolo_nearest, config,
                                                 caps=lolo_caps))
             logger.info("%s: LOLO %s done (%d fit, %d held-out train genomes)", label, lineage, group.fit_idx.size, group.predict_idx.size)
     timings["lolo_s"] = time.perf_counter() - t0
@@ -1607,8 +1864,15 @@ def _write_pair_bundle(
     inputs_sha1: str | None = None,
     caps: tuple[float, float] | None = None,
     q_cv: Mapping[int, float] | None = None,
+    band_params: BandParams | None = None,
+    band_params_cv: Mapping[int, BandParams] | None = None,
 ) -> None:
     """Write ``models/<SPECIES>/<drug>/`` for the prediction pipeline.
+
+    ``band_params`` (tuned on all OOF predictions) go to ``conformal.json``:
+    ``q_up`` / ``q_low`` / ``alpha_up`` / ``alpha_low`` / ``active_gate_open``; ``q``
+    repeats ``q_up`` for readers that only know the symmetric band. The pipeline builds
+    the same asymmetric band and withholds ``likely_active`` when the gate is closed.
 
     ``caps`` (log2 mg/L, from all train rows) go to ``conformal.json``
     (``cap_low_log2``, ``cap_high_log2``) and ``meta.json``; the pipeline clips the raw
@@ -1650,6 +1914,11 @@ def _write_pair_bundle(
         extra.update({"cap_low_log2": float(caps[0]), "cap_high_log2": float(caps[1])})
     if q_cv:
         extra["q_cross_conformal_by_fold"] = {str(k): float(v) for k, v in sorted(q_cv.items())}
+    if band_params is not None:
+        extra.update(band_params.as_json())
+        extra["vme_target"] = float(cfg.band_vme_target)
+        if band_params_cv:
+            extra["band_cross_conformal_by_fold"] = {str(k): v.as_json() for k, v in sorted(band_params_cv.items())}
     write_conformal(target / "conformal.json", q, cfg.alpha, n_residuals, extra)
     write_json(
         target / "meta.json",
@@ -1822,8 +2091,23 @@ def write_shared_bundle(
         "synthetic": synthetic,
         "note": "Predictions of in-vitro susceptibility, not prescribing advice.",
     }
+    imported = paths.processed_dir.joinpath("IMPORTED_RELEASE.json").is_file()
+    if imported:
+        # The release's known_amr columns follow the NCBI release rules, not features/known_amr.py:
+        # the prediction pipeline must convert AMRFinderPlus output with predict/release_features.py.
+        from genome2mic.predict import release_features  # noqa: PLC0415
+
+        manifest["feature_naming"] = release_features.FEATURE_NAMING_NCBI_RELEASE
     write_json(paths.models_manifest, manifest)
     logger.info("wrote %s: %s", paths.models_manifest, {k: len(v) for k, v in manifest["species"].items()})
+    if imported:
+        try:
+            release_features.write_specs_for_root(paths, config)
+        except FileNotFoundError as error:
+            logger.warning(
+                "imported release: feature specs not written (%s); run `genome2mic release-feature-spec --root %s "
+                "--amrfinder-db DIR` before predicting with this bundle", error, paths.root,
+            )
 
 
 # --------------------------------------------------------------------------- #
@@ -2173,34 +2457,14 @@ def run(
         nearest = _species_nearest(
             sd, {drug: (sd.sketch_position(frames[drug]["genome_id"].tolist()), plans[drug]) for drug in drugs}
         )
-        for drug in drugs:
-            t0 = time.perf_counter()
-            pd_ = _pair_data(species, drug, frames[drug], sd)
-            result = train_pair(
-                paths, config, cfg, sd, pd_, run_id, logs[drug], pheno_cache,
-                plan=plans[drug], nearest=nearest[drug], inputs_sha1=inputs_sha1,
-            )
-            droplog.extend(logs[drug])
+        state = _PairJobState(
+            paths=paths, config=config, cfg=cfg, sd=sd, species=species, frames=frames, plans=plans,
+            nearest=nearest, logs=logs, run_id=run_id, inputs_sha1=inputs_sha1, pheno_cache=pheno_cache,
+        )
+        for drug, summary_row, pair_log in _run_pair_jobs(state, drugs, cfg.workers):
+            droplog.extend(pair_log)
             trained.setdefault(species, []).append(drug)
-            elapsed = time.perf_counter() - t0
-            summaries.append(
-                {
-                    "species": species,
-                    "drug": drug,
-                    "main_model": result.main_model,
-                    "n_rows": pd_.n,
-                    "n_train": int(pd_.train_mask.sum()),
-                    "n_test": int(pd_.test_mask.sum()),
-                    "n_preds": len(result.preds),
-                    "models": ",".join(sorted(result.preds["model"].unique())),
-                    "q_main": result.q_by_model.get(result.main_model),
-                    "inputs_sha1": inputs_sha1,
-                    "seconds": round(elapsed, 1),
-                    **{f"q_{m}": q for m, q in result.q_by_model.items()},
-                }
-            )
-            logger.info("%s x %s: trained in %.1fs (%s)", species, drug, elapsed, result.timings)
-            del pd_, result
+            summaries.append(summary_row)
         write_species_bundle(paths, sd, splits)
         del sd, frames, plans, nearest
         logger.info("%s: done; species arrays released", species)
@@ -2210,6 +2474,97 @@ def run(
     summary = pd.DataFrame(summaries)
     logger.info("train stage finished in %.1fs:\n%s", time.perf_counter() - started, summary.to_string(index=False))
     return summary
+
+
+@dataclass
+class _PairJobState:
+    """Everything one species' pair jobs read; sent once to each worker process."""
+
+    paths: Paths
+    config: Config
+    cfg: TrainConfig
+    sd: SpeciesData
+    species: str
+    frames: dict[str, pd.DataFrame]
+    plans: dict[str, FitPlan]
+    nearest: dict[str, PairNearest]
+    logs: dict[str, _PairDropLog]
+    run_id: str
+    inputs_sha1: str
+    pheno_cache: dict[str, dict[str, str] | None]
+
+
+_JOB_STATE: _PairJobState | None = None
+
+
+def _train_one_pair(state: _PairJobState, drug: str) -> tuple[str, dict[str, Any], _PairDropLog]:
+    """Train one pair of ``state.species``; return its summary row and drop log."""
+    species = state.species
+    t0 = time.perf_counter()
+    pd_ = _pair_data(species, drug, state.frames[drug], state.sd)
+    result = train_pair(
+        state.paths, state.config, state.cfg, state.sd, pd_, state.run_id, state.logs[drug], state.pheno_cache,
+        plan=state.plans[drug], nearest=state.nearest[drug], inputs_sha1=state.inputs_sha1,
+    )
+    elapsed = time.perf_counter() - t0
+    row = {
+        "species": species,
+        "drug": drug,
+        "main_model": result.main_model,
+        "n_rows": pd_.n,
+        "n_train": int(pd_.train_mask.sum()),
+        "n_test": int(pd_.test_mask.sum()),
+        "n_preds": len(result.preds),
+        "models": ",".join(sorted(result.preds["model"].unique())),
+        "q_main": result.q_by_model.get(result.main_model),
+        "inputs_sha1": state.inputs_sha1,
+        "seconds": round(elapsed, 1),
+        **{f"q_{m}": q for m, q in result.q_by_model.items()},
+    }
+    logger.info("%s x %s: trained in %.1fs (%s)", species, drug, elapsed, result.timings)
+    return drug, row, state.logs[drug]
+
+
+def _init_pair_worker(state: _PairJobState, log_level: int) -> None:
+    """Worker initializer: receive the species state once and route logs to stderr."""
+    global _JOB_STATE
+    _JOB_STATE = state
+    logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S")
+    logging.getLogger("genome2mic").setLevel(log_level)
+
+
+def _pair_job_in_worker(drug: str) -> tuple[str, dict[str, Any], _PairDropLog]:
+    """Worker entry point (state set by :func:`_init_pair_worker`)."""
+    if _JOB_STATE is None:  # pragma: no cover - initializer always runs first
+        raise RuntimeError("pair job state missing in worker")
+    return _train_one_pair(_JOB_STATE, drug)
+
+
+def _run_pair_jobs(
+    state: _PairJobState, drugs: Sequence[str], workers: int
+) -> Iterator[tuple[str, dict[str, Any], _PairDropLog]]:
+    """Train ``drugs`` sequentially or in ``workers`` processes; yield results in ``drugs`` order.
+
+    Workers are *spawned* (fresh interpreters), never forked: a fork after xgboost's
+    OpenMP runtime has started in the parent deadlocks the child in libomp. The
+    species state is pickled once per worker. Each pair writes its own preds file
+    and bundle directory, so workers never write the same file; the species-level
+    and shared outputs are written by the caller after every pair has finished.
+    """
+    n_workers = min(int(workers), len(drugs))
+    if n_workers <= 1:
+        for drug in drugs:
+            yield _train_one_pair(state, drug)
+        return
+    logger.info("%s: training %d pair(s) in %d worker process(es)", state.species, len(drugs), n_workers)
+    level = logging.getLogger("genome2mic").getEffectiveLevel()
+    with ProcessPoolExecutor(
+        max_workers=n_workers, mp_context=mp.get_context("spawn"),
+        initializer=_init_pair_worker, initargs=(state, level),
+    ) as pool:
+        futures = [pool.submit(_pair_job_in_worker, drug) for drug in drugs]
+        for future in futures:
+            yield future.result()
 
 
 def load_manifest(paths: Paths) -> dict[str, Any]:

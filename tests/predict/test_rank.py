@@ -327,3 +327,92 @@ def test_rank_active_is_empty_without_active_drugs(config: Config) -> None:
 def test_rank_active_puts_unknown_drugs_last(config: Config) -> None:
     predictions = [_pred("mystery-drug", rank.CALL_LIKELY_ACTIVE, 9), _pred("meropenem", rank.CALL_LIKELY_ACTIVE, 0)]
     assert rank.rank_active(predictions, config) == ["meropenem", "mystery-drug"]
+
+
+# --------------------------------------------------------------------------- #
+# Intrinsic genes never trigger the strong-marker override (intrinsic_markers.csv)
+# --------------------------------------------------------------------------- #
+
+ABAU_CARBAPENEMS = ("imipenem", "meropenem", "doripenem")
+
+
+def _abau_hits(config: Config, drug: str, *rows: tuple[str, str, str, str]) -> list[str]:
+    row = known_amr_row(_detections(*rows), config)
+    return rank.strong_marker_hits(
+        row.symbols_by_column, config.drugs[drug], row.markers, intrinsic_symbols=config.intrinsic_symbols("ABAU")
+    )
+
+
+def test_oxa_51_family_is_intrinsic_to_abau_only(config: Config) -> None:
+    for symbol in ("blaOXA-51", "blaOXA-66", "blaOXA-69", "blaOXA-71", "blaOXA-82"):
+        assert config.is_intrinsic_marker("ABAU", symbol)
+    for symbol in ("blaOXA-23", "blaOXA-24", "blaOXA-40", "blaOXA-72", "blaOXA-58", "blaOXA-48", "blaNDM-1"):
+        assert not config.is_intrinsic_marker("ABAU", symbol)
+    assert not config.is_intrinsic_marker("KPNEU", "blaOXA-66")
+    assert config.intrinsic_symbols(None) == frozenset()
+
+
+@pytest.mark.parametrize("drug", ABAU_CARBAPENEMS)
+def test_abau_with_only_oxa_66_has_no_override(config: Config, drug: str) -> None:
+    # AMRFinderPlus reports the chromosomal OXA-51-like gene with Subclass CARBAPENEM.
+    assert _abau_hits(config, drug, ("blaOXA-66", "AMR", "BETA-LACTAM", "CARBAPENEM")) == []
+    # Without the species exclusion the subclass rule would fire on every A. baumannii.
+    assert _hits(config, drug, ("blaOXA-66", "AMR", "BETA-LACTAM", "CARBAPENEM")) == ["blaOXA-66"]
+
+
+@pytest.mark.parametrize("symbol", ["blaOXA-23", "blaOXA-24", "blaOXA-40", "blaOXA-58", "blaNDM-1"])
+@pytest.mark.parametrize("drug", ABAU_CARBAPENEMS)
+def test_abau_acquired_carbapenemase_still_overrides(config: Config, symbol: str, drug: str) -> None:
+    assert _abau_hits(config, drug, (symbol, "AMR", "BETA-LACTAM", "CARBAPENEM")) == [symbol]
+    # Also next to the intrinsic OXA-66 that every isolate carries.
+    hits = _abau_hits(
+        config, drug, ("blaOXA-66", "AMR", "BETA-LACTAM", "CARBAPENEM"), (symbol, "AMR", "BETA-LACTAM", "CARBAPENEM")
+    )
+    assert hits == [symbol]
+
+
+def test_intrinsic_exclusion_applies_to_the_column_prefix_rule(config: Config) -> None:
+    # A per-allele column that a prefix would match (hypothetical config) is still excluded.
+    from dataclasses import replace as dc_replace
+
+    drug_cfg = dc_replace(config.drugs["meropenem"], strong_markers=("gene_blaoxa_6",), strong_subclasses=())
+    symbols = {"gene_blaoxa_66": ("blaOXA-66",)}
+    assert rank.strong_marker_hits(symbols, drug_cfg) == ["blaOXA-66"]
+    assert rank.strong_marker_hits(symbols, drug_cfg, intrinsic_symbols=config.intrinsic_symbols("ABAU")) == []
+
+
+def test_training_time_mask_excludes_intrinsic_columns_identically(config: Config) -> None:
+    """Training-time calls (strong_marker_mask) drop the same intrinsic genes as prediction."""
+    from dataclasses import replace as dc_replace
+
+    excluded = rank.intrinsic_columns(config.intrinsic_symbols("ABAU"))
+    assert "gene_blaoxa_66" in excluded and "gene_blaoxa_51" in excluded
+    assert "gene_blaoxa_23" not in excluded and "gene_blaoxa" not in excluded  # family column may hold OXA-23
+    known = pd.DataFrame(
+        {
+            "gene_blaoxa_66": [1, 1, 1, 0],
+            "gene_blaoxa_23": [0, 1, 0, 0],
+            "gene_blandm_1": [0, 0, 1, 0],
+        }
+    )
+    drug_cfg = dc_replace(config.drugs["meropenem"], strong_markers=("gene_blaoxa_", "gene_blandm"))
+    assert rank.strong_marker_mask(known, drug_cfg).tolist() == [True, True, True, False]
+    assert rank.strong_marker_mask(known, drug_cfg, exclude_columns=excluded).tolist() == [False, True, True, False]
+    # The shipped meropenem config: OXA-66 alone never forces inactive; NDM-1 does.
+    assert rank.strong_marker_mask(known, config.drugs["meropenem"], exclude_columns=excluded).tolist() == [
+        False, False, True, False,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("pred", "q_up", "q_low", "expected"),
+    [(4.0, 0.0, 0.0, (4.0, 4.0)), (4.0, 2.0, 1.0, (2.0, 16.0)), (4.0, 0.0, 3.0, (0.5, 4.0)), (1.0, 1.5, 0.5, (0.5, 4.0))],
+)
+def test_conformal_band_asym_snaps_outward(pred: float, q_up: float, q_low: float, expected: tuple[float, float]) -> None:
+    assert rank.conformal_band_asym(pred, q_up, q_low) == expected
+
+
+@pytest.mark.parametrize(("q_up", "q_low"), [(-1.0, 1.0), (1.0, float("inf")), (float("nan"), 1.0)])
+def test_conformal_band_asym_rejects_bad_q(q_up: float, q_low: float) -> None:
+    with pytest.raises(ValueError):
+        rank.conformal_band_asym(4.0, q_up, q_low)

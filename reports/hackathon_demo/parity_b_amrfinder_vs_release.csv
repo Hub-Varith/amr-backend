@@ -1,0 +1,6 @@
+species,genome_id,n_release_nonzero,n_ours_nonzero,gene_point_agree,all_cols_agree,only_release,only_ours,count_diff,ncbi_style
+KPNEU,1284787.3,26,26,17/17,26/26,,,,"emrD,gyrA_D87N=POINT,gyrA_S83I=POINT,fosA,cmlA1,ompK35_E42RfsTer47=POINT,aac(3)-IVa,aph(4)-Ia,blaSHV-12,sul3,blaKPC-3,oqxA,oqxB,blaOXA-9,estX-3,aadA2=PARTIAL_END_OF_CONTIG,parC_S80I=POINT"
+ECOLI,1045010.64,18,19,10/11,17/19,,gene_emrd=1,n_class_efflux:1->2,"gyrA_S83L=POINT,acrF=MISTRANSLATION,emrD,blaEC,mdtM,dfrA8,blaTEM-1,sul2,aph(3'')-Ib,aph(6)-Id,tet(A),floR"
+SAUR,1280.15878,23,23,16/16,23/23,,,,"mepR_A103V=POINT,mepA,murA_G257D=POINT,tet(K),fosB,tet(38),msr(A),mph(C),blaI,blaR1,blaZ,ant(6)-Ia=PARTIAL,sat4,aph(3')-IIIa,mecA,mecR1=PARTIAL"
+PAER,287.1000,25,24,16/19,21/26,gene_aph_3=1;gene_cml=1,point_nalc_g71e=1,n_class_aminoglycoside:4->3;n_class_beta_lactam:4->5,"mexX,parC_S87W=POINT,gyrA_T83I=POINT,mexA,aadA2,blaCARB-2,blaOXA-395,aph(3')-IIb,blaPDC-3,nalC_G71E=POINT,pmrB_V15I=POINT,fosA=MISTRANSLATION,mexE,catB7,blaOXA-9,cmlB=PARTIAL,sul1,aac(6')-Ib=PARTIAL_E"
+ABAU,1409926.3,27,27,18/18,27/27,,,,"abaF,blaOXA-69,cxpE,blaADC-191,amvA,ant(3'')-IIa,gyrA_S81L=POINT,aph(3')-Ia,aac(3)-Ia,sul1,adeC,dfrA1,sat2,sul2,tet(B),aph(6)-Id=PARTIAL_END_OF_CONTIG,blaOXA-23,aadA1=PARTIAL_END_OF_CONTIG"

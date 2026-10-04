@@ -136,6 +136,7 @@ class XgbAft(ModelBundleMixin):
         hi: np.ndarray,
         feature_names: list[str],
         groups: np.ndarray | None = None,
+        sample_weight: np.ndarray | None = None,
     ) -> "XgbAft":
         """Fit on intervals ``(lo, hi]`` in mg/L.
 
@@ -147,6 +148,10 @@ class XgbAft(ModelBundleMixin):
             groups: Optional per-row group labels (e.g. lineage cluster) used only
                 to keep whole groups on one side of the early-stopping holdout.
                 Never used as a feature.
+            sample_weight: Optional positive per-row weights (training up-weights exact
+                MIC rows; see ``TrainConfig.exact_weight``). Normalised to mean 1 over the
+                fit rows and applied to the early-stopping fit, the holdout metric and the
+                final fit alike. ``None`` = every row weight 1.
         """
         matrix = to_csr(X)
         low, high = validate_intervals(lo, hi, matrix.shape[0])
@@ -154,6 +159,12 @@ class XgbAft(ModelBundleMixin):
         n = matrix.shape[0]
         if n < 2:
             raise ValueError("need at least 2 rows to fit XgbAft")
+        weight: np.ndarray | None = None
+        if sample_weight is not None:
+            weight = np.asarray(sample_weight, dtype=np.float64).ravel()
+            if weight.size != n or not np.isfinite(weight).all() or (weight <= 0).any():
+                raise ValueError(f"sample_weight must hold {n} finite positive values")
+            weight = weight / weight.mean()
 
         fit_idx, hold_idx = holdout_split(n, self.holdout_fraction, self.seed, groups)
         self.tuning_ = []
@@ -165,8 +176,10 @@ class XgbAft(ModelBundleMixin):
             scale = float(self.params["aft_loss_distribution_scale"])
             n_rounds = self.fallback_rounds
         else:
-            d_fit = self._dmatrix(take_rows(matrix, fit_idx), names, low[fit_idx], high[fit_idx])
-            d_hold = self._dmatrix(take_rows(matrix, hold_idx), names, low[hold_idx], high[hold_idx])
+            d_fit = self._dmatrix(take_rows(matrix, fit_idx), names, low[fit_idx], high[fit_idx],
+                                  None if weight is None else weight[fit_idx])
+            d_hold = self._dmatrix(take_rows(matrix, hold_idx), names, low[hold_idx], high[hold_idx],
+                                   None if weight is None else weight[hold_idx])
             for candidate in self.scales:
                 params = {**self.params, "aft_loss_distribution_scale": candidate}
                 booster = xgb.train(
@@ -192,12 +205,13 @@ class XgbAft(ModelBundleMixin):
             n_rounds = max(self.min_rounds, int(best["best_iteration"]) + 1)
 
         final_params = {**self.params, "aft_loss_distribution_scale": scale}
-        d_all = self._dmatrix(matrix, names, low, high)
+        d_all = self._dmatrix(matrix, names, low, high, weight)
         self.booster_ = xgb.train(final_params, d_all, num_boost_round=n_rounds)
         self.params = final_params
         self.feature_names_ = names
         self.n_rounds_ = int(n_rounds)
         self.scale_ = scale
+        self.weighted_ = weight is not None
         self.n_train_ = int(n)
         self.n_holdout_ = int(hold_idx.size)
         logger.info(
@@ -259,6 +273,7 @@ class XgbAft(ModelBundleMixin):
                 "n_train": self.n_train_,
                 "n_holdout": self.n_holdout_,
                 "tuning": self.tuning_,
+                "sample_weighted": bool(getattr(self, "weighted_", False)),
                 "xgboost_version": xgb.__version__,
             },
         )
@@ -302,9 +317,12 @@ class XgbAft(ModelBundleMixin):
         feature_names: list[str],
         lo: np.ndarray | None = None,
         hi: np.ndarray | None = None,
+        weight: np.ndarray | None = None,
     ) -> xgb.DMatrix:
         dmat = xgb.DMatrix(X, feature_names=feature_names)
         if lo is not None and hi is not None:
             dmat.set_float_info("label_lower_bound", np.asarray(lo, dtype=np.float32))
             dmat.set_float_info("label_upper_bound", np.asarray(hi, dtype=np.float32))
+        if weight is not None:
+            dmat.set_weight(np.asarray(weight, dtype=np.float32))
         return dmat

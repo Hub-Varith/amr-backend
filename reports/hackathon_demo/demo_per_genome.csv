@@ -1,0 +1,16 @@
+species,genome_id,species_pred,n_lab,vme,me,agree,uncertain,no_call,ea,ranked_active
+KPNEU,573.24243,KPNEU,26,0,0,20,3,0,6/6,
+KPNEU,573.12886,KPNEU,19,0,0,8,10,0,5/5,"trimethoprim-sulfamethoxazole, tobramycin, amoxicillin-clavulanic-acid, ampicillin-sulbactam, ceftriaxone"
+KPNEU,574.20,KPNEU,24,0,0,17,5,0,7/7,
+ECOLI,562.42835,ECOLI,22,0,0,6,14,0,1/4,"trimethoprim-sulfamethoxazole, ciprofloxacin, levofloxacin, cefepime"
+ECOLI,562.145336,ECOLI,18,0,0,6,4,0,1/2,"tetracycline, trimethoprim-sulfamethoxazole, ciprofloxacin, ampicillin-sulbactam, ceftriaxone"
+ECOLI,562.42842,ECOLI,22,1,0,6,14,0,1/1,"trimethoprim-sulfamethoxazole, ciprofloxacin, levofloxacin, cefepime"
+SAUR,1280.16760,SAUR,11,0,1,3,7,0,3/4,
+SAUR,1280.51740,SAUR,3,0,0,1,2,0,0/1,"cefoxitin, oxacillin, levofloxacin"
+SAUR,1280.25977,SAUR,8,0,0,0,8,0,4/4,levofloxacin
+PAER,287.5972,PAER,13,0,0,0,13,0,4/6,
+PAER,287.47321,PAER,7,0,0,0,6,0,4/5,
+PAER,287.6329,PAER,13,0,0,7,6,0,5/5,
+ABAU,470.7392,ABAU,17,0,0,7,10,0,6/7,trimethoprim-sulfamethoxazole
+ABAU,470.7513,ABAU,13,0,0,11,1,0,3/5,"trimethoprim-sulfamethoxazole, tetracycline, levofloxacin, ampicillin-sulbactam, ciprofloxacin"
+ABAU,470.7393,ABAU,17,0,0,7,10,0,5/6,trimethoprim-sulfamethoxazole

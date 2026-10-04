@@ -1,9 +1,21 @@
 # Genome-to-MIC — Data Contract
 
-**Status:** draft v0.3 · **Owner:** Hub · **Last updated:** 2026-10-03
+**Status:** draft v0.5 · **Owner:** Hub · **Last updated:** 2026-10-03
 
-**Changelog:** v0.3 (2026-10-03): review fixes. Stage text was updated in place for
-stages 2, 4, 6, 7, 8, 11 and 12, section 3 (`drugs.yaml`), section 4 (how the report
+**Changelog:** v0.5 (2026-10-03): optimisation and hardening round on the provisional
+5-species release (cv-only). Default band is the tuned asymmetric cross-conformal band
+with an active-call gate (`conformal.json` gains keys; stage 10, 11 and 12 band wording
+and the stage-12 call table updated); exact-MIC rows weigh 2x in the AFT fit
+(`params.json` `sample_weighted`); `TrainConfig` gains `exact_weight`, `band`,
+`band_alpha_grid`, `band_alpha_low`, `band_vme_target`, so every `run_id` changes; new
+`configs/intrinsic_markers.csv` (section 3, stage 12 override 2); release feature
+converter (`feature_naming`, `feature_spec.json`); bundles without training sketches now
+load with every call low confidence; known feature columns are ordered by prefix group;
+report gains a call-safety summary. No column, dtype or file renamed. Section 7 rows
+marked v0.5. v0.4 (2026-10-03): real-data port (imported releases, `train --cv-only`,
+panel caps, cross-conformal CV bands, call-level metrics, `compare-oof`, CLSI 2024 call
+standard); section 7 rows marked v0.4. v0.3 (2026-10-03): review fixes.
+Stage text was updated in place for stages 2, 4, 6, 7, 8, 11 and 12, section 3 (`drugs.yaml`), section 4 (how the report
 checks it) and section 6. Changes: strict breakpoint-year lookup; combination and
 decimal MIC parsing; merged-row provenance; one-step "exact" MIC as the EA,
 exact-agreement and band-coverage denominator; LOLO lineages reserved as train
@@ -541,7 +553,7 @@ multi-species model.
 | `species`, `drug` | str | |
 | `split` | str | Which evaluation set |
 | `pred_mic` | float | Point prediction, mg/L, rounded **up** to the next doubling step |
-| `band_low`, `band_high` | float | 90% conformal band, mg/L |
+| `band_low`, `band_high` | float | Conformal band, mg/L. Tuned asymmetric band by default: nominal two-sided coverage `1 - alpha_up - alpha_low` = 87 to 94.5 %. See section 7 v0.5 |
 | `lab_lower`, `lab_upper` | float | Ground truth interval, copied from stage 2 |
 | `pred_sir` | str | `S` / `I` / `R` after applying breakpoints |
 | `lab_sir` | str | |
@@ -568,7 +580,7 @@ Rows are in the file's column order (VME first).
 | `essential_agreement` | Within ±1 doubling step of the lab MIC, over rows with an **exact** lab MIC (interval of one doubling step, `genome2mic.mic.exact_interval_mask`, and preds `lab_exact` true, so never disk diffusion; section 7); censored (`<=`, `>`) and multi-step S/I/R-only intervals are excluded. Denominator `n_exact`. Target ≥ 90% |
 | `exact_agreement` | Same doubling step, over the same exact rows (denominator `n_exact`) |
 | `auroc` | Predicted MIC as a score for R vs S |
-| `band_coverage` | Share of exact lab MICs inside the 90% band (the rows the conformal `q` is calibrated on). Denominator `n_band`. Should be ≈ 0.90. On `cv` rows the bands are cross-conformal (v0.4: fold f's rows use the `q` of the other folds' residuals), so CV coverage is an out-of-fold estimate; preds written before v0.4 used one in-sample `q` |
+| `band_coverage` | Share of exact lab MICs inside the conformal band (the rows the band is calibrated on). Denominator `n_band`. Should be near the band's nominal coverage: 0.90 for the symmetric band, `1 - alpha_up - alpha_low` (0.87 to 0.945) for the tuned band (v0.5, section 7). On `cv` rows the bands are cross-conformal (v0.4: fold f's rows use the `q` of the other folds' residuals), so CV coverage is an out-of-fold estimate; preds written before v0.4 used one in-sample `q` |
 | `band_width_steps` | Mean band width in doubling steps, over every row with a band |
 | `n` | Rows in the group (species × drug × model × evaluation set) |
 
@@ -622,7 +634,7 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | ----- | ---- | ----- | ------- |
 | `drug` | str | no | Normalized drug name |
 | `pred_mic` | float | yes | Null when an override skips the model |
-| `band_low`, `band_high` | float | yes | 90% conformal band. All three MIC fields are null together |
+| `band_low`, `band_high` | float | yes | Conformal band. Tuned asymmetric band by default: nominal two-sided coverage `1 - alpha_up - alpha_low` = 87 to 94.5 % (section 7 v0.5). All three MIC fields are null together |
 | `s_breakpoint`, `r_breakpoint` | float | yes | Breakpoints used for the call |
 | `call` | str | no | `likely_active` / `uncertain` / `likely_inactive` |
 | `margin_steps` | int | yes | Doubling steps below the S breakpoint |
@@ -636,6 +648,7 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | `band_high` ≤ S breakpoint | Likely active |
 | `band_low` > R breakpoint | Likely inactive |
 | Otherwise | Uncertain — wait for lab |
+| Training could not certify call VME for the pair (`conformal.json` `active_gate_open` false) and the band says likely active | Uncertain, `margin_steps` null, reason `likely_active withheld: ...` (v0.5) |
 
 **Overrides, applied after the model:**
 
@@ -653,6 +666,11 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
      carbapenemases that share a family column with non-carbapenemases
      (blaOXA-23/-58 with blaOXA-1 in `gene_blaoxa`, blaGES-5 with blaGES-1 in
      `gene_blages`) or that no prefix covers still force the call.
+   - Intrinsic genes (v0.5): symbols listed for the species in
+     `configs/intrinsic_markers.csv` (the OXA-51 family for ABAU, which AMRFinderPlus
+     reports with Subclass `CARBAPENEM`) never trigger either rule. Their per-allele
+     `gene_` columns are also skipped by the training-time column rule; a family column
+     (`gene_blaoxa`) is never skipped. They stay model features.
 
    `reasons` lists the triggering marker symbols. The model's MIC fields are kept.
 3. Out of range (species not covered, or far from all training genomes) → all calls
@@ -685,6 +703,7 @@ Checked into the repo, reviewed by the whole team.
 | `configs/breakpoints/clsi_<version>.csv` | Same shape, for rows labelled CLSI |
 | `configs/natural_resistance.csv` | `species`, `drug` — always inactive |
 | `configs/keep_variant.csv` | Gene families where the exact variant is kept |
+| `configs/intrinsic_markers.csv` | `species`, `symbol`, `family`, `note` — intrinsic chromosomal genes that never trigger override 2 (v0.5; section 7) |
 
 **Breakpoints vary by infection site** for some drugs (meropenem is stricter for
 meningitis; some drugs are urinary-only). We use bloodstream breakpoints. Record the
@@ -777,12 +796,19 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 
 ---
 
-## 7. Additions (v0.2, v0.3)
+## 7. Additions (v0.2 to v0.5)
 
 Columns and files added on top of v0.1, sorted by file (the v0.4 rows from the real-data port are grouped
-after the first row). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
+after the first row, then the v0.5 rows from the optimisation and hardening round). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
 Rows marked v0.3 came with the review fixes, which also changed stage text above (see
-the changelog). A v0.3 row that replaces a v0.2 row says so and says what changed.
+the changelog). A row that replaces an earlier row says so and says what changed.
+
+v0.5 summary: the default band is the tuned asymmetric cross-conformal band with an
+active-call gate, and exact-MIC rows weigh 2x in the AFT fit. Both are fitted inside the
+training folds; the test split is never read. Not shipped (no gain over the tuned band
+beyond fold noise on the summed lab-S active rate of pairs passing call VME): monotone
+constraints and nested xgboost tuning. B1 and B2 are unchanged. No column, dtype or file
+was renamed.
 
 | Where | Addition | Written by | Meaning |
 | ----- | -------- | ---------- | ------- |
@@ -801,6 +827,19 @@ the changelog). A v0.3 row that replaces a v0.2 row says so and says what change
 | `results/preds_<SPECIES>_<drug>.parquet` | `train --cv-only` (v0.4) | train | Only `split == 'cv'` rows; no test or LOLO predictions and no `results/test_ledger.csv` row. The final bundle is still fitted on all train rows. The leakage check "test set touched once" passes with "test set not scored" when no preds file has a test row and there is no ledger |
 | `results/metrics.parquet`, `results/metrics_by_distance.parquet` | `call_vme_rate, call_me_rate, active_call_rate_s, uncertain_rate` right after `vme_rate`; `n_call, n_call_lab_r, n_call_lab_s` after `n_lab_s`; `_rederived` twins right after `vme_rate_rederived` and after `n_lab_s_rederived` (v0.4) | evaluate | Call-level metrics against `lab_sir` (as reported) and `lab_sir_rederived`: `call_vme_rate` = lab R called likely_active / lab R (the call-level very major error); `call_me_rate` = lab S called likely_inactive / lab S; `active_call_rate_s` = lab S called likely_active / lab S (usefulness); `uncertain_rate` = uncertain / `n_call` (rows with a call and a lab category). NaN rates and 0 counts without a `call` column |
 | `results/<dir>/oof_compare.{csv,md}`, `oof_compare_summary.csv`, `oof_compare_rows.csv` | new files (v0.4) | `compare-oof` | Our `split == 'cv'` preds (every model with a prediction) against a reference OOF preds table on the intersection of `(species, genome_id, drug)` keys predicted by every model, with equal lab intervals, under one breakpoint table (call standard, or `--breakpoints <csv>`): `pred_sir`, `lab_sir`, `lab_sir_rederived` and `call` are recomputed identically for every model (calls from each model's own band). Columns VME first (raw, then call-level), ME, CA, EA / exact agreement / band coverage on exact lab MICs, band width, n's |
+| `configs/intrinsic_markers.csv` | new file (v0.5) | config | Columns `species, symbol, family, note`. Ships the 403 ABAU symbols of AMRFinderPlus family `blaOXA-51_fam` (DB 2026-08-07.1 `AMRProt.fa`): the chromosomal OXA-51-like genes every *A. baumannii* carries, which AMRFinderPlus reports with Subclass `CARBAPENEM`. Matched case-insensitively (`Config.intrinsic_symbols`). They never trigger override 2: the prediction pipeline skips them under both rules (`rank.strong_marker_hits`), and the training-time column rule (preds `call`, the band tuning, `compare-oof`) skips their exact per-allele `gene_` columns (`rank.intrinsic_columns`); a family column such as `gene_blaoxa` is never skipped. They stay model features. Optional file: absent -> warning and no exclusion; unknown species, empty or duplicate symbol -> ConfigError. Not modelled: ISAba1 upstream of an OXA-51-like gene (raises carbapenem MICs) |
+| `models/` | imported-release variant: prediction (v0.5; replaces the last clause of the v0.4 `models/` row) | predict | A bundle without `models/<SPECIES>/train_sketches.npz` now loads: `nearest_training_distance` is null and `in_range` false, so every call is flagged low confidence (override 3), never silently in range. `models/reference_sketches.npz` (species ID) is still required |
+| `models/manifest.json` | `feature_naming` (str: `genome2mic` (default when absent) or `ncbi_release`) (v0.5) | train / `release-feature-spec` | `ncbi_release` when the bundle was trained on an imported data release (`IMPORTED_RELEASE.json`): its `known_amr` columns follow the NCBI release rules (develop `ncbi_known_amr.py`), not `features/known_amr.py`. The prediction pipeline then converts AMRFinderPlus output with `predict/release_features.py` (every `Type == AMR` row mapped to NCBI `AMR_genotypes` tags; `MISTRANSLATION` skipped; only `bla` alleles collapse except blaKPC/NDM/VIM/IMP/GES/OXA; `n_class_` from the DB class table) and refuses to load the bundle (BundleError) without `models/<SPECIES>/feature_spec.json`. Unknown values are a bundle error |
+| `models/<SPECIES>/feature_spec.json` | `feature_naming`, `organism`, `keep_variant_families`, `skipped_tags`, `amrfinder_db_version`, `notes`, `class_by_symbol` (v0.5) | train (when `amrfinder` is on PATH) / `release-feature-spec --root ROOT [--amrfinder-db DIR]` | Release feature rules plus the symbol -> AMRFinderPlus class table (`fam.tsv`, `AMRProt-mutation.tsv`, `AMR_DNA-<organism>.tsv`; a missing organism table is empty). A local DB version different from the release's `tool_versions.json` `amrfinder_db` is logged and recorded in `notes` |
+| `models/<SPECIES>/<drug>/conformal.json` | `band_kind`, `q_up`, `q_low`, `alpha_up`, `alpha_low`, `active_gate_open`, `inner_call_vme_ucb`, `vme_target`, `band_cross_conformal_by_fold` (v0.5) | train | Tuned asymmetric band (`train --band asym_tuned`, the default; `band_kind` `asymmetric_tuned`). Residuals are signed, `log2(lab_upper) - log2(pred_mic)` (capped, rounded-up prediction), on exact (`lab_exact`) OOF rows. `q_up` is the finite-sample `1 - alpha_up` quantile of the residual, `q_low` the `1 - alpha_low` quantile (`alpha_low = 0.05`) of `-residual`; both are floored at 0, so the band always contains `pred_mic`. `alpha_up` is the narrowest level of the grid `(0.08, 0.05, 0.025, 0.01, 0.005)` that passes the nested cross-conformal call-VME rule: each calibration fold g gets a band calibrated on the other calibration folds, its calls use the pipeline rule and overrides (column-prefix half of override 2) and are compared with lab S/I/R re-derived under the call breakpoint; VMEs and lab-R rows are pooled **only over the folds that issue at least one `likely_active` call** at that level, and the level passes when `(n_VME + 1) / (n_lab_R + 1) <= vme_target` (0.015, so at least 66 lab-R rows in the calling folds). A level at which no fold issues an active call never passes; a stricter per-fold clause (`strict_folds`) exists but is off. `inner_call_vme_ucb` is the calling-fold UCB of the chosen level. `active_gate_open` is false when no level passes (`alpha_up` is then 0.005, the widest band, and `inner_call_vme_ucb` null) or when the chosen upper level cannot be certified on the calibration residuals (too few rows; `q_up` then falls back to `max(2, largest residual)`): the pipeline then turns `likely_active` into `uncertain`. Pairs with no call breakpoint, or with natural resistance, are not tuned: `alpha_up = 0.05`, gate open. The bundle values are tuned on every CV fold's OOF rows under the extra rules of the next row. `band_cross_conformal_by_fold` records, per fold, the values used for that fold's CV rows, tuned and calibrated on the other folds only. For older readers `q` repeats `q_up` and `q_cross_conformal_by_fold` holds each fold's `q_up`; `alpha` and `n_residuals` keep their meaning (symmetric level 0.10; exact OOF residuals). With `band = "symmetric"` none of these keys is written and the v0.4 `+-q` band applies |
+| `models/<SPECIES>/<drug>/conformal.json` | `q_low_widened`, `passing_alpha_up`, `allowed_alpha_up`, `oof_call_vme_ucb` (v0.5) | train | `q_low_widened` (bool): `conformal.robust_q_low` widened `q_low` because the leave-one-fold-out lower half-widths of the calibration folds disagreed by more than one doubling step; `q_low` is then the largest of the pooled value, every leave-one-fold-out value and the symmetric 90 % half-width. `passing_alpha_up` (list of float): every grid level that passed the nested call-VME rule on the calibration folds (narrowest first; empty for untuned pairs). `allowed_alpha_up` (list of float or null; bundle only): the levels that passed in every CV fold whose cross-conformal gate opened (`train.bundle_allowed_alphas`); the bundle's `alpha_up` is the narrowest level in both lists, and `active_gate_open` is false when the intersection is empty (including when no fold opened its gate). `oof_call_vme_ucb` (float or null; bundle only): `(k + 1) / (n_lab_R + 1)` of the pair's out-of-fold CV calls pooled over the folds that issued at least one `likely_active` call (`conformal.calling_fold_vme`); when it exceeds 1.5 % (or no fold called) `active_gate_open` is false. Null when not checked (uncallable pair, or gate already closed). `allowed_alpha_up` and `oof_call_vme_ucb` are null in the per-fold entries of `band_cross_conformal_by_fold`. The prediction pipeline reads only `q_up`, `q_low` and `active_gate_open` of the band keys (BundleError when `q_up`/`q_low` are not finite non-negative numbers or `active_gate_open` is not a boolean) |
+| `models/<SPECIES>/<drug>/features.json` | `feature_names` order of the known columns (v0.5) | train | Known-AMR columns are grouped `gene_`, then `point_`, then `n_class_` (`select.known_feature_columns`), table order within a group, so the model's feature order (and xgboost column sampling) does not depend on a release's column layout. Bundles keep the order they recorded |
+| `models/<SPECIES>/<drug>/meta.json` | `train_config.exact_weight`, `train_config.band`, `train_config.band_alpha_grid`, `train_config.band_alpha_low`, `train_config.band_vme_target` (v0.5) | train | Part of the `run_id` hash (CLI `train --exact-weight`, `--band {asym_tuned,symmetric}`). `train --workers N` (pairs of a species in parallel worker processes) is not part of the hash: outputs do not depend on it |
+| `models/<SPECIES>/<drug>/params.json` | `sample_weighted` (bool) (v0.5) | train | True when the AFT booster was fitted with sample weights: `TrainConfig.exact_weight` (default 2.0) on `lab_exact` rows and 1 elsewhere, normalised to mean 1 over the fit rows and applied to the early-stopping fit, the holdout metric and the final fit. Applies to every AFT model (not B1 or B2); every row still trains and no label is imputed. False when `exact_weight == 1` |
+| `results/preds_<SPECIES>_<drug>.parquet` | tuned CV bands and gated calls (v0.5) | train | `band_low` / `band_high` of fold f's CV rows come from the tuned asymmetric band of the other folds; test and LOLO rows use the bundle's band. `call` is the v0.4 rule followed by the gate: `likely_active` becomes `uncertain` when that fold's (or the bundle's) `active_gate_open` is false |
+| prediction report `reasons` | `"likely_active withheld: ..."` (`rank.ACTIVE_GATE_REASON`) (v0.5) | predict | Added when the band alone would give `likely_active` but the bundle's `active_gate_open` is false. The call is then `uncertain` and `margin_steps` is null. A strong-marker or natural-resistance override still wins (`likely_inactive`, override reasons only) |
+| `results/report.md` | CV band-coverage header and note (v0.5; replaces the v0.3 footnote row) | report | Header `Band coverage % (tuned band; exact lab MICs; cross-conformal, see note)`. The note says CV bands are cross-conformal (an out-of-fold estimate, not the calibration set) and describes the tuned band, the calling-fold rule, the bundle restrictions and the gate |
+| `results/report.md` | "Call-safety summary" section and honesty bullets (v0.5) | report | Per species (main model, CV rows, lab S/I/R re-derived, VME first): pairs passing call VME <= 1.5 % pooled and over calling folds only; how many passing pairs make active calls vs pass only because no active call is made (gate closed) or natural resistance / no call breakpoint applies; pairs failing over calling folds (pooled, calling-fold and worst-fold VME); pairs with OOF band coverage < 85 %; per-species counts of rows whose reported S/I/R contradicts the S/I/R re-derived from their MIC. The how-to-read section adds bullets on exact-row weighting, selection bias (about 6 point-model candidates and 29 band variants compared on the same OOF rows), not-fully-nested cross-conformal tuning, folds as NCBI SNP clusters (not new lineages), and splitting every pass count as above |
 | `data/interim/_references/references.msh` | new file (v0.3) | Snakefile (`mash_references`) | Mash sketch of every `data/raw/references/<SPECIES>.fasta`, the reference side of every per-genome `mash dist` |
 | `data/processed/drop_log_<stage>.csv` | new files | every stage | `stage, reason, n_dropped, detail` for every filter, including zero counts |
 | `data/processed/drop_log_evaluate.csv` | reason `lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage` (v0.3) | evaluate | Count of prediction rows left out of the exact-MIC metrics (not dropped from the preds) |

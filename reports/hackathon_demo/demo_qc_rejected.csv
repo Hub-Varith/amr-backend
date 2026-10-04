@@ -1,0 +1,5 @@
+genome_id,species_lab,species_pred,qc_pass,n_predictions,qc_line
+573.17927,KPNEU,,False,0,"Sample 573.17927: 2 contig(s), 5598970 bp, N50 5141392, species=None (reference distance 0.05631), qc_pass=False [too_distant]"
+562.143964,ECOLI,,False,0,"Sample 562.143964: 454 contig(s), 8860996 bp, N50 81721, species=None (reference distance 0.05172), qc_pass=False [too_distant]"
+287.5689,PAER,,False,0,"Sample 287.5689: 4 contig(s), 7247865 bp, N50 6586916, species=None (reference distance 0.05587), qc_pass=False [too_distant]"
+287.5751,PAER,,False,0,"Sample 287.5751: 4 contig(s), 7245771 bp, N50 6584825, species=None (reference distance 0.05609), qc_pass=False [too_distant]"

@@ -314,11 +314,21 @@ def test_load_raises_file_not_found_without_reference_sketches(models_dir: Path,
         pipe.load()
 
 
-def test_load_raises_file_not_found_without_train_sketches(models_dir: Path, configs_dir: Path) -> None:
+def test_bundle_without_train_sketches_reports_unknown_distance_as_low_confidence(
+    models_dir: Path, configs_dir: Path, genomes: dict[str, Path]
+) -> None:
+    """A bundle trained on an imported release ships no training sketches: it loads, the
+    distance is null and the report is never ``in_range`` (calls flagged low confidence)."""
     (models_dir / SPECIES / "train_sketches.npz").unlink()
-    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
-    with pytest.raises(FileNotFoundError):
-        pipe.load()
+    pipe = PredictionPipeline(
+        models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=RecordingUnitigQuery()
+    )
+    report = pipe.run(genomes["clean"], "FAKE-NO-TRAIN-SKETCHES")
+    PredictionReport.model_validate(report)
+    assert report["species"] == SPECIES
+    assert report["nearest_training_distance"] is None
+    assert report["in_range"] is False
+    assert report["predictions"]
 
 
 def test_available_models_lists_manifest_drugs(pipeline: PredictionPipeline) -> None:
@@ -1259,4 +1269,61 @@ def test_malformed_panel_caps_are_a_bundle_error(models_dir: Path, configs_dir: 
     conformal_path.write_text(json.dumps(payload))
     pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
     with pytest.raises(BundleError, match="cap_low_log2"):
+        pipe.load()
+
+
+# --------------------------------------------------------------------------- #
+# Tuned asymmetric band + active-call gate (conformal.json q_up / q_low / active_gate_open)
+# --------------------------------------------------------------------------- #
+
+
+def _set_asym_band(models_dir: Path, drug: str, *, q_up: float, q_low: float, gate: bool) -> None:
+    path = models_dir / SPECIES / drug / "conformal.json"
+    conf = json.loads(path.read_text())
+    conf.update({"q": q_up, "q_up": q_up, "q_low": q_low, "active_gate_open": gate, "band_kind": "asymmetric_tuned",
+                 "alpha_up": 0.025, "alpha_low": 0.05})
+    path.write_text(json.dumps(conf))
+
+
+def test_asymmetric_band_from_the_bundle_is_applied(tmp_path: Path, configs_dir: Path, dna: dict[str, str], genomes: dict[str, Path]) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _set_asym_band(models, "meropenem", q_up=0.0, q_low=2.0, gate=True)
+    pipe = PredictionPipeline(models, configs_dir)
+    pipe.load()
+    bundle = pipe.species_bundles[SPECIES].drugs["meropenem"]
+    assert (bundle.q, bundle.q_low, bundle.active_gate_open) == (0.0, 2.0, True)
+    clean = by_drug(pipe.run(genomes["clean"], "ASYM-CLEAN"))
+    # pred 0.0625: band (0.0625 / 2**2, 0.0625 * 2**0), the same asym_band training writes.
+    assert (clean["meropenem"]["band_low"], clean["meropenem"]["band_high"]) == (0.015625, 0.0625)
+    assert clean["meropenem"]["call"] == "likely_active"
+
+
+def test_closed_gate_withholds_likely_active(tmp_path: Path, configs_dir: Path, dna: dict[str, str], genomes: dict[str, Path]) -> None:
+    from genome2mic.predict import rank  # noqa: PLC0415
+
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _set_asym_band(models, "meropenem", q_up=0.0, q_low=2.0, gate=False)
+    pipe = PredictionPipeline(models, configs_dir)
+    pipe.load()
+    report = pipe.run(genomes["clean"], "GATE-CLEAN")
+    PredictionReport.model_validate(report)
+    mem = by_drug(report)["meropenem"]
+    assert mem["call"] == "uncertain" and mem["margin_steps"] is None
+    assert rank.ACTIVE_GATE_REASON in mem["reasons"]
+    assert "meropenem" not in report["ranked_active"]
+    # The strong-marker override still wins for a KPC carrier.
+    kpc = by_drug(pipe.run(genomes["kpc"], "GATE-KPC"))["meropenem"]
+    assert kpc["call"] == "likely_inactive" and kpc["override"] == "strong_marker"
+
+
+@pytest.mark.parametrize("bad", [{"q_low": -1.0}, {"q_low": float("nan")}, {"active_gate_open": "yes"}])
+def test_bad_asymmetric_band_is_refused(tmp_path: Path, configs_dir: Path, dna: dict[str, str], bad: dict) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _set_asym_band(models, "meropenem", q_up=1.0, q_low=1.0, gate=True)
+    path = models / SPECIES / "meropenem" / "conformal.json"
+    conf = json.loads(path.read_text())
+    conf.update(bad)
+    path.write_text(json.dumps(conf).replace("NaN", "NaN"))
+    pipe = PredictionPipeline(models, configs_dir)
+    with pytest.raises(BundleError, match="conformal.json"):
         pipe.load()

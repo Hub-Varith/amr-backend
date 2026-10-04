@@ -30,6 +30,12 @@ Overrides, applied by the pipeline after the model, both force ``likely_inactive
      (``blaOXA-23`` and ``blaOXA-1`` both map to ``gene_blaoxa``; ``blaGES-5`` and
      ``blaGES-1`` to ``gene_blages``) or that are not in any prefix list.
 
+   Intrinsic chromosomal genes of the species (``configs/intrinsic_markers.csv``,
+   e.g. the OXA-51-like genes every *A. baumannii* carries, which AMRFinderPlus
+   reports with Subclass ``CARBAPENEM``) never trigger either rule. Training-time
+   call metrics (:func:`strong_marker_mask`) apply the same exclusion to the
+   per-allele feature columns of those genes.
+
 Ranking: likely-active drugs sorted by ``spectrum_tier`` ascending (narrowest first),
 then ``margin_steps`` descending, then drug name.
 """
@@ -45,7 +51,7 @@ import numpy as np
 
 from genome2mic.config import SPECTRUM_TIERS, Breakpoint, Config, DrugConfig
 from genome2mic.models import conformal
-from genome2mic.predict.amr_detect import SUBTYPE_AMR, SUBTYPE_POINT, TYPE_AMR, Marker
+from genome2mic.predict.amr_detect import PREFIX_GENE, SUBTYPE_AMR, SUBTYPE_POINT, TYPE_AMR, Marker, column_name
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,7 @@ __all__ = [
     "CALL_LIKELY_ACTIVE",
     "CALL_LIKELY_INACTIVE",
     "CALL_UNCERTAIN",
+    "ACTIVE_GATE_REASON",
     "DRUG_CLASSES",
     "NATURAL_RESISTANCE_REASON",
     "OVERRIDE_NATURAL_RESISTANCE",
@@ -61,8 +68,10 @@ __all__ = [
     "call_from_band",
     "class_tokens",
     "conformal_band",
+    "conformal_band_asym",
     "display_name",
     "drug_classes",
+    "intrinsic_columns",
     "is_relevant_class",
     "margin_steps",
     "rank_active",
@@ -80,6 +89,12 @@ OVERRIDE_NATURAL_RESISTANCE = "natural_resistance"
 OVERRIDE_STRONG_MARKER = "strong_marker"
 
 NATURAL_RESISTANCE_REASON = "natural resistance"
+
+ACTIVE_GATE_REASON = (
+    "likely_active withheld: in cross-validation the model could not show that resistant isolates of this "
+    "species x drug are called likely_active in <= 1.5% of cases"
+)
+"""Reason attached when a bundle's ``active_gate_open`` is False and the band alone would say active."""
 
 # Tolerance on log2 arithmetic so grid-aligned values never lose a step to float drift.
 _LOG2_TOL = 1e-9
@@ -206,6 +221,22 @@ def conformal_band(pred_mic: float, q: float) -> tuple[float, float]:
     return float(low[0]), float(high[0])
 
 
+def conformal_band_asym(pred_mic: float, q_up: float, q_low: float) -> tuple[float, float]:
+    """Asymmetric band ``(pred / 2**q_low, pred * 2**q_up)`` snapped outward to the grid.
+
+    Scalar front for :func:`genome2mic.models.conformal.asym_band`, the function training
+    uses for the tuned bands (``conformal.json`` ``q_up`` / ``q_low``). Both half-widths
+    must be finite and >= 0.
+    """
+    for name, q in (("q_up", q_up), ("q_low", q_low)):
+        if not math.isfinite(q) or q < 0:
+            raise ValueError(f"{name} must be a finite non-negative number of steps, got {q!r}")
+    if not math.isfinite(pred_mic) or pred_mic <= 0:
+        raise ValueError(f"pred_mic must be a finite positive MIC, got {pred_mic!r}")
+    low, high = conformal.asym_band(np.asarray([pred_mic], dtype=np.float64), q_up, q_low)
+    return float(low[0]), float(high[0])
+
+
 def margin_steps(band_high: float, s_breakpoint: float) -> int:
     """Doubling steps between the band's upper end and the S breakpoint, as an int.
 
@@ -283,27 +314,51 @@ def call_array(
     return out
 
 
-def strong_marker_columns(columns: Iterable[str], drug_cfg: DrugConfig | None) -> list[str]:
-    """Known-AMR columns matching one of the drug's ``strong_markers`` prefixes (override 2, column rule)."""
+def intrinsic_columns(intrinsic_symbols: Iterable[str]) -> frozenset[str]:
+    """Per-allele ``gene_`` columns of intrinsic symbols (``blaOXA-66`` -> ``gene_blaoxa_66``).
+
+    Only exact per-allele columns: a family column (``gene_blaoxa``) that may also
+    hold an acquired carbapenemase is never excluded.
+    """
+    return frozenset(column_name(PREFIX_GENE, str(symbol)) for symbol in intrinsic_symbols)
+
+
+def strong_marker_columns(
+    columns: Iterable[str],
+    drug_cfg: DrugConfig | None,
+    exclude_columns: Iterable[str] = (),
+) -> list[str]:
+    """Known-AMR columns matching one of the drug's ``strong_markers`` prefixes (override 2, column rule).
+
+    ``exclude_columns`` (:func:`intrinsic_columns` of the species) are never returned.
+    """
     if drug_cfg is None or not drug_cfg.strong_markers:
         return []
+    excluded = frozenset(exclude_columns)
     return [
         str(c) for c in columns
-        if any(str(c) == prefix or str(c).startswith(prefix) for prefix in drug_cfg.strong_markers)
+        if str(c) not in excluded
+        and any(str(c) == prefix or str(c).startswith(prefix) for prefix in drug_cfg.strong_markers)
     ]
 
 
-def strong_marker_mask(known: Any, drug_cfg: DrugConfig | None) -> np.ndarray:
+def strong_marker_mask(
+    known: Any,
+    drug_cfg: DrugConfig | None,
+    exclude_columns: Iterable[str] = (),
+) -> np.ndarray:
     """Per row of a known-AMR table: any ``strong_markers`` column present (> 0).
 
     This is the column-prefix half of override 2 only. The ``strong_subclasses`` half
     needs the genome's own AMRFinderPlus detections (a family column such as
     ``gene_blaoxa`` mixes carbapenemases and narrow-spectrum enzymes), which a
     feature table does not carry, so evaluation-time calls can only be *less*
-    often forced inactive than the pipeline's -- never more.
+    often forced inactive than the pipeline's -- never more. ``exclude_columns``
+    (the species' intrinsic genes, :func:`intrinsic_columns`) never count, exactly
+    as :func:`strong_marker_hits` skips their symbols at prediction time.
     """
     n = len(known)
-    cols = strong_marker_columns(getattr(known, "columns", []), drug_cfg)
+    cols = strong_marker_columns(getattr(known, "columns", []), drug_cfg, exclude_columns)
     if not cols:
         return np.zeros(n, dtype=bool)
     values = np.asarray(known[cols].to_numpy(dtype=np.float64))
@@ -319,6 +374,7 @@ def strong_marker_hits(
     symbols_by_column: Mapping[str, Sequence[str]],
     drug_cfg: DrugConfig | None,
     markers: Iterable[Marker] = (),
+    intrinsic_symbols: Iterable[str] = (),
 ) -> list[str]:
     """Symbols of the detected markers that trigger the strong-marker override (override 2).
 
@@ -333,6 +389,8 @@ def strong_marker_hits(
         symbols_by_column: present ``gene_`` / ``point_`` column -> detected symbols.
         drug_cfg: the drug's config (``strong_markers`` are column-name prefixes).
         markers: the detections (:attr:`KnownAmrRow.markers`); needed for the subclass rule.
+        intrinsic_symbols: the species' intrinsic chromosomal genes
+            (:meth:`Config.intrinsic_symbols`, lower case); never a hit under either rule.
 
     Returns:
         Marker symbols, de-duplicated, in detection order when ``markers`` is given.
@@ -341,17 +399,20 @@ def strong_marker_hits(
     if drug_cfg is None or not (drug_cfg.strong_markers or drug_cfg.strong_subclasses):
         return []
     markers = tuple(markers)
+    intrinsic = frozenset(str(symbol).strip().lower() for symbol in intrinsic_symbols)
     hits: list[str] = []
     for column, symbols in symbols_by_column.items():
         if any(column == prefix or column.startswith(prefix) for prefix in drug_cfg.strong_markers):
             for symbol in symbols:
-                if symbol not in hits:
+                if symbol not in hits and str(symbol).strip().lower() not in intrinsic:
                     hits.append(symbol)
     wanted = frozenset(drug_cfg.strong_subclasses)
     if wanted:
         for marker in markers:
             acquired_gene = marker.subtype == SUBTYPE_AMR and marker.element_type == TYPE_AMR
             if not acquired_gene or marker.symbol in hits:
+                continue
+            if str(marker.symbol).strip().lower() in intrinsic:
                 continue
             if not class_tokens(marker.subclass).isdisjoint(wanted):
                 hits.append(marker.symbol)

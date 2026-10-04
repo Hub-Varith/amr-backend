@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -995,3 +996,65 @@ def test_subset_run_refuses_to_replace_the_kmer_set_of_drugs_it_does_not_retrain
     legacy.write_text(json.dumps(feats))
     with pytest.raises(ContractViolation, match=rf"{others[0]} \(trained on {shipped[:12]}\)"):
         train.check_subset_unitig_sets(paths, {species: [drug]})
+
+
+def test_exact_weight_reaches_only_the_aft_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TrainConfig.exact_weight up-weights lab_exact rows in the AFT fit; B1/B2 never see weights."""
+    seen: dict[str, object] = {}
+
+    class Spy:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def fit(self, X, lo, hi, names, groups=None, droplog=None, exact_rows=None, sample_weight=None):  # noqa: ANN001
+            seen[self.name] = sample_weight
+            return self
+
+    exact = np.array([True, False, True, False])
+    for name in (train.MODEL_B2, train.MODEL_AFT_KNOWN):
+        train._fit(Spy(name), None, None, None, [], None, DropLog("t"), exact_rows=exact, exact_weight=2.0)
+    assert seen[train.MODEL_B2] is None
+    assert list(seen[train.MODEL_AFT_KNOWN]) == [2.0, 1.0, 2.0, 1.0]
+    train._fit(Spy("aft_known_unitig"), None, None, None, [], None, DropLog("t"), exact_rows=exact, exact_weight=1.0)
+    assert seen["aft_known_unitig"] is None
+    cfg = train.TrainConfig()
+    assert cfg.exact_weight == 2.0 and cfg.as_dict()["exact_weight"] == 2.0 and cfg.as_dict()["band"] == "asym_tuned"
+
+
+def test_bundle_levels_are_those_that_passed_in_every_calling_fold() -> None:
+    from genome2mic.models.conformal import BandParams  # noqa: PLC0415
+
+    grid = (0.08, 0.05, 0.025, 0.01, 0.005)
+
+    def bp(passing: tuple[float, ...], gate: bool) -> BandParams:
+        return BandParams(q_up=1.0, q_low=1.0, alpha_up=passing[0] if passing else 0.005, alpha_low=0.05,
+                          active_gate_open=gate, n_residuals=10, passing_alphas=passing)
+
+    assert train.bundle_allowed_alphas({}, grid) is None
+    # Fold 0 passed at 0.08 and 0.025; fold 1 only at 0.025 and 0.01; fold 2 issued no calls (closed: ignored).
+    folds = {0: bp((0.08, 0.025), True), 1: bp((0.025, 0.01), True), 2: bp((), False)}
+    assert train.bundle_allowed_alphas(folds, grid) == (0.025,)
+    assert train.bundle_allowed_alphas({0: bp((0.08,), True), 1: bp((0.01,), True)}, grid) == ()  # no shared level
+    assert train.bundle_allowed_alphas({0: bp((), False), 1: bp((), False)}, grid) == ()  # no fold calls -> closed
+
+
+def test_oof_gate_check_closes_the_bundle_gate_on_calling_fold_vme() -> None:
+    from genome2mic.models.conformal import BandParams  # noqa: PLC0415
+
+    params = BandParams(q_up=1.0, q_low=1.0, alpha_up=0.05, alpha_low=0.05, active_gate_open=True, n_residuals=10,
+                        inner_vme_ucb=0.01)
+    n = 200
+    folds = np.repeat([0.0, 1.0], n // 2)
+    lab = np.array(["R"] * 10 + ["S"] * 90 + ["R"] * 100, dtype=object)
+    # Fold 0 calls with 1 VME among its 10 lab R; fold 1 makes no active call (100 lab R would dilute to 1 / 110).
+    calls = np.array(["likely_active"] + ["uncertain"] * 9 + ["likely_active"] * 90 + ["uncertain"] * 100, dtype=object)
+    out = train._oof_gate_check(params, [(calls, np.arange(n))], None, lab, folds, 0.015, "t")  # type: ignore[arg-type]
+    assert not out.active_gate_open and out.oof_call_vme_ucb == pytest.approx(2 / 11)
+    # Enough calling-fold lab R and no VME: the gate stays open.
+    lab_ok = np.array(["R"] * 100 + ["S"] * 100, dtype=object)
+    calls_ok = np.array(["uncertain"] * 100 + ["likely_active"] * 100, dtype=object)
+    folds_ok = np.tile([0.0, 1.0], n // 2)
+    ok = train._oof_gate_check(params, [(calls_ok, np.arange(n))], None, lab_ok, folds_ok, 0.015, "t")  # type: ignore[arg-type]
+    assert ok.active_gate_open and ok.oof_call_vme_ucb == pytest.approx(1 / 101)
+    # Uncallable pairs and closed gates are untouched.
+    assert train._oof_gate_check(params, [(calls, np.arange(n))], None, None, folds, 0.015, "t") is params  # type: ignore[arg-type]

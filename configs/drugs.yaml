@@ -26,11 +26,13 @@
 #                is shared with non-carbapenemases (blaOXA-23/-24/-58 and blaOXA-1
 #                all map to gene_blaoxa; blaGES-5 and blaGES-1 to gene_blages) or
 #                that no prefix covers (blaIMI, blaSME, ...) still trigger it.
-#                CAUTION (ABAU): AMRFinderPlus reports the intrinsic, chromosomal
-#                OXA-51-like genes of A. baumannii (blaOXA-51, -66, -69, ...) with
-#                Subclass CARBAPENEM, so this rule would call every A. baumannii
-#                isolate carbapenem-inactive. Add an exclusion for the OXA-51
-#                family (or an ISAba1-upstream rule) before an ABAU model ships.
+#                Intrinsic genes never trigger either rule: AMRFinderPlus reports the
+#                chromosomal OXA-51-like genes of A. baumannii (blaOXA-51, -66, -69,
+#                ...) with Subclass CARBAPENEM, so configs/intrinsic_markers.csv lists
+#                the whole OXA-51 family for ABAU (AMRFinderPlus DB 2026-08-07.1) and
+#                the override skips them (predict and training-time call metrics).
+#                Not modelled: ISAba1 upstream of an OXA-51-like gene (raises
+#                carbapenem MICs); the model has to learn that from other features.
 #
 # call_standard  Breakpoint table used for pred_sir and for the final call. CLSI 2024
 #                (user decision: US standard; the tables are unverified, see
