@@ -1,0 +1,10 @@
+[M::mm_idx_gen::0.053*0.98] collected minimizers
+[M::mm_idx_gen::0.069*0.98] sorted minimizers
+[M::main::0.069*0.98] loaded/built the index for 2 target sequence(s)
+[M::mm_mapopt_update::0.073*0.98] mid_occ = 50
+[M::mm_idx_stat] kmer size: 19; skip: 19; is_hpc: 0; #seq: 2
+[M::mm_idx_stat::0.075*0.98] distinct minimizers: 477256 (98.06% are singletons); average occurrences: 1.032; average spacing: 9.997; total length: 4925141
+[M::worker_pipeline::0.837*0.98] mapped 2 sequences
+[M::main] Version: 2.24-r1155-dirty
+[M::main] CMD: /tmp/amr-flye-2.9.6/bin/flye-minimap2 -x asm5 -c --secondary=no -t 1 /Users/bhavya/VScode/MHacks Project/amr-backend/experiments/ecoli_reconstruction/reference.fasta /Users/bhavya/VScode/MHacks Project/amr-backend/experiments/five_species_reconstruction/results/ECOLI/02/assembly.fasta
+[M::main] Real time: 0.840 sec; CPU: 0.824 sec; Peak RSS: 0.086 GB

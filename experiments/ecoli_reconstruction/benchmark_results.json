@@ -1,0 +1,38 @@
+[
+  {
+    "fraction": 0.25,
+    "reads": 10730,
+    "bases": 71039964,
+    "average_depth": 14.423945223091074,
+    "status": "completed",
+    "metrics": {
+      "contigs": 4,
+      "assembly_bases": 4880896,
+      "reference_bases": 4925141,
+      "reference_covered_percent": 99.97526974354643,
+      "assembly_aligned_percent": 99.85365391928039,
+      "aligned_identity_percent": 99.06365030223394,
+      "per_reference_covered_percent": {
+        "Escherichia_coli_chromosome": 100.0,
+        "Escherichia_coli_plasmidl": 98.99233913000315
+      },
+      "note": "Primary alignment-span coverage and alignment-weighted identity; not a structural-error or AMR assessment."
+    }
+  },
+  {
+    "fraction": 0.5,
+    "reads": 21630,
+    "bases": 143424706,
+    "average_depth": 29.12093399965605,
+    "status": "not_run_locally",
+    "metrics": null
+  },
+  {
+    "fraction": 1.0,
+    "reads": 43137,
+    "bases": 286915402,
+    "average_depth": 58.25526660048921,
+    "status": "stopped_for_memory_pressure_moved_to_colab",
+    "metrics": null
+  }
+]

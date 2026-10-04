@@ -1,0 +1,44 @@
+import json
+SAMPLES=json.load(open('samples.json'))
+LEVELS=['00','01','02']
+PYTHON=config['python']
+FLYE=config['flye']
+MINIMAP=config['minimap']
+rule all:
+    input:
+        expand('results/{species}/{level}/stats.json',species=list(SAMPLES),level=LEVELS),
+        expand('results/ECOLI/{level}/metrics.json',level=LEVELS)
+rule prepare:
+    output:
+        manifest='data/{species}/subsets/manifest.json',verified='data/{species}/verified.json',
+        reads=expand('data/{{species}}/subsets/subset_{level}.fastq',level=LEVELS)
+    threads: 2
+    log: 'logs/{species}_prepare.log'
+    shell: '{PYTHON:q} prepare.py {wildcards.species} > {log:q} 2>&1'
+rule assemble:
+    input: 'data/{species}/subsets/subset_{level}.fastq'
+    output: 'results/{species}/{level}/assembly.fasta'
+    params:
+        read_path=lambda w:f'/tmp/amr-five-species/data/{w.species}/subsets/subset_{w.level}.fastq',
+        out_path=lambda w:f'/tmp/amr-five-species/results/{w.species}/{w.level}',
+        size=lambda w:SAMPLES[w.species]['genome_size_estimate'],
+        mode=lambda w:SAMPLES[w.species]['mode'],
+        status=lambda w:f'status/{w.species}_{w.level}.json'
+    threads: 2
+    log: 'logs/{species}_{level}_flye.log'
+    shell:
+        '{PYTHON:q} guard.py --status {params.status:q} --seconds 5400 --max-rss-gb 4 -- {PYTHON:q} {FLYE:q} --{params.mode} {params.read_path:q} --genome-size {params.size} --asm-coverage 30 --threads {threads} --out-dir {params.out_path:q} > {log:q} 2>&1'
+rule stats:
+    input: 'results/{species}/{level}/assembly.fasta'
+    output: 'results/{species}/{level}/stats.json'
+    shell: '{PYTHON:q} stats.py {input:q} {output:q}'
+rule align_ecoli:
+    input: asm='results/ECOLI/{level}/assembly.fasta',ref=SAMPLES['ECOLI']['local_reference']
+    output: 'results/ECOLI/{level}/alignment.paf'
+    threads: 2
+    log: 'logs/ECOLI_{level}_alignment.log'
+    shell: '{MINIMAP:q} -x asm5 -c --secondary=no -t {threads} {input.ref:q} {input.asm:q} > {output:q} 2> {log:q}'
+rule evaluate_ecoli:
+    input: asm='results/ECOLI/{level}/assembly.fasta',ref=SAMPLES['ECOLI']['local_reference'],paf='results/ECOLI/{level}/alignment.paf'
+    output: 'results/ECOLI/{level}/metrics.json'
+    shell: '{PYTHON:q} summarize.py {input.ref:q} {input.asm:q} {input.paf:q} > {output:q}'
