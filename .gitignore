@@ -7,6 +7,7 @@ __pycache__/
 # No trailing slash: on the VM these are links to the data disk, and "dir/" does not match a link.
 /data/raw
 /data/interim
+/data/references
 /.snakemake/
 /data/processed/*
 # Version-controlled per DATA_CONTRACT.md.

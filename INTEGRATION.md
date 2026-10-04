@@ -62,8 +62,8 @@ Base URL: `http://127.0.0.1:8000` in dev (`make api`). All `/v1` routes go throu
 
 | Field | Required | Rule |
 | ----- | -------- | ---- |
-| `file` | yes | Extension `.fasta`, `.fa` or `.fna`; ≤ 50 MB (`G2M_MAX_UPLOAD_BYTES`); first non-blank line starts with `>` |
-| `sample_id` | no | 1–128 chars. Defaults to the file name without extension |
+| `file` | yes | Extension `.fasta`, `.fa` or `.fna`, or the same gzipped (`.fasta.gz`, `.fa.gz`, `.fna.gz`); ≤ 50 MB (`G2M_MAX_UPLOAD_BYTES`), and ≤ 50 MB again once unpacked; first non-blank line starts with `>`. A corrupt gzip is 422 |
+| `sample_id` | no | 1–128 chars. Defaults to the file name without its FASTA and gzip extensions (`470.7409.fasta.gz` → `470.7409`) |
 
 ```json
 // 202 Accepted

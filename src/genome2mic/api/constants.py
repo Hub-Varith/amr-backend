@@ -22,6 +22,7 @@ SPECIES_NAMES = {
 CONFIG_FILES = ("species.yaml", "drugs.yaml")
 
 ALLOWED_FASTA_EXTENSIONS = frozenset({".fasta", ".fa", ".fna"})
+GZIP_EXTENSION = ".gz"  # genome.fasta.gz etc. are unpacked on upload
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 REQUEST_ID_HEADER = "X-Request-ID"

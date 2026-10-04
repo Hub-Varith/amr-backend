@@ -1,0 +1,12 @@
+# Strong markers (CLAUDE.md override 2): any matching AMRFinderPlus Element symbol makes the drug likely_inactive.
+# A rule is kept only if marker carriers were lab-R (CLSI 2026, release 2026-10-04-hackathon-all5) >= 95% of the time.
+# Left out for that reason: KPNEU meropenem 93.1%, KPNEU imipenem 93.6%, KPNEU doripenem 90.9%, ECOLI meropenem 60.6%,
+# ECOLI imipenem 81.9%, ECOLI doripenem 77.4%, ABAU doripenem 91.8%, SAUR mecA->oxacillin 87.8%, SAUR mecA->cefoxitin 90.7%.
+species,drug,symbol_regex,reason,train_r_share
+KPNEU,ertapenem,^bla(KPC|NDM|VIM|IMP)(-|$)|^blaOXA-(48|162|181|204|232|244)$,carbapenemase,0.995
+ECOLI,ertapenem,^bla(KPC|NDM|VIM|IMP)(-|$)|^blaOXA-(48|162|181|204|232|244)$,carbapenemase,0.986
+ABAU,meropenem,^bla(KPC|NDM|VIM|IMP)(-|$)|^blaOXA-(48|162|181|204|232|244|23|24|40|58|72|143)$,carbapenemase,0.976
+ABAU,imipenem,^bla(KPC|NDM|VIM|IMP)(-|$)|^blaOXA-(48|162|181|204|232|244|23|24|40|58|72|143)$,carbapenemase,0.980
+PAER,meropenem,^bla(KPC|NDM|VIM|IMP)(-|$),carbapenemase,0.968
+PAER,imipenem,^bla(KPC|NDM|VIM|IMP)(-|$),carbapenemase,0.977
+SAUR,penicillin,^(blaZ|mecA|mecC)$,penicillinase or PBP2a,0.980

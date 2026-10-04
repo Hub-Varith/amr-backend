@@ -1,0 +1,511 @@
+{
+ "sample_id": "573.13550",
+ "species": "KPNEU",
+ "qc_pass": true,
+ "nearest_training_distance": null,
+ "in_range": true,
+ "predictions": [
+  {
+   "drug": "amikacin",
+   "pred_mic": 8.0,
+   "band_low": 1.0,
+   "band_high": 64.0,
+   "s_breakpoint": 4.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.6451612903225806,
+   "confidence_level": "unclear",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [],
+   "override": null
+  },
+  {
+   "drug": "amoxicillin-clavulanic-acid",
+   "pred_mic": 256.0,
+   "band_low": 64.0,
+   "band_high": 1024.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.004524886877828055,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "blaTEM",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ampicillin",
+   "pred_mic": null,
+   "band_low": null,
+   "band_high": null,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": null,
+   "confidence_level": null,
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "blaTEM",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": "natural_resistance"
+  },
+  {
+   "drug": "ampicillin-sulbactam",
+   "pred_mic": 512.0,
+   "band_low": 128.0,
+   "band_high": 2048.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.0015873015873015873,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "blaTEM",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "aztreonam",
+   "pred_mic": 2048.0,
+   "band_low": 64.0,
+   "band_high": 65536.0,
+   "s_breakpoint": 4.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.013392857142857142,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "cefazolin",
+   "pred_mic": 2048.0,
+   "band_low": 256.0,
+   "band_high": 8192.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 4.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "cefepime",
+   "pred_mic": 128.0,
+   "band_low": 4.0,
+   "band_high": 4096.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.14972273567467653,
+   "confidence_level": "leans_inactive",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "cefoxitin",
+   "pred_mic": 128.0,
+   "band_low": 32.0,
+   "band_high": 1024.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.013824884792626729,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ceftazidime",
+   "pred_mic": 4096.0,
+   "band_low": 64.0,
+   "band_high": 131072.0,
+   "s_breakpoint": 4.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.002631578947368421,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ceftazidime-avibactam",
+   "pred_mic": 1.0,
+   "band_low": 0.0625,
+   "band_high": 16.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.9823008849557522,
+   "confidence_level": "very_likely_active",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ceftolozane-tazobactam",
+   "pred_mic": 1024.0,
+   "band_low": 16.0,
+   "band_high": 131072.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 4.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ceftriaxone",
+   "pred_mic": 8192.0,
+   "band_low": 128.0,
+   "band_high": 524288.0,
+   "s_breakpoint": 1.0,
+   "r_breakpoint": 2.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "cefuroxime",
+   "pred_mic": 131072.0,
+   "band_low": 4096.0,
+   "band_high": 2097152.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "chloramphenicol",
+   "pred_mic": 256.0,
+   "band_low": 64.0,
+   "band_high": 1024.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.008695652173913044,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "catA1",
+    "oqxA",
+    "oqxB"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ciprofloxacin",
+   "pred_mic": 2048.0,
+   "band_low": 128.0,
+   "band_high": 16384.0,
+   "s_breakpoint": 0.25,
+   "r_breakpoint": 0.5,
+   "p_active": 0.0006161429451632779,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "gyrA S83I",
+    "oqxA",
+    "oqxB",
+    "parC S80I"
+   ],
+   "override": null
+  },
+  {
+   "drug": "colistin",
+   "pred_mic": 4.0,
+   "band_low": 0.25,
+   "band_high": 64.0,
+   "s_breakpoint": null,
+   "r_breakpoint": null,
+   "p_active": null,
+   "confidence_level": null,
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [],
+   "override": null
+  },
+  {
+   "drug": "doripenem",
+   "pred_mic": 64.0,
+   "band_low": 1.0,
+   "band_high": 8192.0,
+   "s_breakpoint": 1.0,
+   "r_breakpoint": 2.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "ertapenem",
+   "pred_mic": 2048.0,
+   "band_low": 8.0,
+   "band_high": 524288.0,
+   "s_breakpoint": 0.5,
+   "r_breakpoint": 1.0,
+   "p_active": 0.0020491803278688526,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2"
+   ],
+   "override": "strong_marker"
+  },
+  {
+   "drug": "gentamicin",
+   "pred_mic": 1.0,
+   "band_low": 0.125,
+   "band_high": 8.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 4.0,
+   "p_active": 0.969301110385369,
+   "confidence_level": "probably_active",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [],
+   "override": null
+  },
+  {
+   "drug": "imipenem",
+   "pred_mic": 64.0,
+   "band_low": 2.0,
+   "band_high": 1024.0,
+   "s_breakpoint": 1.0,
+   "r_breakpoint": 2.0,
+   "p_active": 0.020134228187919462,
+   "confidence_level": "probably_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "levofloxacin",
+   "pred_mic": 512.0,
+   "band_low": 32.0,
+   "band_high": 4096.0,
+   "s_breakpoint": 0.5,
+   "r_breakpoint": 1.0,
+   "p_active": 0.0007627765064836003,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "gyrA S83I",
+    "oqxA",
+    "oqxB",
+    "parC S80I"
+   ],
+   "override": null
+  },
+  {
+   "drug": "meropenem",
+   "pred_mic": 64.0,
+   "band_low": 1.0,
+   "band_high": 4096.0,
+   "s_breakpoint": 1.0,
+   "r_breakpoint": 2.0,
+   "p_active": 0.016260162601626018,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "minocycline",
+   "pred_mic": 4.0,
+   "band_low": 1.0,
+   "band_high": 32.0,
+   "s_breakpoint": 4.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.7830188679245284,
+   "confidence_level": "leans_active",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [
+    "oqxA",
+    "oqxB"
+   ],
+   "override": null
+  },
+  {
+   "drug": "piperacillin-tazobactam",
+   "pred_mic": 65536.0,
+   "band_low": 4096.0,
+   "band_high": 1048576.0,
+   "s_breakpoint": 8.0,
+   "r_breakpoint": 16.0,
+   "p_active": 0.0,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "blaKPC-2",
+    "blaSHV-12",
+    "blaTEM",
+    "ompK35 E42RfsTer47"
+   ],
+   "override": null
+  },
+  {
+   "drug": "polymyxin-b",
+   "pred_mic": 2.0,
+   "band_low": 0.25,
+   "band_high": 32.0,
+   "s_breakpoint": null,
+   "r_breakpoint": null,
+   "p_active": null,
+   "confidence_level": null,
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [],
+   "override": null
+  },
+  {
+   "drug": "tetracycline",
+   "pred_mic": 4.0,
+   "band_low": 0.5,
+   "band_high": 32.0,
+   "s_breakpoint": 4.0,
+   "r_breakpoint": 8.0,
+   "p_active": 0.7888198757763976,
+   "confidence_level": "leans_active",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [
+    "oqxA",
+    "oqxB"
+   ],
+   "override": null
+  },
+  {
+   "drug": "tigecycline",
+   "pred_mic": 0.5,
+   "band_low": 0.25,
+   "band_high": 2.0,
+   "s_breakpoint": null,
+   "r_breakpoint": null,
+   "p_active": null,
+   "confidence_level": null,
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [
+    "oqxA",
+    "oqxB"
+   ],
+   "override": null
+  },
+  {
+   "drug": "tobramycin",
+   "pred_mic": 4.0,
+   "band_low": 0.5,
+   "band_high": 32.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 4.0,
+   "p_active": 0.4017857142857143,
+   "confidence_level": "unclear",
+   "call": "uncertain",
+   "margin_steps": null,
+   "reasons": [],
+   "override": null
+  },
+  {
+   "drug": "trimethoprim-sulfamethoxazole",
+   "pred_mic": 1024.0,
+   "band_low": 16.0,
+   "band_high": 65536.0,
+   "s_breakpoint": 2.0,
+   "r_breakpoint": 2.0,
+   "p_active": 0.01079136690647482,
+   "confidence_level": "very_likely_inactive",
+   "call": "likely_inactive",
+   "margin_steps": null,
+   "reasons": [
+    "dfrA12",
+    "sul1"
+   ],
+   "override": null
+  }
+ ],
+ "ranked_active": [],
+ "model_version": "multitask_aft-0.1/all5_run1",
+ "run_id": "4d85f96f288e",
+ "disclaimer": "These are predictions of in-vitro susceptibility, not prescribing advice. Dose, route, and final drug choice depend on PK/PD, infection site, renal function, allergies, and other patient factors, and remain with the clinician. Confirm with standard AST."
+}

@@ -1,4 +1,4 @@
-.PHONY: install install-api install-data api test test-api test-data train download-ast labels genome-manifest genomes qc ncbi-pd hackathon-data push-data pull-data docker-build docker-run
+.PHONY: references predict install install-api install-data api test test-api test-data train download-ast labels genome-manifest genomes qc ncbi-pd hackathon-data push-data pull-data docker-build docker-run
 
 install:
 	pip install -e ".[model,test]"
@@ -72,6 +72,19 @@ push-data:
 # Engineers: download and verify a release. Uses the AWS profile g2m unless AWS_PROFILE is set.
 pull-data:
 	AWS_PROFILE=$${AWS_PROFILE:-g2m} bash scripts/pull_data.sh
+
+# Prediction pipeline (Linux: needs mash, amrfinder and the NCBI datasets CLI on PATH).
+# The five Mash species references from configs/species.yaml, sketched once.
+REFERENCES_DIR = data/references
+
+references:
+	mkdir -p $(REFERENCES_DIR)
+	python -c "import yaml; [print(key, value['reference_accession']) for key, value in yaml.safe_load(open('configs/species.yaml'))['species'].items()]" | 	while read key accession; do 		[ -s $(REFERENCES_DIR)/$$key.fna.gz ] || python workflow/scripts/download_genome.py --strict --source ncbi 			--accession $$accession --output $(REFERENCES_DIR)/$$key.fna.gz || exit 1; 	done
+	cd $(REFERENCES_DIR) && mash sketch -o references ECOLI.fna.gz KPNEU.fna.gz SAUR.fna.gz PAER.fna.gz ABAU.fna.gz
+
+# One genome through the whole pipeline: make predict FASTA=sample.fasta
+predict:
+	PYTHONPATH=src python -m genome2mic.predict.run_predict --fasta $(FASTA) --keep-work
 
 docker-build:
 	docker build -t genome2mic-api .

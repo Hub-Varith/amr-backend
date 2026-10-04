@@ -9,6 +9,7 @@ from genome2mic.api.constants import CONFIG_FILES, SPECIES_NAMES
 from genome2mic.api.schemas.species_info import SpeciesInfo
 from genome2mic.api.schemas.species_key import SpeciesKey
 from genome2mic.predict.pipeline import PredictionPipeline
+from genome2mic.predict.tool_runner import ToolError
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,15 @@ class ModelRegistry:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.pipeline = PredictionPipeline(models_dir=settings.models_dir, configs_dir=settings.configs_dir)
+        self.pipeline = PredictionPipeline(
+            models_dir=settings.models_dir,
+            configs_dir=settings.configs_dir,
+            model_run=settings.model_run,
+            references_sketch=settings.references_sketch,
+            amrfinder_db=settings.amrfinder_db,
+            threads=settings.tool_threads,
+            keep_work_files=settings.keep_work_files,
+        )
         self.configs_parsed = False
         self.models_loaded = False
         self.drugs_by_species: dict[str, list[str]] = {}
@@ -42,6 +51,8 @@ class ModelRegistry:
             logger.warning("Models not loaded: pipeline not implemented", extra={"error": str(error)})
         except FileNotFoundError as error:
             logger.warning("Models not loaded: files missing", extra={"error": str(error)})
+        except ToolError as error:
+            logger.warning("Models not loaded: a tool failed", extra={"error": str(error)})
         logger.info(
             "Registry loaded",
             extra={"configs_parsed": self.configs_parsed, "models_loaded": self.models_loaded},

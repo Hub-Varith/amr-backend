@@ -332,12 +332,12 @@ This code was run against `models/all5_run1` on 2026-10-03. `p_active` and `conf
 when the pair has no breakpoint or no calibration curve (e.g. SAUR vancomycin: almost no resistant
 genomes); the call then uses the band rule.
 
-### Still to build (not in this repo yet)
+### Prediction pipeline (built on branch `genome-data-pipeline`)
 
-- AMRFinderPlus output → `known_row` converter, and species identification for an upload.
-- `PredictionPipeline.load` / `run` in `src/genome2mic/predict/pipeline.py` (currently stubs) and the
-  report fields `qc_pass`, `nearest_training_distance`, `in_range`, `reasons`, `ranked_active`.
-- Overrides: natural resistance (`configs/natural_resistance.csv` does not exist yet) and strong markers.
+FASTA -> QC -> species -> AMRFinderPlus -> known-AMR row -> this model -> overrides -> report is in
+`src/genome2mic/predict/pipeline.py`; see `docs/PREDICTION_PIPELINE.md`. Still open: the novelty
+check needs a Mash sketch of the training genomes, which the releases do not ship.
+
 - **Demo without AMRFinderPlus:** take the rows of a few `test` genomes straight from
   `known_amr.parquet` (drop `genome_id` and `species`, `.to_dict()`) as `known_row`.
 

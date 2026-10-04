@@ -18,3 +18,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
     cors_origins: list[str] = []
     log_level: str = "INFO"
+    # Prediction pipeline (predict/pipeline.py). The tools (mash, amrfinder) must be on PATH.
+    model_run: str = "all5_run1"
+    references_sketch: Path = Path("data/references/references.msh")
+    amrfinder_db: Path | None = None   # default: the database installed with amrfinder
+    tool_threads: int = Field(default=4, gt=0)
+    keep_work_files: bool = False      # keep each job's step outputs (qc.json, amrfinder.tsv, ...) for debugging

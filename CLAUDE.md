@@ -265,6 +265,7 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 - [ ] Stage 9 — AFT on known AMR + unitigs; ablations
 - [ ] Stage 10 — conformal bands + ranking + report
 - [ ] Stage 11 — external validation + distance plots
+- [~] Prediction pipeline — FASTA → report (`predict/pipeline.py`, `docs/PREDICTION_PIPELINE.md`); novelty check waits for a training-genome sketch
 
 Update this list as stages land.
 
