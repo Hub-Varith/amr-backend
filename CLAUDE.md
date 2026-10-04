@@ -198,9 +198,11 @@ Use the band's **upper** end when comparing to the breakpoint.
 | Otherwise | Uncertain — wait for lab |
 
 Where a species × drug pair has fitted probability thresholds, the call uses
-`p_active` = P(MIC ≤ S breakpoint) instead: ≥ `active_min` → likely active,
+`p_active` = calibrated P(MIC ≤ S breakpoint) instead: ≥ `active_min` → likely active,
 ≤ `inactive_max` → likely inactive. Thresholds are fitted on out-of-fold predictions
 for VME ≤ 1% and ME ≤ 3%. See `DATA_CONTRACT.md` stage 12.
+Every report row with a breakpoint also carries `p_active` and its `confidence_level`
+(7 levels, `very_likely_inactive` … `very_likely_active`), also when the call is uncertain.
 
 Overrides applied after the model:
 

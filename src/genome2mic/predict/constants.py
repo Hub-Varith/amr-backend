@@ -14,3 +14,15 @@ LIKELY_INACTIVE = "likely_inactive"
 VME_TARGET = 0.01
 ME_TARGET = 0.03
 MIN_PER_CLASS = 20
+
+# Lower edges of the confidence levels on the calibrated P(active).
+CONFIDENCE_LEVEL_EDGES = (0.02, 0.10, 0.30, 0.70, 0.90, 0.98)
+CONFIDENCE_LEVEL_NAMES = (
+    "very_likely_inactive",
+    "probably_inactive",
+    "leans_inactive",
+    "unclear",
+    "leans_active",
+    "probably_active",
+    "very_likely_active",
+)

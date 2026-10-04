@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DrugCall:
-    """Call, breakpoints used (mg/L), margin in doubling steps below S, and P(MIC <= S) when known."""
+    """Call, breakpoints used (mg/L), margin in doubling steps below S, and the calibrated P(active) with its level when known."""
 
     call: str
     s_breakpoint: float | None
@@ -13,3 +13,4 @@ class DrugCall:
     margin_steps: int | None
     reason: str | None = None
     p_active: float | None = None
+    confidence_level: str | None = None
