@@ -74,3 +74,18 @@ async def test_unhandled_error_returns_problem_json(app: FastAPI, client: AsyncC
     assert body["status"] == 500
     assert body["request_id"] == response.headers["X-Request-ID"]
     assert "boom" not in response.text
+
+
+async def test_cors_allows_listed_and_pattern_origins(settings: Settings) -> None:
+    app = create_app(settings.model_copy(update={
+        "cors_origins": ["https://app.example.com"],
+        "cors_origin_regex": r"https://amr-[a-z0-9-]+\.vercel\.app",
+    }))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        listed = await client.get("/health", headers={"Origin": "https://app.example.com"})
+        preview = await client.get("/health", headers={"Origin": "https://amr-git-main-team.vercel.app"})
+        other = await client.get("/health", headers={"Origin": "https://evil.example.com"})
+
+    assert listed.headers["access-control-allow-origin"] == "https://app.example.com"
+    assert preview.headers["access-control-allow-origin"] == "https://amr-git-main-team.vercel.app"
+    assert "access-control-allow-origin" not in other.headers

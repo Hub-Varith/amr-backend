@@ -1,0 +1,36 @@
+# Runs the API container locally the way a host would: docker compose up --build
+# Settings come from .env (copy .env.example). The frontend runs separately: cd frontend && npm run dev
+#
+# Public HTTPS for the Vercel frontend, without a cloud host: docker compose --profile tunnel up -d
+# then read the https://<random>.trycloudflare.com URL from: docker compose logs tunnel
+# The URL changes every time the tunnel restarts; see docs/DEPLOY.md.
+services:
+  api:
+    build: .
+    image: genome2mic-api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # The Vite dev server, plus the deployed frontend. Overrides any value in .env.
+      G2M_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173","https://dnagen-app.vercel.app"]'
+      # Per-deploy and preview URLs of the dnagen project; the team suffix stops other accounts' dnagen-* projects matching.
+      G2M_CORS_ORIGIN_REGEX: 'https://dnagen-[a-z0-9-]+-mh-acks3\.vercel\.app'
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Cloudflare quick tunnel: no account, temporary URL. For a fixed URL use a named tunnel or a cloud host.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

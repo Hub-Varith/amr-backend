@@ -1,5 +1,8 @@
+# syntax=docker/dockerfile:1
 # API + prediction pipeline. AMRFinderPlus and Mash come from bioconda (Linux only), pinned to the
-# versions in the data release's tool_versions.json. The trained model is mounted at /app/models.
+# versions in the data release's tool_versions.json. The trained model run is baked into the image:
+# from models/ when present (gitignored; fetch it from S3, docs/MODEL_HANDOFF.md section 10), otherwise
+# from a private Hugging Face model repo. docs/DEPLOY.md has the steps.
 FROM mambaorg/micromamba:1.5.10
 
 USER root
@@ -29,11 +32,34 @@ COPY workflow/scripts ./workflow/scripts
 COPY Makefile ./
 RUN make references
 
+# Only the run the API serves (G2M_MODEL_RUN). Override MODEL_RUN to bake a different one.
+# Local builds copy models/<run>. The Hugging Face Space ships no models/ content and instead downloads
+# the run from the private repo MODEL_REPO, reading the HF_TOKEN build secret (Space variable + secret).
+ARG MODEL_RUN=all5_run1
+ARG MODEL_REPO=
+COPY models/ ./models/
+RUN --mount=type=secret,id=HF_TOKEN,mode=0444,required=false \
+    if [ ! -f "models/$MODEL_RUN/spec.json" ]; then \
+        if [ -z "$MODEL_REPO" ] || [ ! -s /run/secrets/HF_TOKEN ]; then \
+            echo "ERROR: no models/$MODEL_RUN, and no MODEL_REPO build arg + HF_TOKEN secret to download it" >&2; \
+            exit 1; \
+        fi; \
+        pip install -q huggingface_hub \
+        && HF_TOKEN="$(cat /run/secrets/HF_TOKEN)" python -c "import os; from huggingface_hub import snapshot_download; snapshot_download(os.environ['MODEL_REPO'], local_dir='models/' + os.environ['MODEL_RUN'], token=os.environ['HF_TOKEN'])" \
+        && rm -rf "models/$MODEL_RUN/.cache"; \
+    fi \
+    && test -f "models/$MODEL_RUN/spec.json"
+
 USER mambauser
 ENV G2M_CONFIGS_DIR=/app/configs \
     G2M_MODELS_DIR=/app/models \
     G2M_UPLOAD_DIR=/tmp/genome2mic_uploads \
-    G2M_REFERENCES_SKETCH=/app/data/references/references.msh
+    G2M_REFERENCES_SKETCH=/app/data/references/references.msh \
+    G2M_MODEL_RUN=${MODEL_RUN} \
+    PORT=8000
 
 EXPOSE 8000
-CMD ["uvicorn", "genome2mic.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+# Hosts like Railway, Render and Fly set PORT; shell form so it expands. exec keeps uvicorn as PID 1 for clean shutdown.
+# Proxy headers: hosts terminate TLS in front of the container, so trust X-Forwarded-Proto for https URLs.
+CMD exec uvicorn genome2mic.api.main:create_app --factory --host 0.0.0.0 --port "$PORT" --no-access-log \
+    --proxy-headers --forwarded-allow-ips '*'

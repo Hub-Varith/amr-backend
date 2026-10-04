@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     upload_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "genome2mic_uploads")
     max_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
     cors_origins: list[str] = []
+    # Matches origins that change per deploy, e.g. Vercel previews: https://amr-[a-z0-9-]+\.vercel\.app
+    cors_origin_regex: str | None = None
     log_level: str = "INFO"
     # Prediction pipeline (predict/pipeline.py). The tools (mash, amrfinder) must be on PATH.
     model_run: str = "all5_run1"

@@ -1,7 +1,22 @@
 .git
+.env
+.env.*
+!.env.example
+.neon
 data
 results
 tests
+docs
+frontend
+node_modules
+demo_genomes.zip
 **/__pycache__
 **/*.pyc
-.env
+**/*.egg-info
+.pytest_cache
+# Per-species legacy runs; the image only needs the run it serves (Dockerfile MODEL_RUN).
+models/ABAU
+models/ECOLI
+models/KPNEU
+models/PAER
+models/SAUR
