@@ -273,13 +273,73 @@ Background on the shortcut: `docs/HACKATHON_DATA.md`.
 
 ## 10. Prediction side (API / demo)
 
-- A new genome needs AMRFinderPlus (`amrfinder -n <fasta> -O <amrfinder_organism> --plus`, see
-  `configs/species.yaml`), then conversion of its output to **exactly** the model's columns (`spec.json`) with the naming rules in
-  section 4: unknown genes ignored, missing columns 0, same order. That converter does not
-  exist yet; use `known_amr_columns.csv` as the column list.
-- AMRFinderPlus runs on Linux (the data VM), not on a Mac.
-- **Demo without AMRFinderPlus:** take rows for a few `test` genomes straight from
-  `known_amr.parquet` and feed them to the model.
+The trained model is `models/all5_run1/` (run `4d85f96f288e`). Get it from S3:
+
+```bash
+aws s3 cp --recursive --profile g2m s3://g2m-data-v1/models/hub/all5_run1/ models/all5_run1/
+```
+
+`models/` is not in git. `models/all5_run1/README.txt` lists the files and the scores.
+
+### What the pipeline must give the model
+
+1. **Species key** (`ECOLI`, `KPNEU`, `SAUR`, `PAER`, `ABAU`). Identify it first (Mash against the 5
+   references, as in stage 3 QC). Any other species: do not predict; set `species` null and
+   `in_range` false.
+2. **Known-AMR values** as `{column_name: value}`: `gene_*` and `point_*` are 0/1, `n_class_*` are
+   counts. Build them from AMRFinderPlus output (`amrfinder -n <fasta> -O <amrfinder_organism> --plus`,
+   organism names in `configs/species.yaml`) with the naming rules in section 4
+   (`NcbiKnownAmrBuilder.column_name` and `family_for` are the reference). Columns the model does not
+   know are ignored; columns you do not send count as 0. `spec.json` → `known_columns` is the full list.
+3. AMRFinderPlus runs on Linux, not on a Mac.
+
+### From inputs to one report row per drug
+
+```python
+import json
+from pathlib import Path
+import numpy as np
+from genome2mic.ingest.breakpoint_table import BreakpointTable
+from genome2mic.models.mic_predictor import MicPredictor
+from genome2mic.models.model_artifact import ModelArtifact
+from genome2mic.predict.call_thresholds import CallThresholds
+from genome2mic.predict.probability_calibrator import ProbabilityCalibrator
+from genome2mic.predict.susceptibility_caller import SusceptibilityCaller
+
+run_dir = Path("models/all5_run1")
+artifact = ModelArtifact.load(run_dir)                       # load once at startup
+predictor = MicPredictor(artifact)
+calibrator = ProbabilityCalibrator.from_dict(json.loads((run_dir / "probability_calibration.json").read_text()))
+thresholds = CallThresholds.from_dict(json.loads((run_dir / "call_thresholds.json").read_text()))
+caller = SusceptibilityCaller(BreakpointTable.from_directory(Path("configs/breakpoints")), thresholds=thresholds)
+sigma_by_drug = dict(zip(artifact.drugs, np.exp(artifact.model.log_sigma.detach().numpy())))
+
+# species: str, known_row: dict[str, int] from steps 1-2
+predictions = predictor.predict(species, predictor.known_vector(known_row).reshape(1, -1), None)
+for row in predictions.itertuples():                         # one row per drug of that species
+    p_active = None
+    found = caller.breakpoints.lookup(species, row.drug, caller.standard, caller.year)
+    if found is not None and calibrator.has_pair(species, row.drug):
+        p_raw = SusceptibilityCaller.probability_active(row.mu_log2, sigma_by_drug[row.drug], found[0])
+        p_active = float(calibrator.calibrate(species, row.drug, np.array([p_raw]))[0])
+    call = caller.call(species, row.drug, row.band_low, row.band_high, p_active)
+    # -> DrugPrediction(drug=row.drug, pred_mic=row.pred_mic, band_low=row.band_low, band_high=row.band_high,
+    #      s_breakpoint=call.s_breakpoint, r_breakpoint=call.r_breakpoint, p_active=call.p_active,
+    #      confidence_level=call.confidence_level, call=call.call, margin_steps=call.margin_steps, ...)
+```
+
+This code was run against `models/all5_run1` on 2026-10-03. `p_active` and `confidence_level` are null
+when the pair has no breakpoint or no calibration curve (e.g. SAUR vancomycin: almost no resistant
+genomes); the call then uses the band rule.
+
+### Still to build (not in this repo yet)
+
+- AMRFinderPlus output → `known_row` converter, and species identification for an upload.
+- `PredictionPipeline.load` / `run` in `src/genome2mic/predict/pipeline.py` (currently stubs) and the
+  report fields `qc_pass`, `nearest_training_distance`, `in_range`, `reasons`, `ranked_active`.
+- Overrides: natural resistance (`configs/natural_resistance.csv` does not exist yet) and strong markers.
+- **Demo without AMRFinderPlus:** take the rows of a few `test` genomes straight from
+  `known_amr.parquet` (drop `genome_id` and `species`, `.to_dict()`) as `known_row`.
 
 ## 11. Where to read more
 
