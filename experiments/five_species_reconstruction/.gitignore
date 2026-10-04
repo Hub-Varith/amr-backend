@@ -1,0 +1,18 @@
+data/
+results/
+logs/
+status/
+.snakemake/
+__pycache__/
+*.pid
+local_tools.json
+
+# Retry runtime state and large validation intermediates
+/retries/
+/retry.lock
+/retry_launcher.log
+/RETRY_STATUS.md
+/assembly_validation/**/*.paf
+/assembly_validation/**/*.log
+/assembly_validation/**/*.fasta
+/assembly_validation/**/*.zip

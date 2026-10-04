@@ -84,6 +84,11 @@ model team should never need to open a raw download or a tool output.
 
 Keep these as downloaded. Do not edit. They exist so we can rebuild stage 2.
 
+Also in `data/raw/`: `meta_bvbrc.csv` (BV-BRC genome metadata), `meta_ncbi.csv`
+(BioSample attributes), `ncbi_biosample/*.xml.gz` (the NCBI BioSample XML that
+`ast_ncbi.csv` is flattened from), and `download_manifest.json` (date and counts).
+Built by `make download-ast`.
+
 Expected BV-BRC columns (names vary slightly by export):
 
 | Column | Type | Note |
@@ -147,6 +152,7 @@ the true MIC is above 4 and at most 8. Every result becomes one interval
 | ---------- | ----------- | ----------- | -------- |
 | `= 8` | 4 | 8 | `interval` |
 | `<= 0.25` | 0 | 0.25 | `left` |
+| `< 0.5` | 0 | 0.5 | `left` — read as `<=`: wider, never wrong |
 | `> 32` | 32 | inf | `right` |
 | `>= 16` | 8 | inf | `right` |
 | `S` only, breakpoint S ≤ 1 | 0 | 1 | `left` |
@@ -155,7 +161,20 @@ the true MIC is above 4 and at most 8. Every result becomes one interval
 
 For `S`/`I`/`R`-only rows you need the breakpoint table matching that row's
 `standard` and `standard_year`. **If the standard is unknown, drop the row.** Do
-not guess.
+not guess. If the year is unknown, use the breakpoint only when every version of
+that standard agrees for the species × drug; otherwise drop the row. Breakpoint
+files and their one shared form are described in `configs/breakpoints/README.md`.
+
+**Snapping to the doubling grid** (agreed 2026-10-03). Panels print rounded values
+(`0.06` for 0.0625, `0.12` for 0.125). A reported value within 5% of a doubling step
+2^k becomes that step. A value between steps (Etest half-steps such as `0.75`, `1.5`,
+`3`) is dropped with reason `off_grid_value`. `raw_result` keeps the printed value.
+
+**Combination drugs** report `8/4`. The first number is the MIC.
+
+**Phenotype mapping:** `Susceptible` → `S`, `Intermediate` and
+`Susceptible-dose dependent` → `I`, `Resistant` → `R`. `Nonsusceptible` and
+`not defined` → null (an MIC row keeps its interval; an S/I/R-only row is dropped).
 
 Why intervals: it lets exact MICs, "≤", ">", and S/R-only labels all train the
 same model with no made-up numbers at the panel edges. The model loss
@@ -165,18 +184,46 @@ same model with no made-up numbers at the panel edges. The model loss
 
 | `laboratory_typing_method` contains | `method` | MIC usable? |
 | ----------------------------------- | -------- | ----------- |
-| broth, microdilution, agar dilution | `dilution` | yes |
+| broth, microdilution, agar dilution, `MIC` | `dilution` | yes |
 | Etest, gradient, MIC strip | `gradient` | yes |
 | disk, Kirby-Bauer, zone | `disk` | **no — S/I/R only** |
+| empty or `missing` | — | row dropped (`unknown_method`) |
 
 Disk diffusion measures a zone diameter, not an MIC. Those rows still enter as
-censored intervals via the S/I/R path.
+censored intervals via the S/I/R path. A disk row with no S/I/R is dropped, even
+when it carries a number in mg/L (about 33k BV-BRC rows do; the method label and the
+unit disagree, so neither is trusted).
+
+An MIC row whose unit is not mg/L (or µg/mL) is dropped (`bad_unit`).
 
 #### Duplicate resolution
 
 - Same (`genome_id`, `drug`), intervals within 1 doubling step → take the
   intersection; if empty, keep the higher (safer) one.
 - More than 1 step apart, or S vs R → **drop that genome × drug pair** and log it.
+- "Steps apart" for intervals that do not overlap = log2(higher `mic_lower` / lower
+  `mic_upper`) + 1. So `=4` vs `=8` is 1 step (keep `=8`); `<=0.25` vs `=1` is 2 steps
+  (drop).
+- A merged row keeps the most resistant `sir` (R > I > S) and joins every original
+  reading in `raw_result` with `|` (e.g. `=32|>32`).
+
+#### Genome IDs across sources
+
+- One genome per `biosample`. When BV-BRC holds several assemblies of one biosample,
+  the one with the fewest contigs (then the lowest ID) becomes the `genome_id`, and
+  every label from that biosample moves to it.
+- An NCBI result whose biosample has a BV-BRC genome takes that BV-BRC `genome_id`.
+  Otherwise its ID is `NCBI_<biosample>`.
+- BV-BRC rows are selected by genome name prefix (taxon ID alone misses subspecies
+  taxa such as 72407), then the species is confirmed from BV-BRC genome metadata.
+
+#### Other stage 2 outputs
+
+- `data/processed/dropped_labels.parquet`: one row per dropped record, with
+  `source, record_id, species, drug, antibiotic, reason`.
+- `data/processed/label_counts.csv`: the counts table below, plus `n_I` and `kept`.
+- `isolation_source` is grouped into `blood`, `urine`, `respiratory`, `wound`, `gut`,
+  `other`; null when not reported.
 
 Sample:
 
@@ -197,6 +244,10 @@ genome_id,biosample,species,drug,mic_lower,mic_upper,censor,sir,raw_result,metho
 - [ ] `censor == 'right'` ⟺ `mic_upper == inf`
 - [ ] No row where `evidence != 'Laboratory Method'`
 - [ ] Count table emitted: species × drug × (n_R, n_S, n_exact, n_censored, n_distinct_mic)
+
+Count definitions: `n_R`, `n_S` use `sir` as reported (rows with null `sir` count for
+neither). A row is exact when every reading in `raw_result` starts with `=`.
+`n_distinct_mic` = distinct `mic_upper` among exact rows.
 
 **Pair inclusion rule:** keep a species × drug pair only if it has ≥ 50 non-susceptible,
 ≥ 50 susceptible, and ≥ 4 distinct MIC levels. Below that the model cannot learn
@@ -333,7 +384,7 @@ genome_id,species,gene_blakpc_2,gene_blandm,gene_blaoxa_48,gene_blactx_m,gene_bl
 | `species` | str | |
 | `lineage_cluster` | str | e.g. `KPNEU_PP_12` — **must be species-prefixed** |
 | `st` | str | MLST sequence type, or `NA`. Evaluation only |
-| `cluster_method` | str | `poppunk` or `mash_single_linkage` |
+| `cluster_method` | str | `poppunk` or `mash_single_linkage`; `ncbi_snp_cluster` only in the provisional hackathon release (docs/HACKATHON_DATA.md) |
 
 **Preferred method:** PopPUNK, per species. Fallback: Mash distance + single-linkage
 clustering at a threshold that keeps known lineages (ST131, ST258) intact.
@@ -456,7 +507,8 @@ multi-species model.
 | `lab_lower`, `lab_upper` | float | Ground truth interval, copied from stage 2 |
 | `pred_sir` | str | `S` / `I` / `R` after applying breakpoints |
 | `lab_sir` | str | |
-| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` |
+| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `multitask_aft` |
+| `mu_log2` | float | Optional. Unrounded model output in log2 mg/L, for calibration plots |
 | `run_id` | str | Config hash, for reproducibility |
 
 Round **up**: a slightly high MIC prediction is the safer error.
@@ -621,3 +673,22 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 - [ ] Do we re-derive all S/I/R labels from MIC under one standard, or use labels
       as reported? (Doc says as-reported for now; revisit once MIC coverage is known.)
 - [ ] Minimum `n` per species × drug — is 50/50 the right bar after seeing real counts?
+
+
+## 7. Optional chromosome completion gate (2026-10-04)
+
+`genome_completion_v3/predict.py` accepts one continuous partial chromosome
+for the five supported species. This is separate from the MIC feature contract.
+For partial DNA, release `completed.fasta` only if the frozen calibrated probability
+is >=0.95 and at least ten independent calibration groups lie within 0.05 of that
+probability. Otherwise `prediction.json` returns `status=decision=no_result`,
+`message="no result"`, `result=null`, `sequence_file=null`, `predicted_bases=0`,
+and `next_action=request_more_sequence`. Confidence, reason and the next requested
+input percentage remain available. Never pass internal candidates downstream.
+
+Accepted partial outputs have `status=accepted`, `result=completed_sequence`, and
+`sequence_file=completed.fasta`. A 100%-observed input is passed through with
+`status=result=full_sequence_observed` and null confidence; this is not successful
+inference. The confidence event remains missing-region recall AND precision >=95%,
+not an exact-genome probability. Plasmids are excluded. Downstream MIC performance
+on inferred sequence remains unvalidated. Existing lab-label schemas are unchanged.

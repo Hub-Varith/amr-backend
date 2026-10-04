@@ -1,0 +1,27 @@
+[
+  {
+    "species": "ECOLI",
+    "genome_id": "GCF_001900355.1",
+    "prediction_matches_benchmark": true
+  },
+  {
+    "species": "KPNEU",
+    "genome_id": "GCF_030863585.1",
+    "prediction_matches_benchmark": true
+  },
+  {
+    "species": "SAUR",
+    "genome_id": "GCF_046268045.1",
+    "prediction_matches_benchmark": true
+  },
+  {
+    "species": "PAER",
+    "genome_id": "GCF_951691365.1",
+    "prediction_matches_benchmark": true
+  },
+  {
+    "species": "ABAU",
+    "genome_id": "GCF_051622705.1",
+    "prediction_matches_benchmark": true
+  }
+]

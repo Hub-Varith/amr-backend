@@ -1,0 +1,207 @@
+{
+  "ECOLI": {
+    "chosen": "pairwise_0.01",
+    "validation": {
+      "support": {
+        "f1": 0.8965634434094665,
+        "quality_successes": 10
+      },
+      "closest": {
+        "f1": 0.8904103935815252,
+        "quality_successes": 9
+      },
+      "hist7": {
+        "f1": 0.8921932005478369,
+        "quality_successes": 8
+      },
+      "hist15": {
+        "f1": 0.8907077171594597,
+        "quality_successes": 6
+      },
+      "extra": {
+        "f1": 0.895859527274398,
+        "quality_successes": 9
+      },
+      "specific_ECOLI": {
+        "f1": 0.891512148086183,
+        "quality_successes": 10
+      },
+      "pairwise_0.01": {
+        "f1": 0.900999901977603,
+        "quality_successes": 10
+      },
+      "pairwise_0.1": {
+        "f1": 0.900999901977603,
+        "quality_successes": 10
+      },
+      "pairwise_1.0": {
+        "f1": 0.900999901977603,
+        "quality_successes": 10
+      }
+    }
+  },
+  "KPNEU": {
+    "chosen": "support",
+    "validation": {
+      "support": {
+        "f1": 0.807731652636835,
+        "quality_successes": 9
+      },
+      "closest": {
+        "f1": 0.796161452751881,
+        "quality_successes": 9
+      },
+      "hist7": {
+        "f1": 0.7925955349238175,
+        "quality_successes": 8
+      },
+      "hist15": {
+        "f1": 0.7979731383175656,
+        "quality_successes": 9
+      },
+      "extra": {
+        "f1": 0.7660850827054794,
+        "quality_successes": 9
+      },
+      "specific_KPNEU": {
+        "f1": 0.7894857500479414,
+        "quality_successes": 8
+      },
+      "pairwise_0.01": {
+        "f1": 0.7873312843385016,
+        "quality_successes": 9
+      },
+      "pairwise_0.1": {
+        "f1": 0.7872790682137635,
+        "quality_successes": 9
+      },
+      "pairwise_1.0": {
+        "f1": 0.7872790682137635,
+        "quality_successes": 9
+      }
+    }
+  },
+  "SAUR": {
+    "chosen": "hist15",
+    "validation": {
+      "support": {
+        "f1": 0.9476059579351972,
+        "quality_successes": 15
+      },
+      "closest": {
+        "f1": 0.9402655695344038,
+        "quality_successes": 14
+      },
+      "hist7": {
+        "f1": 0.9513114350376433,
+        "quality_successes": 18
+      },
+      "hist15": {
+        "f1": 0.951351796742671,
+        "quality_successes": 17
+      },
+      "extra": {
+        "f1": 0.9489862279493938,
+        "quality_successes": 17
+      },
+      "specific_SAUR": {
+        "f1": 0.948828758341948,
+        "quality_successes": 18
+      },
+      "pairwise_0.01": {
+        "f1": 0.9267431161191262,
+        "quality_successes": 18
+      },
+      "pairwise_0.1": {
+        "f1": 0.9440546630032666,
+        "quality_successes": 19
+      },
+      "pairwise_1.0": {
+        "f1": 0.9439098498490828,
+        "quality_successes": 19
+      }
+    }
+  },
+  "PAER": {
+    "chosen": "support",
+    "validation": {
+      "support": {
+        "f1": 0.8721775828842252,
+        "quality_successes": 10
+      },
+      "closest": {
+        "f1": 0.8430307965707268,
+        "quality_successes": 9
+      },
+      "hist7": {
+        "f1": 0.816923733190614,
+        "quality_successes": 8
+      },
+      "hist15": {
+        "f1": 0.8280997394230595,
+        "quality_successes": 10
+      },
+      "extra": {
+        "f1": 0.8336689752336813,
+        "quality_successes": 10
+      },
+      "specific_PAER": {
+        "f1": 0.8322736609788903,
+        "quality_successes": 7
+      },
+      "pairwise_0.01": {
+        "f1": 0.8374586120999118,
+        "quality_successes": 8
+      },
+      "pairwise_0.1": {
+        "f1": 0.8322281838858081,
+        "quality_successes": 8
+      },
+      "pairwise_1.0": {
+        "f1": 0.8322217888516795,
+        "quality_successes": 8
+      }
+    }
+  },
+  "ABAU": {
+    "chosen": "hist7",
+    "validation": {
+      "support": {
+        "f1": 0.8912121025104425,
+        "quality_successes": 14
+      },
+      "closest": {
+        "f1": 0.884398382073528,
+        "quality_successes": 16
+      },
+      "hist7": {
+        "f1": 0.8951500816714029,
+        "quality_successes": 18
+      },
+      "hist15": {
+        "f1": 0.8948163071408033,
+        "quality_successes": 18
+      },
+      "extra": {
+        "f1": 0.8865229672719822,
+        "quality_successes": 17
+      },
+      "specific_ABAU": {
+        "f1": 0.8692309786896396,
+        "quality_successes": 18
+      },
+      "pairwise_0.01": {
+        "f1": 0.8933700062711434,
+        "quality_successes": 15
+      },
+      "pairwise_0.1": {
+        "f1": 0.8907999790408276,
+        "quality_successes": 15
+      },
+      "pairwise_1.0": {
+        "f1": 0.8913957289322031,
+        "quality_successes": 15
+      }
+    }
+  }
+}

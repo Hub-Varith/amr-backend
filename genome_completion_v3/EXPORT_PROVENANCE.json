@@ -1,0 +1,29 @@
+{
+  "source_branch": "develop-bhavya",
+  "source_commit": "3d3223a",
+  "model_selection": "Frozen validation-selected v3, not a new choice based on test outcomes",
+  "model_sha256": {
+    "rankers.joblib": "591819a75b92109b1ad52e12b2726a09718a292fe8e937340729ce37871c1643",
+    "confidence.joblib": "4b55e2e3c9375314e0017190e37fb191da48fef39ae811514589aa40dd4c9ccf",
+    "adaptive_confidence.joblib": "8cc8ee70261047ee97f3163c3fefb597cc479d79b1d6bccc00497d505db0997a"
+  },
+  "unchanged_runtime_sha256": {
+    "core.py": "baa1d447b82644751bc2090a25e42106ecd0af09056e726bb612f8a10daea139",
+    "pairwise.py": "21322ef825060e1abdd1c469e86c5eeb736ae481b6a1a1dd26d030dac20856e2",
+    "step_state.py": "3127f50f869971f5a07a3942bc746fdd255ece3a339e91b381878226fb58698d"
+  },
+  "packaging_changes": [
+    "Standalone reference loader replaces experiment split paths",
+    "Inference helper functions extracted verbatim",
+    "Relative bundled aligner path on Apple Silicon; configurable elsewhere",
+    "Strict public-output gate: no_result and no completed FASTA below 0.95 or without ten local calibration groups; private incremental history retained"
+  ],
+  "training_changed": false,
+  "packaged_from_commit": "7ddac332a248811e0f224e531e65c71cc8505492",
+  "target_branch": "bhavyak",
+  "original_predict_sha256": "0dbbccd693399002d0f77a2a60cc19db7ab2dc39421bfeadfcca3980bee73c91",
+  "gate_runtime_sha256": {
+    "predict.py": "8718cdb1abc80db9621807b260aca425b5480b51e826e1a8c3c95dafc6dfbeba",
+    "release_policy.py": "c6313e029317721bdf491bd3d941ba5b974dd0909f4b35ed84b4c58752cec87d"
+  }
+}

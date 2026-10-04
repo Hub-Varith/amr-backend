@@ -1,0 +1,49 @@
+{
+  "status": "verified",
+  "source_commit": "3d3223a",
+  "reference_chromosomes_verified": 756,
+  "checks": [
+    {
+      "species": "ECOLI",
+      "percent": 65,
+      "dna_exactly_matches_original": true,
+      "confidence_and_selection_match": true
+    },
+    {
+      "species": "KPNEU",
+      "percent": 65,
+      "dna_exactly_matches_original": true,
+      "confidence_and_selection_match": true
+    },
+    {
+      "species": "SAUR",
+      "percent": 65,
+      "dna_exactly_matches_original": true,
+      "confidence_and_selection_match": true
+    },
+    {
+      "species": "PAER",
+      "percent": 65,
+      "dna_exactly_matches_original": true,
+      "confidence_and_selection_match": true
+    },
+    {
+      "species": "ABAU",
+      "percent": 65,
+      "dna_exactly_matches_original": true,
+      "confidence_and_selection_match": true
+    },
+    {
+      "species": "ECOLI",
+      "percent": 20,
+      "incremental_confidence_matches_original": true
+    },
+    {
+      "species": "ECOLI",
+      "percent": 30,
+      "incremental_confidence_matches_original": true
+    }
+  ],
+  "weights_retrained": false,
+  "execution_cwd_was_outside_repository": true
+}

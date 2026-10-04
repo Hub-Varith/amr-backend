@@ -1,0 +1,14 @@
+{
+  "contigs": 10,
+  "assembly_bases": 3948190,
+  "reference_bases": 3915337,
+  "reference_covered_percent": 99.9259067610272,
+  "assembly_aligned_percent": 99.1175956577571,
+  "aligned_identity_percent": 99.95059191347505,
+  "per_reference_covered_percent": {
+    "contig_1": 99.92685603453093,
+    "contig_2": 99.3279954246497,
+    "contig_3": 100.0
+  },
+  "note": "Primary alignment-span coverage and alignment-weighted identity; not a structural-error or AMR assessment."
+}

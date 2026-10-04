@@ -1,0 +1,30 @@
+{
+  "model_version": "completion_v3",
+  "branch": "develop-bhavya",
+  "artifacts_git_ignored": true,
+  "artifacts": {
+    "models/rankers.joblib": {
+      "bytes": 609243,
+      "sha256": "591819a75b92109b1ad52e12b2726a09718a292fe8e937340729ce37871c1643"
+    },
+    "models/confidence.joblib": {
+      "bytes": 23699,
+      "sha256": "4b55e2e3c9375314e0017190e37fb191da48fef39ae811514589aa40dd4c9ccf"
+    },
+    "models/adaptive_confidence.joblib": {
+      "bytes": 33778,
+      "sha256": "8cc8ee70261047ee97f3163c3fefb597cc479d79b1d6bccc00497d505db0997a"
+    }
+  },
+  "reference_chromosomes": {
+    "ECOLI": 153,
+    "KPNEU": 152,
+    "SAUR": 147,
+    "PAER": 153,
+    "ABAU": 151
+  },
+  "reference_locations": "prepared_path entries in split.json; required for inference",
+  "entrypoint": "predict.py",
+  "runtime_versions": "ENVIRONMENT.json",
+  "confidence_semantics": "Probability of missing-region recall >=95% AND precision >=95%, not exact genome probability"
+}
