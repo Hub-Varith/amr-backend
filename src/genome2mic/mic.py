@@ -464,3 +464,29 @@ def _round_array(mic: np.ndarray, mode: str) -> np.ndarray:
     k = np.where(on_grid, nearest, rounded).astype(np.int32)
     out[finite] = np.ldexp(1.0, k)
     return out
+
+
+def panel_caps_log2(lo: np.ndarray, hi: np.ndarray) -> tuple[float, float]:
+    """Panel-edge caps ``(cap_low, cap_high)`` in log2 mg/L from the *fitting* rows' lab intervals.
+
+    "Finite bounds" are every ``mic_lower > 0`` and every finite ``mic_upper`` of the
+    rows given. ``cap_low = log2(min finite bound) - 1`` and ``cap_high =
+    log2(max finite bound) + 1``: one doubling step beyond the lowest and highest
+    concentrations the training panels actually tested, so a prediction never wanders
+    further past a panel edge than the data can support. Bounds are snapped to the
+    doubling grid first (low down, high up), so the caps are whole steps. With no
+    finite bound at all the reference grid edges are returned.
+
+    Callers pass the rows a model is *fitted* on (a CV fold's training folds, all
+    train rows for the final bundle), never the rows it predicts.
+    """
+    low = np.asarray(lo, dtype=np.float64).ravel()
+    high = np.asarray(hi, dtype=np.float64).ravel()
+    finite = np.concatenate([low[np.isfinite(low) & (low > 0)], high[np.isfinite(high) & (high > 0)]])
+    if finite.size == 0:
+        return float(GRID_MIN_EXPONENT), float(GRID_MAX_EXPONENT)
+    bottom = float(np.log2(round_down_to_step_array(np.array([finite.min()]))[0]))
+    top = float(np.log2(round_up_to_step_array(np.array([finite.max()]))[0]))
+    cap_low = max(float(GRID_MIN_EXPONENT), bottom - 1.0)
+    cap_high = min(float(GRID_MAX_EXPONENT), top + 1.0)
+    return cap_low, cap_high

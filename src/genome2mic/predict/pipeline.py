@@ -152,6 +152,10 @@ class DrugBundle:
     unitig_kmer_set_sha1: str | None = None
     """sha1 of the k-mer set the model was trained on (``features.json``); ``None`` when
     the model has no unitig features or the bundle predates the key."""
+    caps: tuple[float, float] | None = None
+    """Panel-edge caps in log2 mg/L (``conformal.json`` ``cap_low_log2`` / ``cap_high_log2``,
+    from all train rows): the raw prediction is clipped to them before rounding up, as in
+    training. ``None`` for bundles written before capping existed."""
 
     @property
     def n_features(self) -> int:
@@ -589,6 +593,14 @@ class PredictionPipeline:
         q_raw = conformal.get("q")
         if isinstance(q_raw, bool) or not isinstance(q_raw, (int, float)) or not math.isfinite(q_raw) or q_raw < 0:
             raise BundleError(f"{drug_dir / CONFORMAL_FILE}: 'q' must be a finite non-negative number of steps")
+        caps: tuple[float, float] | None = None
+        cap_raw = (conformal.get("cap_low_log2"), conformal.get("cap_high_log2"))
+        if cap_raw != (None, None):
+            if not all(isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in cap_raw):
+                raise BundleError(f"{drug_dir / CONFORMAL_FILE}: cap_low_log2 / cap_high_log2 must both be finite numbers")
+            if float(cap_raw[0]) > float(cap_raw[1]):  # type: ignore[arg-type]
+                raise BundleError(f"{drug_dir / CONFORMAL_FILE}: cap_low_log2 > cap_high_log2")
+            caps = (float(cap_raw[0]), float(cap_raw[1]))  # type: ignore[arg-type]
 
         model_cls = self._resolve_model_class(model_class)
         try:
@@ -637,6 +649,7 @@ class PredictionPipeline:
             q=float(q_raw),
             meta=meta,
             unitig_kmer_set_sha1=kmer_set_sha1.strip() if isinstance(kmer_set_sha1, str) else None,
+            caps=caps,
         )
 
     def _resolve_unitig_cols(self, raw: Any, drug_dir: Path) -> tuple[int, ...]:
@@ -907,6 +920,9 @@ class PredictionPipeline:
         if raw.size != 1 or not np.isfinite(raw[0]):
             raise BundleError(f"{bundle.species} x {bundle.drug}: model returned {raw!r} for one genome")
         pred_log2 = float(raw[0])
+        if bundle.caps is not None:
+            # Panel-edge caps from training (all train rows): same clip as the training preds.
+            pred_log2 = min(max(pred_log2, bundle.caps[0]), bundle.caps[1])
         clipped = min(max(pred_log2, float(GRID_MIN_EXPONENT)), float(GRID_MAX_EXPONENT))
         if clipped != pred_log2:
             logger.warning(

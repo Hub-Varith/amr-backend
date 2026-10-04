@@ -189,6 +189,13 @@ def configs_dir(tmp_path: Path) -> Path:
         entry["expected_genome_size"] = GENOME_LEN
     species["qc"]["max_contigs"] = MAX_CONTIGS
     (target / "species.yaml").write_text(yaml.safe_dump(species))
+    # The hand-checked calls and margins below were derived against EUCAST 2024; the
+    # project call standard is CLSI 2024 (configs/drugs.yaml), so the copy pins EUCAST
+    # to keep these pipeline-mechanics tests independent of that choice.
+    drugs_yaml = target / "drugs.yaml"
+    text = drugs_yaml.read_text()
+    assert "standard: CLSI" in text
+    drugs_yaml.write_text(text.replace("standard: CLSI", "standard: EUCAST", 1))
     return target
 
 
@@ -1219,3 +1226,37 @@ def test_load_warns_when_a_unitig_model_predates_the_recorded_sha1(
     with caplog.at_level(logging.WARNING, logger="genome2mic.predict.pipeline"):
         PredictionPipeline(models, configs_dir).load()
     assert any("unitig_kmer_set_sha1" in r.getMessage() and "ciprofloxacin" in r.getMessage() for r in caplog.records)
+
+
+def test_panel_caps_from_conformal_json_clip_the_raw_prediction(
+    models_dir: Path, configs_dir: Path, unitig_query: RecordingUnitigQuery, genomes: dict[str, Path]
+) -> None:
+    """The pipeline clips the raw log2 prediction to the bundle's panel caps before rounding up.
+
+    KPC genome, meropenem: raw log2 = -4 + 6 = 2 (MIC 4). With caps [-3, 1] the prediction
+    becomes 2^1 = 2 and the q = 1 band (1, 4), exactly as training would have written it.
+    """
+    conformal_path = models_dir / SPECIES / "meropenem" / "conformal.json"
+    payload = json.loads(conformal_path.read_text())
+    payload.update({"cap_low_log2": -3.0, "cap_high_log2": 1.0})
+    conformal_path.write_text(json.dumps(payload))
+    pipe = PredictionPipeline(
+        models_dir=models_dir, configs_dir=configs_dir,
+        model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=unitig_query,
+    )
+    pipe.load()
+    assert pipe.species_bundles[SPECIES].drugs["meropenem"].caps == (-3.0, 1.0)
+    assert pipe.species_bundles[SPECIES].drugs["ceftriaxone"].caps is None  # older bundle: no caps
+    meropenem = by_drug(pipe.run(genomes["kpc"], "FAKE-KPC"))["meropenem"]
+    assert meropenem["pred_mic"] == 2.0
+    assert (meropenem["band_low"], meropenem["band_high"]) == (1.0, 4.0)
+
+
+def test_malformed_panel_caps_are_a_bundle_error(models_dir: Path, configs_dir: Path) -> None:
+    conformal_path = models_dir / SPECIES / "meropenem" / "conformal.json"
+    payload = json.loads(conformal_path.read_text())
+    payload.update({"cap_low_log2": 3.0, "cap_high_log2": 1.0})
+    conformal_path.write_text(json.dumps(payload))
+    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    with pytest.raises(BundleError, match="cap_low_log2"):
+        pipe.load()

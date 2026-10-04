@@ -439,6 +439,13 @@ def check_test_touched_once(paths: Paths) -> CheckResult:
     if not ledger_path.is_file():
         if not files:
             return CheckResult(name, None, f"no {TEST_LEDGER_NAME} and no results/preds_*.parquet: the test set was never scored")
+        scored = [_preds_test_run_ids(f) for f in files]
+        if all(s is not None and not s for s in scored):
+            # A cv-only run (train --cv-only): no preds file holds a single test row.
+            return CheckResult(
+                name, True,
+                f"test set not scored: no split == 'test' rows in {len(files)} preds file(s) and no {TEST_LEDGER_NAME}",
+            )
         return CheckResult(name, False, f"no test ledger: cannot verify (expected {ledger_path})")
     ledger = pd.read_csv(ledger_path, dtype=str, keep_default_na=False)
     missing = [c for c in ("run_id", "species", "drug") if c not in ledger.columns]

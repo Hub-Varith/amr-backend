@@ -110,7 +110,7 @@ from genome2mic.droplog import DropLog
 from genome2mic.errors import ContractViolation
 from genome2mic.features import select
 from genome2mic.io import read_parquet, write_parquet
-from genome2mic.mic import GRID_MAX_EXPONENT, GRID_MIN_EXPONENT, lab_exact_mask, round_up_to_step_array
+from genome2mic.mic import GRID_MAX_EXPONENT, GRID_MIN_EXPONENT, lab_exact_mask, panel_caps_log2, round_up_to_step_array
 from genome2mic.models import MODEL_CLASSES, make_model
 from genome2mic.models.base import (
     label_point_log2_array,
@@ -187,10 +187,13 @@ PREDS_COLUMNS: tuple[str, ...] = (
     "nearest_training_distance",
     "lab_sir_rederived",
     "lab_exact",
+    "call",
 )
 """Stage-10 contract columns plus the v0.2 additions ``external_set``,
 ``nearest_training_distance``, ``lab_sir_rederived`` and ``lab_exact`` (bool: the lab
-result is an exact measured MIC, :func:`genome2mic.mic.lab_exact_mask`)."""
+result is an exact measured MIC, :func:`genome2mic.mic.lab_exact_mask`) and the v0.4
+``call`` (``likely_active`` / ``uncertain`` / ``likely_inactive`` or null; the
+prediction pipeline's call rule and overrides, :func:`genome2mic.predict.rank.call_array`)."""
 
 LEDGER_COLUMNS: tuple[str, ...] = ("run_id", "created_utc", "species", "drug", "n_test_rows", "inputs_sha1")
 """Header of the append-only ``results/test_ledger.csv``."""
@@ -242,6 +245,12 @@ class TrainConfig:
         max_rounds, early_stopping_rounds: Passed to the xgboost models.
         lolo: Run leave-one-lineage-out fits for the pair's ``lolo_lineage`` values.
         ablation: Also run ``aft_unitig_only``.
+        cv_only: Fit CV folds (OOF ``split='cv'``), conformal and the final bundle on all
+            train rows, but never predict the test split or LOLO rows (test-split label
+            rows are not even loaded) and never append to the test ledger.
+        panel_cap: Clip each raw log2 prediction to the panel-edge caps of the rows the
+            model was fitted on (:func:`genome2mic.mic.panel_caps_log2`) before rounding
+            up and before the band; the final caps are stored in the bundle.
     """
 
     models: tuple[str, ...] = DEFAULT_MODELS
@@ -257,6 +266,8 @@ class TrainConfig:
     early_stopping_rounds: int = 20
     lolo: bool = True
     ablation: bool = False
+    cv_only: bool = False
+    panel_cap: bool = True
 
     def effective_models(self, has_unitigs: bool) -> list[str]:
         out = [m for m in self.models if m in MODEL_CLASSES]
@@ -284,6 +295,8 @@ class TrainConfig:
             "early_stopping_rounds": self.early_stopping_rounds,
             "lolo": self.lolo,
             "ablation": self.ablation,
+            "cv_only": self.cv_only,
+            "panel_cap": self.panel_cap,
         }
 
 
@@ -432,7 +445,14 @@ class SpeciesData:
     def has_unitigs(self) -> bool:
         return self.unitigs is not None
 
+    @property
+    def has_sketches(self) -> bool:
+        """False for an imported release without ``sketches_<SPECIES>.npz`` (distances are null)."""
+        return bool(self.sketch_ids)
+
     def sketch_position(self, genome_ids: Sequence[str]) -> np.ndarray:
+        if not self.has_sketches:
+            return np.full(len(genome_ids), -1, dtype=np.int64)
         pos = {g: i for i, g in enumerate(self.sketch_ids)}
         missing = [g for g in genome_ids if g not in pos]
         if missing:
@@ -505,8 +525,16 @@ def _load_species_data(paths: Paths, species: str, known_all: pd.DataFrame, clas
     known_columns = select.known_feature_columns(known)
     known = known.set_index(known["genome_id"].astype(str), drop=False)
 
-    ids, sketches, k = sk.load_sketches(paths.sketches(species))
-    logger.info("%s: %d sketches (k=%d, s=%d)", species, len(ids), k, sketches.shape[1] if sketches.ndim == 2 else 0)
+    if paths.sketches(species).is_file():
+        ids, sketches, k = sk.load_sketches(paths.sketches(species))
+        logger.info("%s: %d sketches (k=%d, s=%d)", species, len(ids), k, sketches.shape[1] if sketches.ndim == 2 else 0)
+    else:
+        ids, sketches, k = [], np.empty((0, 0), dtype=np.uint64), 0
+        logger.warning(
+            "%s: %s not found (e.g. an imported release ships no Mash sketches); nearest_training_distance "
+            "is null for every prediction and the bundle ships no train_sketches.npz",
+            species, paths.sketches(species),
+        )
 
     unitigs = rows = index = None
     kmer_sha1: str | None = None
@@ -893,6 +921,31 @@ def _pred_sir(pred_mic: np.ndarray, config: Config, species: str, drug: str) -> 
     return [config.sir_from_mic(float(m), bp) if np.isfinite(m) else None for m in pred_mic]
 
 
+def apply_caps(pred_log2: np.ndarray, caps: tuple[float, float] | None) -> np.ndarray:
+    """Clip raw log2 predictions to the panel-edge ``caps`` (no-op for ``None``); NaN stays NaN."""
+    pred = np.asarray(pred_log2, dtype=np.float64)
+    if caps is None:
+        return pred
+    return np.clip(pred, caps[0], caps[1])
+
+
+def pair_calls(pd_: PairData, idx: np.ndarray, band_low: np.ndarray, band_high: np.ndarray, config: Config) -> np.ndarray:
+    """Calls for rows ``idx`` with the prediction pipeline's rule and overrides (:func:`rank.call_array`).
+
+    Override 2 uses the column-prefix rule on the genome's full known-AMR row (every
+    column of the species, not only the model's selected features).
+    """
+    from genome2mic.predict import rank  # noqa: PLC0415  (avoids a predict <-> models import cycle)
+
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    marker = rank.strong_marker_mask(pd_.X_known.iloc[idx], config.drugs.get(pd_.drug))
+    return rank.call_array(
+        band_low, band_high, bp,
+        natural_resistance=config.is_naturally_resistant(pd_.species, pd_.drug),
+        strong_marker=marker,
+    )
+
+
 def finish_predictions(
     pd_: PairData,
     idx: np.ndarray,
@@ -903,8 +956,14 @@ def finish_predictions(
     run_id: str,
     nearest: np.ndarray,
     config: Config,
+    caps: tuple[float, float] | None = None,
 ) -> pd.DataFrame:
-    """Round up, band, classify and assemble the preds rows for ``idx``."""
+    """Cap, round up, band, classify, call and assemble the preds rows for ``idx``.
+
+    ``caps`` (:func:`genome2mic.mic.panel_caps_log2` of the fit rows) clips the raw
+    log2 prediction before rounding up; ``None`` when the caller already capped.
+    """
+    pred_log2 = apply_caps(pred_log2, caps)
     clipped = np.clip(pred_log2, GRID_MIN_EXPONENT, GRID_MAX_EXPONENT)
     n_clip = int((clipped != pred_log2).sum())
     if n_clip:
@@ -934,6 +993,7 @@ def finish_predictions(
             "nearest_training_distance": np.asarray(nearest, dtype=np.float64),
             "lab_sir_rederived": rederived,
             "lab_exact": pd_.lab_exact[idx],
+            "call": pair_calls(pd_, idx, band_low, band_high, config),
         },
         columns=list(PREDS_COLUMNS),
     )
@@ -1002,11 +1062,12 @@ def _fit_plan(frame: pd.DataFrame, cfg: TrainConfig) -> FitPlan:
             skipped_folds.append((f, int(val_idx.size), int(fit_idx.size)))
             continue
         cv.append(FitGroup(SPLIT_CV, val_idx, fit_idx, fold=f))
-    test = FitGroup(SPLIT_TEST, np.flatnonzero(test_mask), train_all)
+    test_idx = np.empty(0, dtype=np.int64) if cfg.cv_only else np.flatnonzero(test_mask)
+    test = FitGroup(SPLIT_TEST, test_idx, train_all)
 
     lolo: list[FitGroup] = []
     skipped_lolo: list[tuple[str, str, int]] = []
-    if cfg.lolo:
+    if cfg.lolo and not cfg.cv_only:
         clusters = frame["lineage_cluster"].astype(object).to_numpy()
         lineages = sorted(frame["lolo_lineage"].dropna().astype(str).unique().tolist())
         for lineage in lineages:
@@ -1143,6 +1204,14 @@ def _species_nearest(
     """
     out: dict[str, PairNearest] = {}
     jobs: list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []  # (target, frame rows, query rows, ref rows)
+    if not sd.has_sketches:
+        for drug, (sketch_pos, plan) in requests.items():
+            n = int(sketch_pos.size)
+            out[drug] = PairNearest(
+                cv=np.full(n, np.nan), test=np.full(n, np.nan),
+                lolo={str(g.lineage): np.full(n, np.nan) for g in plan.lolo},
+            )
+        return out
     for drug, (sketch_pos, plan) in requests.items():
         n = int(sketch_pos.size)
         result = PairNearest(cv=np.full(n, np.nan), test=np.full(n, np.nan))
@@ -1184,11 +1253,24 @@ def _species_nearest(
     return out
 
 
-def _conformal(pred_log2_oof: np.ndarray, pd_: PairData, cfg: TrainConfig, droplog: DropLog, label: str) -> tuple[float, int]:
-    """Conformal ``q`` from the OOF predictions of the train rows (``lab_exact`` rows only)."""
+def _conformal(
+    pred_log2_oof: np.ndarray,
+    pd_: PairData,
+    cfg: TrainConfig,
+    droplog: DropLog,
+    label: str,
+    rows: np.ndarray | None = None,
+) -> tuple[float, int]:
+    """Conformal ``q`` from the (capped) OOF predictions of the train rows (``lab_exact`` rows only).
+
+    ``rows`` (boolean mask) restricts the residuals, e.g. to the rows of the *other*
+    folds for cross-conformal bands (:func:`train_pair`).
+    """
     clipped = np.clip(pred_log2_oof, GRID_MIN_EXPONENT, GRID_MAX_EXPONENT)
     pred_mic = round_up_to_step_array(2.0**clipped)
     mask = ~np.isnan(pred_mic)
+    if rows is not None:
+        mask &= np.asarray(rows, dtype=bool)
     residuals = residual_steps(
         np.log2(pred_mic[mask]), pd_.lo[mask], pd_.hi[mask], droplog, exact_rows=pd_.lab_exact[mask]
     )
@@ -1273,6 +1355,7 @@ def resfinder_predictions(paths: Paths, pd_: PairData, run_id: str, config: Conf
             "nearest_training_distance": np.nan,
             "lab_sir_rederived": [rederive_lab_sir(lo, hi, bp) for lo, hi in zip(pd_.lo[idx], pd_.hi[idx])],
             "lab_exact": pd_.lab_exact[idx],
+            "call": None,
         },
         columns=list(PREDS_COLUMNS),
     )
@@ -1337,13 +1420,18 @@ def train_pair(
     n_res: dict[str, int] = {}
     timings: dict[str, float] = {}
 
-    # --- CV: out-of-fold predictions, in-fold selection ------------------------
+    # --- CV: out-of-fold predictions, in-fold selection and panel caps -----------
+    # Each fold's raw predictions are clipped to the panel caps of that fold's own fit
+    # rows (never the validation rows), so oof[m] holds capped log2 predictions.
     oof: dict[str, np.ndarray] = {m: np.full(pd_.n, np.nan) for m in models}
     oof_nearest = nearest.cv
+    fold_caps: dict[int, tuple[float, float] | None] = {}
     t0 = time.perf_counter()
     for f, n_val, n_fit in plan.skipped_folds:
         logger.warning("%s: fold %d has %d validation / %d fit rows; skipped", label, f, n_val, n_fit)
     for group in plan.cv:
+        caps = panel_caps_log2(pd_.lo[group.fit_idx], pd_.hi[group.fit_idx]) if cfg.panel_cap else None
+        fold_caps[int(group.fold)] = caps  # type: ignore[arg-type]
         selected = _select_all(pd_, group.fit_idx, cfg, droplog, models, sd.has_unitigs)
         for m in models:
             try:
@@ -1351,32 +1439,46 @@ def train_pair(
             except ValueError as error:
                 logger.warning("%s [%s] fold %d: %s; fold predictions are null", label, m, group.fold, error)
                 continue
-            oof[m][group.predict_idx] = pred
-        logger.info("%s: fold %d done (%d fit, %d validation rows)", label, group.fold, group.fit_idx.size, group.predict_idx.size)
+            oof[m][group.predict_idx] = apply_caps(pred, caps)
+        logger.info("%s: fold %d done (%d fit, %d validation rows, caps %s)", label, group.fold, group.fit_idx.size,
+                    group.predict_idx.size, caps)
     timings["cv_s"] = time.perf_counter() - t0
 
+    # --- Conformal: q for the bundle from every OOF residual; the CV rows' own bands are
+    # cross-conformal (fold f's rows use q calibrated on the residuals of the other folds).
+    folds_arr = pd_.folds
+    q_cv: dict[str, dict[int, float]] = {}
     for m in models:
         q, n = _conformal(oof[m], pd_, cfg, droplog, f"{label} [{m}]")  # NaN outside train rows
         q_by_model[m] = q
         n_res[m] = n
-        has = train_all[~np.isnan(oof[m][train_all])]
-        if has.size:
-            preds.append(finish_predictions(pd_, has, oof[m][has], q, SPLIT_CV, m, run_id, oof_nearest[has], config))
-        logger.info("%s [%s]: conformal q=%.2f steps from %d exact OOF residuals", label, m, q, n)
+        q_cv[m] = {}
+        quiet = DropLog(STAGE)
+        for group in plan.cv:
+            other = ~np.isnan(folds_arr) & (folds_arr != group.fold)
+            q_f, _ = _conformal(oof[m], pd_, cfg, quiet, f"{label} [{m}] fold {group.fold}", rows=other)
+            q_cv[m][int(group.fold)] = q_f  # type: ignore[arg-type]
+            has = group.predict_idx[~np.isnan(oof[m][group.predict_idx])]
+            if has.size:
+                preds.append(finish_predictions(pd_, has, oof[m][has], q_f, SPLIT_CV, m, run_id, oof_nearest[has], config))
+        logger.info("%s [%s]: conformal q=%.2f steps from %d exact OOF residuals (bundle); cross-conformal fold q %s",
+                    label, m, q, n, q_cv[m])
 
-    # --- Final fit on all train rows -> test (+ external) -------------------------
+    # --- Final fit on all train rows -> bundle (+ test unless cv_only) -------------
     t0 = time.perf_counter()
     main_model = MODEL_AFT_KNOWN_UNITIG if MODEL_AFT_KNOWN_UNITIG in models else MODEL_AFT_KNOWN
+    final_caps = panel_caps_log2(pd_.lo[train_all], pd_.hi[train_all]) if cfg.panel_cap else None
     selected = _select_all(pd_, train_all, cfg, droplog, models, sd.has_unitigs)
     test_nearest = nearest.test[test_idx]
     for m in models:
         pred, model, feats_used, names = _fit_predict(pd_, m, train_all, test_idx, cfg, droplog, feats=selected[m])
         if test_idx.size:
-            preds.append(finish_predictions(pd_, test_idx, pred, q_by_model[m], SPLIT_TEST, m, run_id, test_nearest, config))
+            preds.append(finish_predictions(pd_, test_idx, pred, q_by_model[m], SPLIT_TEST, m, run_id, test_nearest, config,
+                                            caps=final_caps))
         if m == main_model:
             _write_pair_bundle(
                 paths, config, sd, pd_, cfg, model, feats_used, names, q_by_model[m], n_res[m], run_id,
-                train_all.size, test_idx.size, inputs_sha1=inputs_sha1,
+                train_all.size, test_idx.size, inputs_sha1=inputs_sha1, caps=final_caps, q_cv=q_cv[m],
             )
     timings["final_s"] = time.perf_counter() - t0
 
@@ -1394,6 +1496,7 @@ def train_pair(
             )
         for group in plan.lolo:
             lineage = str(group.lineage)
+            lolo_caps = panel_caps_log2(pd_.lo[group.fit_idx], pd_.hi[group.fit_idx]) if cfg.panel_cap else None
             selected = _select_all(pd_, group.fit_idx, cfg, droplog, models, sd.has_unitigs)
             lolo_nearest = nearest.lolo[lineage][group.predict_idx]
             for m in models:
@@ -1402,14 +1505,20 @@ def train_pair(
                 except ValueError as error:
                     logger.warning("%s [%s] LOLO %s: %s; skipped", label, m, lineage, error)
                     continue
-                preds.append(finish_predictions(pd_, group.predict_idx, pred, q_by_model[m], group.split, m, run_id, lolo_nearest, config))
+                preds.append(finish_predictions(pd_, group.predict_idx, pred, q_by_model[m], group.split, m, run_id, lolo_nearest, config,
+                                                caps=lolo_caps))
             logger.info("%s: LOLO %s done (%d fit, %d held-out train genomes)", label, lineage, group.fit_idx.size, group.predict_idx.size)
     timings["lolo_s"] = time.perf_counter() - t0
 
-    # --- b0_resfinder -----------------------------------------------------------
-    b0 = resfinder_predictions(paths, pd_, run_id, config, droplog, pheno_cache)
-    if b0 is not None:
-        preds.append(b0)
+    # --- b0_resfinder (needs per-genome ResFinder output under data/interim) --------
+    if paths.interim_root.is_dir():
+        b0 = resfinder_predictions(paths, pd_, run_id, config, droplog, pheno_cache)
+        if b0 is not None:
+            if cfg.cv_only:
+                b0 = b0.loc[b0["split"] != SPLIT_TEST]
+            preds.append(b0)
+    else:
+        logger.info("%s: no %s (no per-genome tool output); b0_resfinder skipped", label, paths.interim_root)
 
     table = pd.concat(preds, ignore_index=True) if preds else pd.DataFrame(columns=list(PREDS_COLUMNS))
     table = _typed_preds(table)
@@ -1496,8 +1605,14 @@ def _write_pair_bundle(
     n_test: int,
     *,
     inputs_sha1: str | None = None,
+    caps: tuple[float, float] | None = None,
+    q_cv: Mapping[int, float] | None = None,
 ) -> None:
     """Write ``models/<SPECIES>/<drug>/`` for the prediction pipeline.
+
+    ``caps`` (log2 mg/L, from all train rows) go to ``conformal.json``
+    (``cap_low_log2``, ``cap_high_log2``) and ``meta.json``; the pipeline clips the raw
+    prediction to them before rounding up, exactly as training did.
 
     ``features.json`` ``unitig_kmer_set_sha1`` names the k-mer set the model's unitig
     columns index (null for a model without unitig features); the prediction pipeline
@@ -1530,7 +1645,12 @@ def _write_pair_bundle(
             "unitig_kmer_set_sha1": kmer_set_sha1,
         },
     )
-    write_conformal(target / "conformal.json", q, cfg.alpha, n_residuals, {"unit": "doubling steps", "source": "out-of-fold exact residuals"})
+    extra: dict[str, Any] = {"unit": "doubling steps", "source": "out-of-fold exact residuals"}
+    if caps is not None:
+        extra.update({"cap_low_log2": float(caps[0]), "cap_high_log2": float(caps[1])})
+    if q_cv:
+        extra["q_cross_conformal_by_fold"] = {str(k): float(v) for k, v in sorted(q_cv.items())}
+    write_conformal(target / "conformal.json", q, cfg.alpha, n_residuals, extra)
     write_json(
         target / "meta.json",
         {
@@ -1548,6 +1668,8 @@ def _write_pair_bundle(
             "inputs_sha1": inputs_sha1,
             "unitig_kmer_set_sha1": kmer_set_sha1,
             "call_standard": list(config.call_standard),
+            "panel_caps_log2": None if caps is None else [float(caps[0]), float(caps[1])],
+            "cv_only": bool(cfg.cv_only),
             "synthetic": (paths.raw_dir / SYNTHETIC_MARKER).is_file(),
         },
     )
@@ -1576,9 +1698,16 @@ def write_species_bundle(paths: Paths, sd: SpeciesData, splits: pd.DataFrame) ->
     is_train = (splits["split"].astype(str) == SPLIT_TRAIN).to_numpy(dtype=bool)
     train_ids = set(splits.loc[is_species & is_train, "genome_id"].astype(str))
     keep = [i for i, g in enumerate(sd.sketch_ids) if g in train_ids]
-    if not keep:
+    if not sd.has_sketches:
+        logger.warning(
+            "%s: no sketches available (imported release); models/%s/train_sketches.npz not written -- the "
+            "prediction pipeline cannot compute nearest-training distances or load this species until it is added",
+            species, species,
+        )
+    elif not keep:
         raise ContractViolation(f"{species}: no training sketches to ship", STAGE)
-    sk.save_sketches(sdir / "train_sketches.npz", [sd.sketch_ids[i] for i in keep], sd.sketches[keep], k=sd.sketch_k)
+    else:
+        sk.save_sketches(sdir / "train_sketches.npz", [sd.sketch_ids[i] for i in keep], sd.sketches[keep], k=sd.sketch_k)
     if sd.has_unitigs:
         current = _species_kmer_set_sha1(paths, species)
         if current is None or current != sd.unitig_kmer_set_sha1:
@@ -1625,12 +1754,18 @@ def write_shared_bundle(
     from genome2mic.qc import build_reference_sketches  # noqa: PLC0415
 
     refs = build_reference_sketches(paths, config)
-    if refs is None:
+    if refs is None and not paths.processed_dir.joinpath("IMPORTED_RELEASE.json").is_file():
         raise FileNotFoundError(
             f"no species reference genomes under {paths.references_dir} (or species.yaml reference_sketch); "
             "the prediction pipeline cannot identify species without models/reference_sketches.npz"
         )
-    sk.save_sketches(models_dir / "reference_sketches.npz", list(refs.species), refs.sketches, k=refs.k)
+    if refs is None:
+        logger.warning(
+            "imported release without species references: models/reference_sketches.npz not written; the "
+            "prediction pipeline cannot identify species with this bundle until references are added"
+        )
+    else:
+        sk.save_sketches(models_dir / "reference_sketches.npz", list(refs.species), refs.sketches, k=refs.k)
 
     markers = models_dir / "markers.fasta"
     if synthetic:
@@ -2027,7 +2162,13 @@ def run(
         plans: dict[str, FitPlan] = {}
         for drug in drugs:
             logs[drug] = _PairDropLog(STAGE, _pair_label(species, drug))
-            frames[drug] = _pair_frame(species, drug, labels, splits, qc, lineages, sd, logs[drug])
+            frame = _pair_frame(species, drug, labels, splits, qc, lineages, sd, logs[drug])
+            if cfg.cv_only:
+                # The test split is never touched: its label rows are not even loaded.
+                is_train = frame["split"].astype(object).to_numpy() == SPLIT_TRAIN
+                frame = logs[drug].keep_where(frame, is_train, "cv_only: non-train (test) rows not loaded", _pair_label(species, drug))
+                frame = frame.reset_index(drop=True)
+            frames[drug] = frame
             plans[drug] = _fit_plan(frames[drug], cfg)
         nearest = _species_nearest(
             sd, {drug: (sd.sketch_position(frames[drug]["genome_id"].tolist()), plans[drug]) for drug in drugs}

@@ -7,7 +7,7 @@ filename is the lookup key: `genome2mic.config.Config.breakpoint()` matches
 counted in `drop_log_ingest.csv` (`S/I/R-only row with null standard_year`,
 `no breakpoint table for standard_year`). A null standard never matches
 (DATA_CONTRACT.md: "If the standard is unknown, drop the row"). The prediction call
-uses `call_standard` from `drugs.yaml`, whose table must exist.
+uses `call_standard` from `drugs.yaml` (CLSI 2024, the US standard, by user decision), whose table must exist.
 
 ## Columns
 

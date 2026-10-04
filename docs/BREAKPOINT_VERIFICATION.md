@@ -12,6 +12,12 @@ mostly by recognizing CLSI M100. Note any drug where FDA recognition differs.
 
 These are predictions of in-vitro susceptibility, not prescribing advice.
 
+**Status 2026-10-03:** Hub checked the CLSI Enterobacterales breakpoints for 15
+K. pneumoniae drugs (develop `ddd76ef`: AMR package CLSI 2020-2026 table, FDA NARMS
+M100-Ed30, CLSI Ed33 aminoglycosides; not the paid M100 book). Our `clsi_2024.csv`
+matches all 15, for K. pneumoniae and E. coli (30 rows, including every priority-1
+row); they are marked in the checklist. Everything else is still unchecked.
+
 ## How to verify (one person, ideally a clinical microbiologist)
 
 1. Open `docs/breakpoint_verification_checklist.csv`. Work in `priority` order.

@@ -1,8 +1,8 @@
 """Command-line entry point: ``python -m genome2mic <stage> [--root ..] [--configs-dir ..]``.
 
-Subcommands (``.context/DESIGN.md``): ``synth``, ``fetch``, ``ingest``, ``qc``,
-``known-amr``, ``lineages``, ``splits``, ``unitigs``, ``train``, ``evaluate``,
-``report``, ``predict``, ``run-all``. Each builds a :class:`genome2mic.paths.Paths`
+Subcommands (``.context/DESIGN.md``): ``synth``, ``fetch``, ``import-release``,
+``ingest``, ``qc``, ``known-amr``, ``lineages``, ``splits``, ``unitigs``, ``train``,
+``evaluate``, ``report``, ``compare-oof``, ``predict``, ``run-all``. Each builds a :class:`genome2mic.paths.Paths`
 from ``--root``/``--configs-dir`` and calls the stage's ``run(paths, config, **opts)``.
 
 ``fetch`` syncs the raw layer (AST exports + genomes) from a cloud bucket or a local
@@ -121,6 +121,50 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_import_release(args: argparse.Namespace) -> int:
+    from genome2mic.ingest import release  # noqa: PLC0415
+
+    paths = _resolve_paths(args)
+    config = _load_config(paths)
+    summary = _timed(
+        "import-release",
+        lambda: release.run(
+            paths,
+            config,
+            release_dir=Path(args.release_dir) if args.release_dir else None,
+            s3_release=args.s3_release,
+            aws_profile=args.aws_profile,
+        ),
+    )
+    print(
+        f"import-release: {summary.release or '(unnamed release)'} from {summary.source_dir} -> {paths.processed_dir}: "
+        f"{len(summary.files)} file(s), sha256 verified; qc.parquet with {summary.n_genomes_qc} genomes; "
+        f"{summary.n_pairs} kept pairs"
+    )
+    for note in summary.notes:
+        print(f"import-release: note: {note}")
+    return 0
+
+
+def cmd_compare_oof(args: argparse.Namespace) -> int:
+    from genome2mic.eval import oof_compare  # noqa: PLC0415
+
+    paths = _resolve_paths(args)
+    config = _load_config(paths)
+    result = _timed(
+        "compare-oof",
+        lambda: oof_compare.run(
+            paths,
+            config,
+            develop_preds=Path(args.develop_preds),
+            out_dir=Path(args.out),
+            breakpoints_csv=Path(args.breakpoints) if args.breakpoints else None,
+        ),
+    )
+    print(f"compare-oof: {len(result.table)} rows -> {result.csv_path} and {result.md_path}")
+    return 0
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     from genome2mic import ingest  # noqa: PLC0415
 
@@ -210,8 +254,9 @@ def _train_config(args: argparse.Namespace) -> Any:
         seed=args.train_seed,
         max_rounds=args.max_rounds,
         early_stopping_rounds=args.early_stopping_rounds,
-        lolo=not args.no_lolo,
+        lolo=not args.no_lolo and not getattr(args, "cv_only", False),
         ablation=args.ablation,
+        cv_only=getattr(args, "cv_only", False),
     )
 
 
@@ -245,9 +290,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # EA is computed on exact lab MICs only, so its denominator n_exact sits next to it;
     # the re-derived VME (lab MIC under the call breakpoint) follows the as-reported block.
     cols = [
-        "species", "drug", "model", "vme_rate", "me_rate", "categorical_agreement",
-        "essential_agreement", "n_exact", "vme_rate_rederived", "n",
+        "species", "drug", "model", "vme_rate", "call_vme_rate_rederived", "active_call_rate_s_rederived",
+        "me_rate", "categorical_agreement", "essential_agreement", "n_exact", "vme_rate_rederived", "n",
     ]
+    if test.empty:
+        cv = table.loc[table["split"] == "cv"]
+        print("Test set not scored (cv-only run). Out-of-fold CV metrics (VME first):")
+        print(cv[[c for c in cols if c in cv.columns]].to_string(index=False))
+        return 0
     cols = [c for c in cols if c in test.columns]
     print("Test-set metrics (VME first; synthetic data if data/raw/SYNTHETIC_DATA.md exists):")
     print(test[cols].to_string(index=False))
@@ -420,6 +470,11 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-rounds", type=int, default=400)
     parser.add_argument("--early-stopping-rounds", type=int, default=20)
     parser.add_argument("--no-lolo", action="store_true", help="skip leave-one-lineage-out runs")
+    parser.add_argument(
+        "--cv-only", dest="cv_only", action="store_true",
+        help="fit CV folds (OOF split='cv'), conformal and the final bundle on all train rows, but never "
+             "predict test or LOLO rows and never write the test ledger",
+    )
     parser.add_argument("--ablation", action="store_true", help="also run aft_unitig_only")
     parser.add_argument(
         "--species", dest="train_species", nargs="+", default=None, metavar="KEY",
@@ -445,6 +500,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p); _add_fetch_args(p, required=True)
     p.add_argument("--dry-run", action="store_true", help="print the sync command and run nothing")
     p.set_defaults(func=cmd_fetch)
+
+    p = sub.add_parser(
+        "import-release",
+        help="verify (SHA256SUMS) and copy a frozen data release into <root>/data/processed (+ qc.parquet)",
+    )
+    _add_common(p)
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument("--release-dir", default=None, help="local release directory (read only), e.g. a develop checkout's data/processed")
+    source.add_argument("--s3-release", default=None, metavar="NAME", help="download s3://g2m-data-v1/releases/NAME/ with aws s3 sync first")
+    p.add_argument("--aws-profile", dest="aws_profile", default=None, metavar="NAME", help="AWS CLI profile for --s3-release")
+    p.set_defaults(func=cmd_import_release)
 
     p = sub.add_parser("ingest", help="raw AST -> labels.parquet, label_counts.csv, pairs_kept.csv")
     _add_common(p); _add_ingest_args(p); p.set_defaults(func=cmd_ingest)
@@ -472,6 +538,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("report", help="metrics + figures -> results/report.md")
     _add_common(p); p.add_argument("--no-figures", action="store_true"); p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser(
+        "compare-oof",
+        help="our split='cv' preds vs another model's OOF preds on identical (genome_id, drug) rows and breakpoints",
+    )
+    _add_common(p)
+    p.add_argument("--develop-preds", required=True, help="OOF preds parquet of the reference model (e.g. develop's multitask)")
+    p.add_argument("--breakpoints", default=None, help="breakpoint CSV to use instead of the call standard (species,drug,s_breakpoint,r_breakpoint)")
+    p.add_argument("--out", required=True, help="output directory for oof_compare.csv / oof_compare.md")
+    p.set_defaults(func=cmd_compare_oof)
 
     p = sub.add_parser("predict", help="one FASTA -> report JSON on stdout")
     _add_common(p)

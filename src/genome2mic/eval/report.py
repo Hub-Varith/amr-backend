@@ -56,6 +56,10 @@ SYNTHETIC_MARKER = "SYNTHETIC_DATA.md"
 
 RATE_COLUMNS: tuple[str, ...] = (
     "vme_rate",
+    "call_vme_rate",
+    "call_me_rate",
+    "active_call_rate_s",
+    "uncertain_rate",
     "me_rate",
     "mine_rate",
     "categorical_agreement",
@@ -93,13 +97,13 @@ EXACT_ROWS_TEXT = (
 """How-to-read text for the exact-row rule behind EA / exact agreement / band coverage."""
 
 CV_COVERAGE_NOTE = (
-    "CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO "
-    "coverage is an evaluation."
+    "CV bands are cross-conformal: the band on each fold's rows is calibrated on the out-of-fold residuals "
+    "of the other folds only, so CV coverage is an out-of-fold estimate, not the calibration set itself."
 )
-"""Footnote under every cross-validation metrics table: the conformal ``q`` is the quantile of
-exactly these out-of-fold residuals, so CV band coverage is ~90 % by construction."""
+"""Footnote under every cross-validation metrics table (training computes one ``q`` per fold
+from the residuals of the other folds; the bundle's ``q`` uses every residual)."""
 
-CV_BAND_HEADER = "Band coverage % (90% band; exact lab MICs; in-sample, see note)"
+CV_BAND_HEADER = "Band coverage % (90% band; exact lab MICs; cross-conformal, see note)"
 """Band-coverage header of the CV tables (marks the column the footnote refers to)."""
 
 REDERIVED_TEXT = (
@@ -109,6 +113,22 @@ REDERIVED_TEXT = (
     "call breakpoint as the prediction (rows whose lab interval straddles a breakpoint are left out)."
 )
 """How-to-read sentence for the as-reported vs re-derived categorical metrics."""
+
+CALL_TEXT = (
+    "**Call-level** metrics score the call a clinician would see (likely active / uncertain / likely "
+    "inactive: band upper end <= S breakpoint, band lower end > R breakpoint, plus the natural-resistance "
+    "and strong-marker overrides) instead of the point prediction's S/I/R: **call VME** is lab R called "
+    "likely active, **call ME** lab S called likely inactive, **active calls % of lab S** is how many "
+    "susceptible isolates get an actionable answer, and **uncertain** means wait for the lab. Raw VME "
+    "(pred_sir) can be high while call VME stays low, because a wide band turns a borderline point "
+    "prediction into 'uncertain' rather than 'likely active'."
+)
+"""How-to-read sentence for the call-level metrics shown next to raw VME."""
+
+TEST_NOT_SCORED_TEXT = (
+    "_Test set not scored: this is a cross-validation-only run (`train --cv-only`); every number is "
+    "out-of-fold on the frozen train folds. The test split is scored once, at the very end._"
+)
 
 UNITIG_BUILD_NOTE = (
     "Unitig patterns are built from every train genome, including the genomes held out within CV "
@@ -152,6 +172,8 @@ class ReportInputs:
     """Per species: only the index rows of the unitig patterns the report labels (not the full index)."""
     importances: dict[tuple[str, str], list[dict[str, Any]]] = field(default_factory=dict)
     synthetic: bool = False
+    release: dict[str, Any] | None = None
+    """``IMPORTED_RELEASE.json`` when the run root holds an imported data release."""
     found: dict[str, bool] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
@@ -295,6 +317,9 @@ def load_inputs(paths: Paths) -> ReportInputs:
     """Load every optional input under ``paths`` (see the module docstring)."""
     inputs = ReportInputs()
     inputs.synthetic = (paths.raw_dir / SYNTHETIC_MARKER).is_file()
+    from genome2mic.ingest.release import read_imported_release  # noqa: PLC0415
+
+    inputs.release = read_imported_release(paths)
     inputs.metrics = _load(inputs, "metrics.parquet", paths.metrics, _read_parquet)
     inputs.metrics_by_distance = _load(inputs, "metrics_by_distance.parquet", paths.metrics_by_distance, _read_parquet)
 
@@ -477,6 +502,9 @@ METRICS_HEADERS: tuple[str, ...] = (
     "Model",
     "n",
     "VME % (predicted S, lab R; of lab R)",
+    "Call VME % (lab R called likely active; of lab R)",
+    "Active calls % (lab S called likely active; of lab S)",
+    "Uncertain %",
     "ME % (predicted R, lab S; of lab S)",
     "Minor error % (of categorised)",
     "CA % (same S/I/R)",
@@ -493,6 +521,10 @@ lab MICs and print that count (``n_exact`` / ``n_band``) as their ``n``."""
 REDERIVED_HEADERS: tuple[str, ...] = (
     "Model",
     "VME % re-derived (of lab R)",
+    "Call VME % re-derived (of lab R)",
+    "Call ME % re-derived (of lab S)",
+    "Active calls % re-derived (of lab S)",
+    "Uncertain % re-derived",
     "ME % re-derived (of lab S)",
     "Minor error % re-derived",
     "CA % re-derived",
@@ -534,6 +566,9 @@ def metrics_table(metrics: pd.DataFrame, *, in_sample_coverage: bool = False) ->
                 _get(record, "model"),
                 _fmt_value(_get(record, "n")),
                 fmt_pct(_get(record, "vme_rate"), _get(record, "n_lab_r")),
+                fmt_pct(_get(record, "call_vme_rate"), _get(record, "n_call_lab_r")),
+                fmt_pct(_get(record, "active_call_rate_s"), _get(record, "n_call_lab_s")),
+                fmt_pct(_get(record, "uncertain_rate"), _get(record, "n_call")),
                 fmt_pct(_get(record, "me_rate"), _get(record, "n_lab_s")),
                 fmt_pct(_get(record, "mine_rate"), _get(record, "n_cat")),
                 fmt_pct(_get(record, "categorical_agreement"), _get(record, "n_cat")),
@@ -572,6 +607,10 @@ def rederived_metrics_table(metrics: pd.DataFrame) -> str | None:
             [
                 _get(record, "model"),
                 fmt_pct(_get(record, "vme_rate_rederived"), _get(record, "n_lab_r_rederived")),
+                fmt_pct(_get(record, "call_vme_rate_rederived"), _get(record, "n_call_lab_r_rederived")),
+                fmt_pct(_get(record, "call_me_rate_rederived"), _get(record, "n_call_lab_s_rederived")),
+                fmt_pct(_get(record, "active_call_rate_s_rederived"), _get(record, "n_call_lab_s_rederived")),
+                fmt_pct(_get(record, "uncertain_rate_rederived"), _get(record, "n_call_rederived")),
                 fmt_pct(_get(record, "me_rate_rederived"), _get(record, "n_lab_s_rederived")),
                 fmt_pct(_get(record, "mine_rate_rederived"), _get(record, "n_cat_rederived")),
                 fmt_pct(_get(record, "categorical_agreement_rederived"), _get(record, "n_cat_rederived")),
@@ -650,6 +689,7 @@ def render_markdown(
         "of an exact lab MIC; **exact agreement** is the same doubling step.",
         f"- {EXACT_ROWS_TEXT}",
         f"- {REDERIVED_TEXT}",
+        f"- {CALL_TEXT}",
         "- Rates are shown as percentages with their denominator `n`. Band coverage is the share of exact "
         "lab MICs inside the 90 % conformal band; band width is in doubling steps over every row with a band. "
         f"{CV_COVERAGE_NOTE}",
@@ -663,6 +703,7 @@ def render_markdown(
         parts += ["_All numbers below come from synthetic data (see the banner above)._", ""]
 
     parts += _headline_section(inputs)
+    parts += _release_section(inputs)
     parts += _data_section(inputs)
     parts += _results_sections(inputs, figure_paths, report_path, config)
     parts += _species_figures_section(inputs, figure_paths, report_path)
@@ -676,9 +717,16 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
     if metrics is None or not {"species", "drug", "model", "split"}.issubset(metrics.columns):
         return []
     test = figures.subset(metrics, split="test")
+    title = "## Headline: main model on the test set (VME first)"
+    preface: list[str] = []
     if test.empty:
-        return []
+        test = figures.subset(metrics, split="cv")
+        if test.empty:
+            return []
+        title = "## Headline: main model, out-of-fold cross-validation (VME first; test set not scored)"
+        preface = [TEST_NOT_SCORED_TEXT, ""]
     with_rederived = set(_REDERIVED_RATE_COLUMNS).issubset(test.columns)
+    with_calls = "call_vme_rate_rederived" in test.columns
     rows = []
     for species, drug in sorted({(str(s), str(d)) for s, d in test[["species", "drug"]].drop_duplicates().itertuples(index=False)}):
         pair = figures.subset(test, species=species, drug=drug)
@@ -700,6 +748,11 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
                 fmt_pct(_get(record, "me_rate_rederived"), _get(record, "n_lab_s_rederived")),
                 fmt_pct(_get(record, "categorical_agreement_rederived"), _get(record, "n_cat_rederived")),
             ]
+        if with_calls:
+            row += [
+                fmt_pct(_get(record, "call_vme_rate_rederived"), _get(record, "n_call_lab_r_rederived")),
+                fmt_pct(_get(record, "active_call_rate_s_rederived"), _get(record, "n_call_lab_s_rederived")),
+            ]
         row += [fmt_pct(_get(record, "essential_agreement"), _get(record, "n_exact")), _fmt_value(_get(record, "n"))]
         rows.append(row)
     if not rows:
@@ -707,13 +760,10 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
     headers = ["Species", "Drug", "Model", "VME % as reported (of lab R)", "ME % as reported (of lab S)", "CA % as reported"]
     if with_rederived:
         headers += ["VME % re-derived (of lab R)", "ME % re-derived (of lab S)", "CA % re-derived"]
+    if with_calls:
+        headers += ["Call VME % re-derived (of lab R)", "Active calls % re-derived (of lab S)"]
     headers += ["EA % (exact lab MICs)", "n"]
-    return [
-        "## Headline: main model on the test set (VME first)",
-        "",
-        md_table(headers, rows),
-        "",
-    ]
+    return [title, "", *preface, md_table(headers, rows), ""]
 
 
 def _data_section(inputs: ReportInputs) -> list[str]:
@@ -761,10 +811,13 @@ def _results_sections(
             parts += _preds_summary(inputs, species, drug)
         else:
             pair = figures.subset(metrics, species=species, drug=drug)
+            test_scored = not figures.subset(metrics, split="test").empty
             for split, title in (("test", "Test set (lineage-held-out genomes, scored once)"), ("cv", "Cross-validation (out-of-fold, train split)")):
                 parts += [f"#### {title}", ""]
                 rows = figures.subset(pair, split=split)
-                if rows.empty:
+                if rows.empty and split == "test" and not test_scored:
+                    parts += [TEST_NOT_SCORED_TEXT, ""]
+                elif rows.empty:
                     parts += [f"_No `{split}` rows in metrics.parquet for this pair._", ""]
                 else:
                     parts += _metrics_tables(rows, in_sample_coverage=split == "cv")
@@ -782,7 +835,35 @@ def _results_sections(
             if stem in figure_paths:
                 parts += [_image(report_path, figure_paths[stem], caption), ""]
             else:
-                parts += [f"_Figure `{stem}.png` not available._", ""]
+                parts += [_missing_figure(inputs, stem), ""]
+    return parts
+
+
+def _missing_figure(inputs: ReportInputs, stem: str) -> str:
+    if inputs.release is not None:
+        return f"_Figure `{stem}.png` not available for this release (inputs missing, or the test set was not scored)._"
+    return f"_Figure `{stem}.png` not available._"
+
+
+def _release_section(inputs: ReportInputs) -> list[str]:
+    """What an imported data release provides and what it does not (``IMPORTED_RELEASE.json``)."""
+    if inputs.release is None:
+        return []
+    record = inputs.release
+    parts = [
+        "## Data release",
+        "",
+        f"Imported release `{record.get('release')}` from `{record.get('source_dir')}` "
+        f"(SHA256SUMS verified: {record.get('sha256_verified')}, imported {record.get('imported_utc')}). "
+        "Labels, known-AMR features, lineages and frozen splits come from the release unchanged.",
+        "",
+    ]
+    notes = [str(n) for n in record.get("notes") or []]
+    notes += [
+        "Not available for this release: QC metrics, Mash nearest-training distances (accuracy-by-distance "
+        "tables and figures), unitig models, the ResFinder baseline (b0_resfinder), species reference sketches.",
+    ]
+    parts += [*(f"- {n}" for n in notes), ""]
     return parts
 
 
@@ -810,7 +891,7 @@ def _species_figures_section(inputs: ReportInputs, figure_paths: Mapping[str, Pa
             if stem in figure_paths:
                 parts += [_image(report_path, figure_paths[stem], caption), ""]
             else:
-                parts += [f"_Figure `{stem}.png` not available._", ""]
+                parts += [_missing_figure(inputs, stem), ""]
     return parts
 
 
@@ -903,6 +984,7 @@ def run(paths: Paths, config: Any = None, *, make_figures: bool = True) -> Repor
 
 
 __all__ = [
+    "CALL_TEXT",
     "EXACT_ROWS_TEXT",
     "LEDGER_NOTE",
     "METRICS_HEADERS",

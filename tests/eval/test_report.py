@@ -384,7 +384,8 @@ def test_metrics_table_handles_missing_columns_and_nulls() -> None:
     frame = pd.DataFrame({"model": ["b0_resfinder", "aft_known"], "vme_rate": [0.05, None], "me_rate": [np.nan, 0.1], "n": [10, 12]})
     table = report.metrics_table(frame)
     header = _header_cells(table.splitlines()[0])
-    assert header[2].startswith("VME") and header[3].startswith("ME")
+    assert header[2].startswith("VME") and header[3].startswith("Call VME")
+    assert header[6].startswith("ME")
     assert "5.0%" in table and "10.0%" in table
     assert "—" in table
 
@@ -427,8 +428,8 @@ def test_report_explains_that_ea_and_coverage_use_exact_rows(fake_paths: Paths) 
     assert "92.0% (n=18)" in headline
 
 
-def test_cv_band_coverage_is_footnoted_as_in_sample(fake_paths: Paths) -> None:
-    """CV coverage is the conformal calibration set; only test / external / LOLO coverage evaluates."""
+def test_cv_band_coverage_is_footnoted_as_cross_conformal(fake_paths: Paths) -> None:
+    """CV bands are cross-conformal (each fold calibrated on the other folds' residuals)."""
     report.run(fake_paths, None, make_figures=False)
     text = fake_paths.report_md.read_text(encoding="utf-8")
     test_section = text[text.index("#### Test set") : text.index("#### Cross-validation")]
@@ -441,9 +442,8 @@ def test_cv_band_coverage_is_footnoted_as_in_sample(fake_paths: Paths) -> None:
     test_header = next(_header_cells(line) for line in test_section.splitlines() if line.startswith("| Model") and "VME" in line)
     cv_band = next(h for h in cv_header if h.startswith("Band coverage"))
     test_band = next(h for h in test_header if h.startswith("Band coverage"))
-    assert "in-sample" in cv_band and "in-sample" not in test_band
-    assert "CV coverage is the conformal calibration set (in-sample by construction)" in report.CV_COVERAGE_NOTE
-    assert "only test/external/LOLO coverage is an evaluation" in report.CV_COVERAGE_NOTE
+    assert "cross-conformal" in cv_band and "cross-conformal" not in test_band
+    assert "calibrated on the out-of-fold residuals of the other folds only" in report.CV_COVERAGE_NOTE
 
 
 def test_report_shows_as_reported_then_rederived_categorical_metrics(fake_paths: Paths) -> None:

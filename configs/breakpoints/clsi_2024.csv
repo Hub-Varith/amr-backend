@@ -1,6 +1,6 @@
 species,drug,s_breakpoint,r_breakpoint,version,site,note
 ECOLI,ampicillin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=32 stored as 16; verify against current tables before external use
-ECOLI,amoxicillin-clavulanate,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+ECOLI,amoxicillin-clavulanic-acid,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
 ECOLI,ampicillin-sulbactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
 ECOLI,piperacillin-tazobactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; tazobactam fixed at 4 mg/L; 16 is SDD stored as I; published R>=32 stored as 16; verify against current tables before external use
 ECOLI,cefazolin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales systemic (not the uncomplicated-UTI surrogate); published R>=8 stored as 4; verify against current tables before external use
@@ -24,7 +24,7 @@ ECOLI,tetracycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; publish
 ECOLI,doxycycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
 ECOLI,minocycline,4,8,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; published R>=16 stored as 8; verify against current tables before external use
 KPNEU,ampicillin,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; K. pneumoniae is intrinsically resistant (see natural_resistance.csv); published R>=32 stored as 16; verify against current tables before external use
-KPNEU,amoxicillin-clavulanate,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
+KPNEU,amoxicillin-clavulanic-acid,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
 KPNEU,ampicillin-sulbactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; 2:1 ratio; published R>=32 stored as 16; verify against current tables before external use
 KPNEU,piperacillin-tazobactam,8,16,2024,bloodstream,CLSI M100-Ed34 Enterobacterales; tazobactam fixed at 4 mg/L; 16 is SDD stored as I; published R>=32 stored as 16; verify against current tables before external use
 KPNEU,cefazolin,2,4,2024,bloodstream,CLSI M100-Ed34 Enterobacterales systemic (not the uncomplicated-UTI surrogate); published R>=8 stored as 4; verify against current tables before external use

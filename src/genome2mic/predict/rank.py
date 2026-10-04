@@ -57,6 +57,7 @@ __all__ = [
     "NATURAL_RESISTANCE_REASON",
     "OVERRIDE_NATURAL_RESISTANCE",
     "OVERRIDE_STRONG_MARKER",
+    "call_array",
     "call_from_band",
     "class_tokens",
     "conformal_band",
@@ -66,7 +67,9 @@ __all__ = [
     "margin_steps",
     "rank_active",
     "reasons_for",
+    "strong_marker_columns",
     "strong_marker_hits",
+    "strong_marker_mask",
 ]
 
 CALL_LIKELY_ACTIVE = "likely_active"
@@ -93,10 +96,11 @@ _TETRACYCLINE: tuple[str, ...] = ("TETRACYCLINE",)
 DRUG_CLASSES: dict[str, tuple[str, ...]] = {
     # Penicillins, beta-lactam / inhibitor combinations
     "ampicillin": _BETA_LACTAM,
-    "amoxicillin-clavulanate": _BETA_LACTAM,
+    "amoxicillin-clavulanic-acid": _BETA_LACTAM,
     "ampicillin-sulbactam": _BETA_LACTAM,
     "piperacillin-tazobactam": _BETA_LACTAM,
     "oxacillin": _BETA_LACTAM,
+    "penicillin": _BETA_LACTAM,
     # Cephalosporins and monobactam
     "cefazolin": _BETA_LACTAM,
     "cefoxitin": _BETA_LACTAM,
@@ -105,11 +109,15 @@ DRUG_CLASSES: dict[str, tuple[str, ...]] = {
     "ceftazidime": _BETA_LACTAM,
     "cefepime": _BETA_LACTAM,
     "ceftazidime-avibactam": _BETA_LACTAM,
+    "ceftolozane-tazobactam": _BETA_LACTAM,
+    "cefuroxime": _BETA_LACTAM,
+    "ceftaroline": _BETA_LACTAM,
     "aztreonam": _BETA_LACTAM,
     # Carbapenems
     "ertapenem": _BETA_LACTAM,
     "imipenem": _BETA_LACTAM,
     "meropenem": _BETA_LACTAM,
+    "doripenem": _BETA_LACTAM,
     # Fluoroquinolones
     "ciprofloxacin": _QUINOLONE,
     "levofloxacin": _QUINOLONE,
@@ -121,6 +129,9 @@ DRUG_CLASSES: dict[str, tuple[str, ...]] = {
     "trimethoprim-sulfamethoxazole": ("TRIMETHOPRIM", "SULFONAMIDE"),
     # Polymyxins
     "colistin": ("COLISTIN", "POLYMYXIN"),
+    "polymyxin-b": ("COLISTIN", "POLYMYXIN"),
+    # Phenicols
+    "chloramphenicol": ("PHENICOL",),
     # Tetracyclines
     "tetracycline": _TETRACYCLINE,
     "doxycycline": _TETRACYCLINE,
@@ -227,6 +238,76 @@ def call_from_band(
     if band_low > bp.r_breakpoint:
         return CALL_LIKELY_INACTIVE, None
     return CALL_UNCERTAIN, None
+
+
+def call_array(
+    band_low: Sequence[float] | np.ndarray,
+    band_high: Sequence[float] | np.ndarray,
+    bp: Breakpoint | None,
+    *,
+    natural_resistance: bool = False,
+    strong_marker: Sequence[bool] | np.ndarray | None = None,
+) -> np.ndarray:
+    """Vectorized call for evaluation tables (object array of call strings or ``None``).
+
+    Same rule and overrides as the prediction pipeline (:func:`call_from_band`, then
+    override 1 natural resistance and override 2 strong marker, both
+    ``likely_inactive``). Differences, all of them conservative for scoring:
+
+    * a row without a band (``NaN``) and without an override gets ``None``;
+    * without a call breakpoint a non-overridden row gets ``None`` (the pipeline says
+      ``uncertain``; with no breakpoint there is nothing to score against).
+
+    ``strong_marker`` is a per-row boolean (see :func:`strong_marker_mask`).
+    """
+    low = np.asarray(band_low, dtype=np.float64).ravel()
+    high = np.asarray(band_high, dtype=np.float64).ravel()
+    if low.shape != high.shape:
+        raise ValueError("band_low and band_high must have the same length")
+    n = low.size
+    out = np.full(n, None, dtype=object)
+    if bp is not None:
+        has = ~np.isnan(low) & ~np.isnan(high)
+        active = has & (high <= float(bp.s_breakpoint) * (1 + _LOG2_TOL))
+        inactive = has & ~active & (low > float(bp.r_breakpoint) * (1 + _LOG2_TOL))
+        out[has] = CALL_UNCERTAIN
+        out[active] = CALL_LIKELY_ACTIVE
+        out[inactive] = CALL_LIKELY_INACTIVE
+    if strong_marker is not None:
+        marker = np.asarray(strong_marker, dtype=bool).ravel()
+        if marker.size != n:
+            raise ValueError(f"strong_marker has {marker.size} entries for {n} rows")
+        out[marker] = CALL_LIKELY_INACTIVE
+    if natural_resistance:
+        out[:] = CALL_LIKELY_INACTIVE
+    return out
+
+
+def strong_marker_columns(columns: Iterable[str], drug_cfg: DrugConfig | None) -> list[str]:
+    """Known-AMR columns matching one of the drug's ``strong_markers`` prefixes (override 2, column rule)."""
+    if drug_cfg is None or not drug_cfg.strong_markers:
+        return []
+    return [
+        str(c) for c in columns
+        if any(str(c) == prefix or str(c).startswith(prefix) for prefix in drug_cfg.strong_markers)
+    ]
+
+
+def strong_marker_mask(known: Any, drug_cfg: DrugConfig | None) -> np.ndarray:
+    """Per row of a known-AMR table: any ``strong_markers`` column present (> 0).
+
+    This is the column-prefix half of override 2 only. The ``strong_subclasses`` half
+    needs the genome's own AMRFinderPlus detections (a family column such as
+    ``gene_blaoxa`` mixes carbapenemases and narrow-spectrum enzymes), which a
+    feature table does not carry, so evaluation-time calls can only be *less*
+    often forced inactive than the pipeline's -- never more.
+    """
+    n = len(known)
+    cols = strong_marker_columns(getattr(known, "columns", []), drug_cfg)
+    if not cols:
+        return np.zeros(n, dtype=bool)
+    values = np.asarray(known[cols].to_numpy(dtype=np.float64))
+    return np.nan_to_num(values, nan=0.0).max(axis=1) > 0
 
 
 # --------------------------------------------------------------------------- #

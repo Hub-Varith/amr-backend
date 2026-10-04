@@ -1,6 +1,6 @@
 species,drug,s_breakpoint,r_breakpoint,version,site,note
 ECOLI,ampicillin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
-ECOLI,amoxicillin-clavulanate,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
+ECOLI,amoxicillin-clavulanic-acid,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
 ECOLI,ampicillin-sulbactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; sulbactam fixed at 4 mg/L; verify against current tables before external use
 ECOLI,piperacillin-tazobactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; tazobactam fixed at 4 mg/L; verify against current tables before external use
 ECOLI,cefotaxime,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use
@@ -21,7 +21,7 @@ ECOLI,trimethoprim-sulfamethoxazole,2,4,2024,bloodstream,EUCAST v14.0 Enterobact
 ECOLI,colistin,2,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; broth microdilution only; verify against current tables before external use
 ECOLI,tigecycline,0.5,0.5,2024,bloodstream,EUCAST v14.0 E. coli only (no Klebsiella breakpoint); verify against current tables before external use
 KPNEU,ampicillin,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; K. pneumoniae is intrinsically resistant (see natural_resistance.csv); verify against current tables before external use
-KPNEU,amoxicillin-clavulanate,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
+KPNEU,amoxicillin-clavulanic-acid,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; clavulanate fixed at 2 mg/L; systemic non-UTI; verify against current tables before external use
 KPNEU,ampicillin-sulbactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; sulbactam fixed at 4 mg/L; verify against current tables before external use
 KPNEU,piperacillin-tazobactam,8,8,2024,bloodstream,EUCAST v14.0 Enterobacterales; tazobactam fixed at 4 mg/L; verify against current tables before external use
 KPNEU,cefotaxime,1,2,2024,bloodstream,EUCAST v14.0 Enterobacterales; verify against current tables before external use

@@ -1,7 +1,7 @@
 species,drug,note
 KPNEU,ampicillin,chromosomal SHV/LEN/OKP class A beta-lactamase; EUCAST expert rules intrinsic resistance
 PAER,ampicillin,intrinsic AmpC and low outer-membrane permeability; EUCAST expert rules intrinsic resistance
-PAER,amoxicillin-clavulanate,intrinsic AmpC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
+PAER,amoxicillin-clavulanic-acid,intrinsic AmpC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
 PAER,ampicillin-sulbactam,intrinsic AmpC not inhibited by sulbactam; EUCAST expert rules intrinsic resistance
 PAER,cefazolin,first-generation cephalosporin; intrinsic AmpC and permeability; EUCAST expert rules intrinsic resistance
 PAER,cefotaxime,intrinsic AmpC plus efflux; EUCAST expert rules intrinsic resistance
@@ -13,7 +13,7 @@ PAER,doxycycline,intrinsic efflux (MexAB-OprM and others); EUCAST expert rules i
 PAER,minocycline,intrinsic efflux (MexAB-OprM and others); EUCAST expert rules intrinsic resistance
 PAER,tigecycline,intrinsic efflux (MexXY-OprM); EUCAST expert rules intrinsic resistance
 ABAU,ampicillin,chromosomal OXA-51-like and ADC beta-lactamases; EUCAST expert rules intrinsic resistance
-ABAU,amoxicillin-clavulanate,chromosomal OXA-51-like and ADC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
+ABAU,amoxicillin-clavulanic-acid,chromosomal OXA-51-like and ADC not inhibited by clavulanate; EUCAST expert rules intrinsic resistance
 ABAU,cefazolin,first-generation cephalosporin; chromosomal ADC cephalosporinase; EUCAST expert rules intrinsic resistance
 ABAU,cefotaxime,chromosomal ADC cephalosporinase; project treats as intrinsic although CLSI publishes a breakpoint
 ABAU,ceftriaxone,chromosomal ADC cephalosporinase; project treats as intrinsic although CLSI publishes a breakpoint

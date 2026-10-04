@@ -32,10 +32,12 @@
 #                isolate carbapenem-inactive. Add an exclusion for the OXA-51
 #                family (or an ISAba1-upstream rule) before an ABAU model ships.
 #
-# call_standard  Breakpoint table used for pred_sir and for the final call.
+# call_standard  Breakpoint table used for pred_sir and for the final call. CLSI 2024
+#                (user decision: US standard; the tables are unverified, see
+#                docs/BREAKPOINT_VERIFICATION.md).
 
 call_standard:
-  standard: EUCAST
+  standard: CLSI
   version: "2024"
 
 drugs:
@@ -43,13 +45,12 @@ drugs:
     synonyms: [AMP, AM, ampicillin sodium, ampicillin trihydrate, ampicilline]
     spectrum_tier: 1
     strong_markers: []
-  amoxicillin-clavulanate:
+  amoxicillin-clavulanic-acid:
     synonyms:
       - AMC
       - AUG
       - XL
-      - amoxicillin/clavulanic acid
-      - amoxicillin-clavulanic acid
+      - amoxicillin-clavulanate
       - amoxicillin/clavulanate
       - amoxycillin/clavulanic acid
       - amoxycillin-clavulanate
@@ -258,6 +259,49 @@ drugs:
   minocycline:
     synonyms: [MIN, MNO, MI, MH, minocycline hydrochloride, minocin]
     spectrum_tier: 2
+    strong_markers: []
+  cefuroxime:
+    synonyms: [CXM, CRM, cefuroxime sodium, cefuroxime axetil, zinacef, zinnat]
+    spectrum_tier: 2
+    strong_markers: []
+  ceftolozane-tazobactam:
+    synonyms:
+      - C/T
+      - CZT
+      - TOL/TAZ
+      - ceftolozane/tazobactam
+      - ceftolozane tazobactam
+      - zerbaxa
+    spectrum_tier: 4
+    strong_markers: []
+  doripenem:
+    synonyms: [DOR, DOP, doribax]
+    spectrum_tier: 4
+    strong_markers:
+      - gene_blakpc
+      - gene_blandm
+      - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
+      - gene_blavim
+      - gene_blaimp
+    strong_subclasses: [CARBAPENEM]
+  chloramphenicol:
+    synonyms: [CHL, chloramphenicol succinate, chloromycetin]
+    spectrum_tier: 2
+    strong_markers: []
+  polymyxin-b:
+    synonyms: [PB, PMB, POL, polymyxin B sulfate, polymyxin B sulphate]
+    spectrum_tier: 4
+    strong_markers:
+      - gene_mcr
+  ceftaroline:
+    synonyms: [CPT, ceftaroline fosamil, teflaro, zinforo]
+    spectrum_tier: 3
+    strong_markers: []
+  penicillin:
+    synonyms: [PEN, penicillin G, benzylpenicillin, penicillin G sodium, penicillin G potassium]
+    spectrum_tier: 1
     strong_markers: []
   oxacillin:
     synonyms: [OXA, OX, oxacillin sodium, methicillin, MET]

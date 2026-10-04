@@ -99,8 +99,19 @@ ArrayLike = Sequence[Any] | np.ndarray | pd.Series
 SIR_VALUES: tuple[str, ...] = ("S", "I", "R")
 
 KEY_COLUMNS: tuple[str, ...] = ("species", "drug", "model", "split")
+CALL_METRIC_COLUMNS: tuple[str, ...] = ("call_vme_rate", "call_me_rate", "active_call_rate_s", "uncertain_rate")
+"""Call-level safety metrics over the preds ``call`` column (the call a clinician would see):
+``call_vme_rate`` = lab R called ``likely_active`` / lab R; ``call_me_rate`` = lab S called
+``likely_inactive`` / lab S; ``active_call_rate_s`` = lab S called ``likely_active`` / lab S
+(usefulness); ``uncertain_rate`` = ``uncertain`` / rows with a call and a lab category."""
+CALL_COUNT_COLUMNS: tuple[str, ...] = ("n_call", "n_call_lab_r", "n_call_lab_s")
+CALL_VALUES: tuple[str, ...] = ("likely_active", "uncertain", "likely_inactive")
+CALL_COLUMN = "call"
+"""Optional preds column written by training (:func:`genome2mic.predict.rank.call_array`)."""
+
 METRIC_COLUMNS: tuple[str, ...] = (
     "vme_rate",
+    *CALL_METRIC_COLUMNS,
     "me_rate",
     "mine_rate",
     "categorical_agreement",
@@ -110,17 +121,21 @@ METRIC_COLUMNS: tuple[str, ...] = (
     "band_coverage",
     "band_width_steps",
 )
-COUNT_COLUMNS: tuple[str, ...] = ("n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s")
+COUNT_COLUMNS: tuple[str, ...] = ("n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s", *CALL_COUNT_COLUMNS)
 """``n`` rows in the group; ``n_exact`` = EA / exact-agreement denominator; ``n_band`` =
 band-coverage denominator; ``n_cat`` / ``n_lab_r`` / ``n_lab_s`` = CA / VME / ME denominators."""
 
 REDERIVED_RATE_COLUMNS: tuple[str, ...] = (
     "vme_rate_rederived",
+    *(f"{c}_rederived" for c in CALL_METRIC_COLUMNS),
     "me_rate_rederived",
     "mine_rate_rederived",
     "categorical_agreement_rederived",
 )
-REDERIVED_COUNT_COLUMNS: tuple[str, ...] = ("n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived")
+REDERIVED_COUNT_COLUMNS: tuple[str, ...] = (
+    "n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived",
+    *(f"{c}_rederived" for c in CALL_COUNT_COLUMNS),
+)
 REDERIVED_COLUMNS: tuple[str, ...] = REDERIVED_RATE_COLUMNS + REDERIVED_COUNT_COLUMNS
 """Categorical metrics against ``lab_sir_rederived``; ``vme_rate_rederived`` first."""
 
@@ -436,6 +451,59 @@ def categorical(pred_sir: ArrayLike, lab_sir: ArrayLike) -> dict[str, float | in
     }
 
 
+def _as_call_array(values: ArrayLike, name: str = CALL_COLUMN) -> np.ndarray:
+    """Object array of call strings with ``None`` for nulls; any other value raises."""
+    raw = values.to_numpy(dtype=object, na_value=None) if isinstance(values, pd.Series) else np.asarray(values, dtype=object)
+    out = np.empty(len(raw), dtype=object)
+    for i, value in enumerate(raw):
+        if value is None or (isinstance(value, float) and math.isnan(value)) or value is pd.NA:
+            out[i] = None
+        elif isinstance(value, str) and value in CALL_VALUES:
+            out[i] = value
+        else:
+            raise ValueError(f"{name} must be one of {CALL_VALUES} or null, got {value!r}")
+    return out
+
+
+def call_metrics(call: ArrayLike, lab_sir: ArrayLike) -> dict[str, float | int | None]:
+    """Call-level safety metrics: what a clinician would see (the call), against the lab category.
+
+    Rows with a null call or lab category are excluded (``n_call_excluded``). Over the
+    ``n_call`` complete rows:
+
+    * ``call_vme_rate`` = (call ``likely_active`` and lab R) / ``n_call_lab_r`` -- the
+      call-level very major error, the one that harms a patient;
+    * ``call_me_rate`` = (call ``likely_inactive`` and lab S) / ``n_call_lab_s``;
+    * ``active_call_rate_s`` = (call ``likely_active`` and lab S) / ``n_call_lab_s`` --
+      usefulness: how many truly susceptible isolates get an actionable answer;
+    * ``uncertain_rate`` = ``uncertain`` / ``n_call`` ("wait for the lab").
+
+    ``uncertain`` is never an error. A rate is ``None`` when its denominator is zero.
+    """
+    calls = _as_call_array(call)
+    lab = _as_sir_array(lab_sir, "lab_sir")
+    _check_same_length(call=calls, lab_sir=lab)
+    complete = np.array([c is not None and l is not None for c, l in zip(calls, lab)], dtype=bool)
+    c = calls[complete]
+    l = lab[complete]
+    lab_r = l == "R"
+    lab_s = l == "S"
+    active = c == "likely_active"
+    n_call = int(len(c))
+    n_lab_r = int(lab_r.sum())
+    n_lab_s = int(lab_s.sum())
+    return {
+        "call_vme_rate": _ratio(int((active & lab_r).sum()), n_lab_r),
+        "call_me_rate": _ratio(int(((c == "likely_inactive") & lab_s).sum()), n_lab_s),
+        "active_call_rate_s": _ratio(int((active & lab_s).sum()), n_lab_s),
+        "uncertain_rate": _ratio(int((c == "uncertain").sum()), n_call),
+        "n_call": n_call,
+        "n_call_lab_r": n_lab_r,
+        "n_call_lab_s": n_lab_s,
+        "n_call_excluded": int((~complete).sum()),
+    }
+
+
 def auroc(pred_log2: ArrayLike, lab_sir: ArrayLike) -> float | None:
     """AUROC of the predicted log2 MIC as a score for lab R (positive) versus lab S.
 
@@ -527,6 +595,12 @@ def _summarize_groups(
     else:
         logger.info("preds has no %s column; re-derived categorical metrics will be null", REDERIVED_SIR_COLUMN)
         lab_sir_rederived = np.full(n_rows, None, dtype=object)
+    has_call_column = CALL_COLUMN in preds.columns
+    if has_call_column:
+        calls = _as_call_array(preds[CALL_COLUMN])
+    else:
+        logger.info("preds has no %s column; call-level metrics will be null", CALL_COLUMN)
+        calls = np.full(n_rows, None, dtype=object)
     if all(c in preds.columns for c in BAND_COLUMNS):
         band_lo = _as_float_array(preds["band_low"], "band_low")
         band_hi = _as_float_array(preds["band_high"], "band_high")
@@ -582,6 +656,15 @@ def _summarize_groups(
         None if has_rederived_column else f"column {REDERIVED_SIR_COLUMN} absent",
     )
     log.drop("lab_sir I: excluded from AUROC", int((has_pred & lab_is_i).sum()))
+    has_call = np.array([c is not None and l is not None for c, l in zip(calls, lab_sir)], dtype=bool)
+    has_call_rederived = np.array([c is not None and l is not None for c, l in zip(calls, lab_sir_rederived)], dtype=bool)
+    absent = None if has_call_column else f"column {CALL_COLUMN} absent"
+    log.drop("call or lab_sir null: excluded from call-level metrics", int((~has_call).sum()), absent)
+    log.drop(
+        f"call or {REDERIVED_SIR_COLUMN} null: excluded from re-derived call-level metrics",
+        int((~has_call_rederived).sum()),
+        absent,
+    )
     log.drop("band_low/band_high null: excluded from band metrics", int((~has_band).sum()), _models_detail(models, ~has_band))
 
     rows: list[dict[str, Any]] = []
@@ -595,6 +678,8 @@ def _summarize_groups(
 
         cat = categorical(pred_sir[idx], lab_sir[idx])
         cat_rederived = categorical(pred_sir[idx], lab_sir_rederived[idx])
+        call_cat = call_metrics(calls[idx], lab_sir[idx])
+        call_rederived = call_metrics(calls[idx], lab_sir_rederived[idx])
 
         mic_idx = idx[mic_ok[idx]]
         ea = _mean_or_none(essential_agreement(pred[mic_idx], lo[mic_idx], hi[mic_idx]))
@@ -626,6 +711,8 @@ def _summarize_groups(
                 "n_cat": cat["n_cat"],
                 "n_lab_r": cat["n_lab_r"],
                 "n_lab_s": cat["n_lab_s"],
+                **{c: call_cat[c] for c in (*CALL_METRIC_COLUMNS, *CALL_COUNT_COLUMNS)},
+                **{f"{c}_rederived": call_rederived[c] for c in (*CALL_METRIC_COLUMNS, *CALL_COUNT_COLUMNS)},
                 "vme_rate_rederived": cat_rederived["vme_rate"],
                 "me_rate_rederived": cat_rederived["me_rate"],
                 "mine_rate_rederived": cat_rederived["mine_rate"],

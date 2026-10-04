@@ -18,6 +18,7 @@ import pytest
 from genome2mic.droplog import DropLog
 from genome2mic.eval import metrics as m
 from genome2mic.eval.metrics import (
+    CALL_METRIC_COLUMNS,
     DISTANCE_COLUMNS,
     REDERIVED_COLUMNS,
     SUMMARY_COLUMNS,
@@ -26,6 +27,7 @@ from genome2mic.eval.metrics import (
     band_covers,
     band_width_steps,
     by_distance_bin,
+    call_metrics,
     categorical,
     essential_agreement,
     exact_agreement,
@@ -430,13 +432,20 @@ class TestSummarize:
     def test_exact_column_order(self) -> None:
         expected = [
             "species", "drug", "model", "split",
-            "vme_rate", "me_rate", "mine_rate", "categorical_agreement",
+            "vme_rate",
+            "call_vme_rate", "call_me_rate", "active_call_rate_s", "uncertain_rate",
+            "me_rate", "mine_rate", "categorical_agreement",
             "essential_agreement", "exact_agreement", "auroc",
             "band_coverage", "band_width_steps",
             "n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s",
-            "vme_rate_rederived", "me_rate_rederived", "mine_rate_rederived",
+            "n_call", "n_call_lab_r", "n_call_lab_s",
+            "vme_rate_rederived",
+            "call_vme_rate_rederived", "call_me_rate_rederived",
+            "active_call_rate_s_rederived", "uncertain_rate_rederived",
+            "me_rate_rederived", "mine_rate_rederived",
             "categorical_agreement_rederived",
             "n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived",
+            "n_call_rederived", "n_call_lab_r_rederived", "n_call_lab_s_rederived",
         ]  # fmt: skip
         assert list(SUMMARY_COLUMNS) == expected
         assert list(summarize(_preds_frame()).columns) == expected
@@ -761,10 +770,11 @@ class TestRederived:
 
     def test_missing_column_gives_nan_rates_and_zero_counts(self) -> None:
         out = summarize(_preds_frame())
-        for col in REDERIVED_COLUMNS[:4]:
+        for col in m.REDERIVED_RATE_COLUMNS:
             assert out[col].isna().all(), col
-        for col in REDERIVED_COLUMNS[4:]:
+        for col in m.REDERIVED_COUNT_COLUMNS:
             assert (out[col] == 0).all(), col
+        assert list(REDERIVED_COLUMNS) == [*m.REDERIVED_RATE_COLUMNS, *m.REDERIVED_COUNT_COLUMNS]
 
     def test_invalid_rederived_value_raises(self) -> None:
         preds = self._with_rederived()
@@ -865,3 +875,112 @@ class TestByDistanceBin:
             ["b0_resfinder", "test"],
         ]
         assert out["distance_bin"].unique().tolist() == ["[0, 0.01]"]
+
+
+# ---------------------------------------------------------------------------
+# Call-level safety metrics (the call a clinician would see, not pred_sir)
+# ---------------------------------------------------------------------------
+A, U, X = "likely_active", "uncertain", "likely_inactive"
+
+
+class TestCallMetrics:
+    def test_hand_computed_rates(self) -> None:
+        # lab R: A (call-level VME), U, X ; lab S: A, A, U, X (call-level ME) ; lab I: U
+        call = [A, U, X, A, A, U, X, U]
+        lab = ["R", "R", "R", "S", "S", "S", "S", "I"]
+        out = call_metrics(call, lab)
+        assert out["n_call"] == 8
+        assert out["n_call_lab_r"] == 3
+        assert out["n_call_lab_s"] == 4
+        assert out["call_vme_rate"] == pytest.approx(1 / 3)
+        assert out["call_me_rate"] == pytest.approx(1 / 4)
+        assert out["active_call_rate_s"] == pytest.approx(2 / 4)
+        assert out["uncertain_rate"] == pytest.approx(3 / 8)
+
+    def test_uncertain_is_never_an_error(self) -> None:
+        out = call_metrics([U, U], ["R", "S"])
+        assert out["call_vme_rate"] == 0.0 and out["call_me_rate"] == 0.0
+        assert out["active_call_rate_s"] == 0.0 and out["uncertain_rate"] == 1.0
+
+    def test_null_call_or_lab_is_excluded(self) -> None:
+        out = call_metrics([A, None, A, X], ["R", "R", None, "S"])
+        assert out["n_call"] == 2
+        assert out["n_call_lab_r"] == 1 and out["call_vme_rate"] == 1.0
+        assert out["n_call_lab_s"] == 1 and out["call_me_rate"] == 1.0
+        assert out["n_call_excluded"] == 2
+
+    def test_zero_denominators_give_none(self) -> None:
+        out = call_metrics([A], ["I"])
+        assert out["call_vme_rate"] is None and out["call_me_rate"] is None and out["active_call_rate_s"] is None
+        assert out["uncertain_rate"] == 0.0
+        empty = call_metrics([], [])
+        assert empty["n_call"] == 0 and empty["uncertain_rate"] is None
+
+    def test_unknown_call_value_raises(self) -> None:
+        with pytest.raises(ValueError, match="call"):
+            call_metrics(["active"], ["S"])
+
+
+class TestSummarizeCalls:
+    @staticmethod
+    def _with_calls() -> pd.DataFrame:
+        """Group A of ``_preds_frame`` plus hand-set calls and re-derived lab S/I/R.
+
+        pred_sir           R  S  S  R  I  R
+        lab_sir (reported) R  S  R  S  S  R
+        lab_sir_rederived  R  S  R  S  I  --
+        call               X  A  U  X  A  X
+
+        As reported (6 rows): lab R {r1 X, r3 U, r6 X} -> call VME 0/3;
+          lab S {r2 A, r4 X, r5 A} -> call ME 1/3, active 2/3; uncertain 1/6.
+        Re-derived (5 rows, r6 null): lab R {r1 X, r3 U} -> 0/2;
+          lab S {r2 A, r4 X} -> ME 1/2, active 1/2; lab I {r5}; uncertain 1/5.
+        """
+        preds = _preds_frame()
+        group_a = preds[(preds["model"] == "aft_known") & (preds["split"] == "test")].reset_index(drop=True)
+        group_a["lab_sir_rederived"] = pd.array(["R", "S", "R", "S", "I", None], dtype="str")
+        group_a["call"] = pd.array([X, A, U, X, A, X], dtype="str")
+        return group_a
+
+    def test_call_metrics_follow_vme_rate(self) -> None:
+        assert list(CALL_METRIC_COLUMNS) == ["call_vme_rate", "call_me_rate", "active_call_rate_s", "uncertain_rate"]
+        columns = list(summarize(self._with_calls()).columns)
+        assert columns[4:9] == ["vme_rate", *CALL_METRIC_COLUMNS]
+        start = columns.index("vme_rate_rederived")
+        assert columns[start:start + 5] == ["vme_rate_rederived", *(f"{c}_rederived" for c in CALL_METRIC_COLUMNS)]
+
+    def test_hand_computed_as_reported(self) -> None:
+        row = summarize(self._with_calls()).iloc[0]
+        assert row["n_call"] == 6 and row["n_call_lab_r"] == 3 and row["n_call_lab_s"] == 3
+        assert row["call_vme_rate"] == pytest.approx(0.0)
+        assert row["call_me_rate"] == pytest.approx(1 / 3)
+        assert row["active_call_rate_s"] == pytest.approx(2 / 3)
+        assert row["uncertain_rate"] == pytest.approx(1 / 6)
+        # pred_sir-based VME is unchanged: r3 pred S, lab R.
+        assert row["vme_rate"] == pytest.approx(1 / 3)
+
+    def test_hand_computed_rederived(self) -> None:
+        row = summarize(self._with_calls()).iloc[0]
+        assert row["n_call_rederived"] == 5
+        assert row["n_call_lab_r_rederived"] == 2 and row["n_call_lab_s_rederived"] == 2
+        assert row["call_vme_rate_rederived"] == pytest.approx(0.0)
+        assert row["call_me_rate_rederived"] == pytest.approx(1 / 2)
+        assert row["active_call_rate_s_rederived"] == pytest.approx(1 / 2)
+        assert row["uncertain_rate_rederived"] == pytest.approx(1 / 5)
+
+    def test_without_call_column_rates_are_nan_and_counts_zero(self) -> None:
+        out = summarize(_preds_frame())
+        assert out["call_vme_rate"].isna().all() and out["active_call_rate_s_rederived"].isna().all()
+        assert (out["n_call"] == 0).all() and (out["n_call_rederived"] == 0).all()
+
+    def test_null_calls_are_logged(self) -> None:
+        log = DropLog("eval")
+        summarize(self._with_calls(), drop_log=log)
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons["call or lab_sir null: excluded from call-level metrics"] == 0
+        assert reasons["call or lab_sir_rederived null: excluded from re-derived call-level metrics"] == 1
+
+    def test_distance_table_carries_call_columns(self) -> None:
+        preds = self._with_calls()
+        out = by_distance_bin(preds, np.full(len(preds), 0.002))
+        assert "call_vme_rate" in out.columns and list(DISTANCE_COLUMNS).index("call_vme_rate") == list(DISTANCE_COLUMNS).index("vme_rate") + 1

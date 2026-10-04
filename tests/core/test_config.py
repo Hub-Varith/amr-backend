@@ -110,9 +110,13 @@ def _bp(s: float, r: float) -> Breakpoint:
         ("cotrimoxazole", "trimethoprim-sulfamethoxazole"),
         ("Co-trimoxazole", "trimethoprim-sulfamethoxazole"),
         ("TMP-SMX", "trimethoprim-sulfamethoxazole"),
-        ("amoxicillin/clavulanic acid", "amoxicillin-clavulanate"),
-        ("Amoxicillin-Clavulanic Acid", "amoxicillin-clavulanate"),
-        ("AMC", "amoxicillin-clavulanate"),
+        ("amoxicillin/clavulanic acid", "amoxicillin-clavulanic-acid"),
+        ("Amoxicillin-Clavulanic Acid", "amoxicillin-clavulanic-acid"),
+        ("AMC", "amoxicillin-clavulanic-acid"),
+        ("amoxicillin-clavulanate", "amoxicillin-clavulanic-acid"),
+        ("ceftolozane/tazobactam", "ceftolozane-tazobactam"),
+        ("Polymyxin B", "polymyxin-b"),
+        ("cefuroxime axetil", "cefuroxime"),
         ("rifampin", "rifampicin"),
         ("Rifampin", "rifampicin"),
         ("ceftazidime/avibactam", "ceftazidime-avibactam"),
@@ -226,15 +230,17 @@ def test_breakpoint_missing_pair_returns_none(config: Config) -> None:
     assert config.breakpoint("KPNEU", "unobtainium", "EUCAST", 2024) is None
 
 
-def test_call_breakpoint_uses_eucast_2024(config: Config) -> None:
-    assert config.call_standard == ("EUCAST", "2024")
-    bp = config.call_breakpoint("KPNEU", "ceftriaxone")
-    assert bp == Breakpoint("KPNEU", "ceftriaxone", 1.0, 2.0, "EUCAST", "2024")
+def test_call_breakpoint_uses_clsi_2024(config: Config) -> None:
+    # User decision (US standard): calls, pred_sir and VME use CLSI M100 2024.
+    assert config.call_standard == ("CLSI", "2024")
+    bp = config.call_breakpoint("KPNEU", "meropenem")
+    assert bp == Breakpoint("KPNEU", "meropenem", 1.0, 2.0, "CLSI", "2024")
+    # CLSI 2023 aminoglycoside revision: no systemic gentamicin breakpoint for P. aeruginosa.
     assert config.call_breakpoint("PAER", "gentamicin") is None
 
 
 def test_eucast_susceptible_increased_exposure_stored_as_published(config: Config) -> None:
-    bp = config.call_breakpoint("PAER", "ciprofloxacin")
+    bp = config.breakpoint("PAER", "ciprofloxacin", "EUCAST", 2024)
     assert bp is not None
     assert bp.s_breakpoint == 0.001 and bp.r_breakpoint == 0.5
     assert config.sir_from_mic(0.25, bp) == "I"
@@ -332,12 +338,12 @@ def test_natural_resistance_matches_task_list(config: Config) -> None:
     expected = {
         ("KPNEU", "ampicillin"),
         *{("PAER", d) for d in (
-            "ampicillin", "amoxicillin-clavulanate", "ampicillin-sulbactam", "cefazolin",
+            "ampicillin", "amoxicillin-clavulanic-acid", "ampicillin-sulbactam", "cefazolin",
             "cefotaxime", "ceftriaxone", "ertapenem", "trimethoprim-sulfamethoxazole",
             "tetracycline", "doxycycline", "minocycline", "tigecycline",
         )},
         *{("ABAU", d) for d in (
-            "ampicillin", "amoxicillin-clavulanate", "cefazolin", "cefotaxime",
+            "ampicillin", "amoxicillin-clavulanic-acid", "cefazolin", "cefotaxime",
             "ceftriaxone", "aztreonam", "ertapenem",
         )},
         *{("SAUR", d) for d in ("aztreonam", "colistin", "ceftazidime")},
@@ -372,7 +378,7 @@ def test_species_config(config: Config) -> None:
 
 
 def test_every_drug_has_a_valid_tier(config: Config) -> None:
-    assert len(config.drugs) == 33
+    assert len(config.drugs) == 40
     for drug in config.drugs.values():
         assert drug.spectrum_tier in SPECTRUM_TIERS, drug.name
     assert config.drugs["ampicillin"].spectrum_tier == 1
@@ -399,9 +405,11 @@ def test_strong_markers(config: Config) -> None:
 
 
 def test_strong_subclasses_only_on_carbapenems(config: Config) -> None:
-    for drug in ("ertapenem", "imipenem", "meropenem"):
+    carbapenems = ("doripenem", "ertapenem", "imipenem", "meropenem")
+    for drug in carbapenems:
         assert config.drugs[drug].strong_subclasses == ("CARBAPENEM",)
-    others = {name: d.strong_subclasses for name, d in config.drugs.items() if name not in ("ertapenem", "imipenem", "meropenem")}
+        assert set(config.drugs[drug].strong_markers) == set(config.drugs["meropenem"].strong_markers)
+    others = {name: d.strong_subclasses for name, d in config.drugs.items() if name not in carbapenems}
     assert all(subclasses == () for subclasses in others.values()), others
 
 
