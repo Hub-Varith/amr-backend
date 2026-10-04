@@ -1,10 +1,10 @@
-.PHONY: references predict install install-api install-data api test test-api test-data train download-ast labels genome-manifest genomes qc ncbi-pd hackathon-data push-data pull-data docker-build docker-run
+.PHONY: references predict install install-api db-migrate install-data api test test-api test-data train download-ast labels genome-manifest genomes qc ncbi-pd hackathon-data push-data pull-data docker-build docker-run
 
 install:
-	pip install -e ".[model,test]"
+	pip install -e ".[model,db,test]"
 
 install-api:
-	pip install -e ".[test]"
+	pip install -e ".[db,test]"
 
 install-data:
 	pip install -e ".[data,test]"
@@ -15,6 +15,10 @@ api:
 
 test:
 	pytest
+
+# Applies infra/neon/*.sql to G2M_DATABASE_URL. Run on a Neon test branch first, then production.
+db-migrate:
+	python -m genome2mic.api.services.migrations
 
 test-api:
 	pytest tests/api

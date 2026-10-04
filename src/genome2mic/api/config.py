@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,3 +24,6 @@ class Settings(BaseSettings):
     amrfinder_db: Path | None = None   # default: the database installed with amrfinder
     tool_threads: int = Field(default=4, gt=0)
     keep_work_files: bool = False      # keep each job's step outputs (qc.json, amrfinder.tsv, ...) for debugging
+    # Job store. Set it to a Neon pooled connection string to keep jobs and reports across restarts
+    # (needs the db extra). Unset: jobs live in memory. Never commit it; keep it in .env.
+    database_url: SecretStr | None = None

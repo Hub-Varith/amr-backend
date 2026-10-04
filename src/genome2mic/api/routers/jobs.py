@@ -1,6 +1,8 @@
 """Job status and results."""
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
 
 from genome2mic.api.deps import JobStoreDep
 from genome2mic.api.schemas.job_state import JobState
@@ -9,6 +11,12 @@ from genome2mic.api.schemas.prediction_report import PredictionReport
 from genome2mic.api.schemas.problem_detail import ProblemDetail
 
 router = APIRouter(tags=["jobs"])
+
+
+@router.get("/jobs", response_model=list[JobState])
+async def list_jobs(job_store: JobStoreDep, limit: Annotated[int, Query(ge=1, le=100)] = 20) -> list[JobState]:
+    """Recent jobs, newest first. Persists across restarts only when the API uses Postgres."""
+    return await job_store.list_recent(limit)
 
 
 @router.get("/jobs/{job_id}", response_model=JobState, responses={404: {"model": ProblemDetail}})

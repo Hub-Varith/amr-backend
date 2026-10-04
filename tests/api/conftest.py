@@ -29,6 +29,8 @@ def settings(tmp_path: Path) -> Settings:
         upload_dir=tmp_path / "uploads",
         max_upload_bytes=MAX_UPLOAD_BYTES,
         log_level="WARNING",
+        # Never a database from .env: API tests use the in-memory store (test_job_store.py covers Postgres).
+        database_url=None,
     )
 
 

@@ -51,6 +51,7 @@ Base URL: `http://127.0.0.1:8000` in dev (`make api`). All `/v1` routes go throu
 | GET | `/ready` | 200 / 503 `ReadyStatus` | Configs parsed and models loaded |
 | GET | `/v1/species` | 200 `SpeciesInfo[]` | Species in scope + drugs with a loaded model |
 | POST | `/v1/predict` | 202 `JobAccepted` | Upload one FASTA, get a job id |
+| GET | `/v1/jobs?limit=20` | 200 `JobState[]` | Recent jobs, newest first (`limit` 1–100). Kept across restarts when `G2M_DATABASE_URL` is set |
 | GET | `/v1/jobs/{job_id}` | 200 `JobState` | Job status |
 | GET | `/v1/jobs/{job_id}/result` | 200 `PredictionReport` | The report, once status is `done` |
 | GET | `/v1/jobs/{job_id}/events` | 200 SSE stream | **PROPOSED** — live progress (§4) |

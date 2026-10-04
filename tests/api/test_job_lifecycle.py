@@ -87,3 +87,22 @@ async def test_predict_is_503_when_not_ready(client: AsyncClient, settings: Sett
     assert response.status_code == 503
     assert response.headers["content-type"] == "application/problem+json"
     assert list(settings.upload_dir.glob("*")) == []
+
+
+async def test_list_jobs_is_newest_first(ready_client: AsyncClient) -> None:
+    ids = []
+    for name in ("FAKE_FIRST.fasta", "FAKE_SECOND.fasta"):
+        submit = await ready_client.post("/v1/predict", files={"file": (name, FAKE_FASTA)})
+        ids.append(submit.json()["job_id"])
+
+    response = await ready_client.get("/v1/jobs", params={"limit": 10})
+
+    assert response.status_code == 200
+    assert [job["job_id"] for job in response.json()] == list(reversed(ids))
+    assert response.json()[0]["status"] == "done"
+
+
+async def test_list_jobs_rejects_bad_limit(ready_client: AsyncClient) -> None:
+    response = await ready_client.get("/v1/jobs", params={"limit": 0})
+
+    assert response.status_code == 422

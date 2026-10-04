@@ -17,3 +17,6 @@ __pycache__/
 
 # Trained models are shared through S3 (docs/MODEL_HANDOFF.md), not git.
 /models
+.neon
+.env.local
+node_modules/

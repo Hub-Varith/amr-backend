@@ -21,7 +21,7 @@ RUN amrfinder -u \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install ".[model]"
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install ".[model,db]"
 
 # Mash species references (configs/species.yaml), downloaded and sketched once at build time.
 COPY configs ./configs

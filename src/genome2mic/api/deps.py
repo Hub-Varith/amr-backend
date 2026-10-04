@@ -8,7 +8,7 @@ from genome2mic.api.config import Settings
 from genome2mic.api.services.background_tasks_queue import BackgroundTasksQueue
 from genome2mic.api.services.job_queue import JobQueue
 from genome2mic.api.services.job_runner import JobRunner
-from genome2mic.api.services.job_store import InMemoryJobStore
+from genome2mic.api.services.job_store import JobStore
 from genome2mic.api.services.model_registry import ModelRegistry
 from genome2mic.api.services.predictor import Predictor
 from genome2mic.api.services.upload_validator import UploadValidator
@@ -26,14 +26,14 @@ def get_predictor(request: Request) -> Predictor:
     return request.app.state.predictor
 
 
-def get_job_store(request: Request) -> InMemoryJobStore:
+def get_job_store(request: Request) -> JobStore:
     return request.app.state.job_store
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 RegistryDep = Annotated[ModelRegistry, Depends(get_registry)]
 PredictorDep = Annotated[Predictor, Depends(get_predictor)]
-JobStoreDep = Annotated[InMemoryJobStore, Depends(get_job_store)]
+JobStoreDep = Annotated[JobStore, Depends(get_job_store)]
 
 
 def get_upload_validator(settings: SettingsDep) -> UploadValidator:

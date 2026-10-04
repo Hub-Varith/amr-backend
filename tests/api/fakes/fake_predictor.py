@@ -22,23 +22,28 @@ class FakePredictor(Predictor):
         self.seen_paths.append(fasta_path)
         if self.should_fail:
             raise RuntimeError("FAKE failure for tests")
-        fake_prediction = DrugPrediction(
-            drug="fake-drug",
-            pred_mic=None,
-            band_low=None,
-            band_high=None,
-            call=Call.UNCERTAIN,
-            margin_steps=None,
-            reasons=[FAKE_REASON],
-        )
-        return PredictionReport(
-            sample_id=sample_id,
-            species=None,
-            qc_pass=True,
-            nearest_training_distance=None,
-            in_range=False,
-            predictions=[fake_prediction],
-            ranked_active=[],
-            model_version="fake-0.0",
-            run_id="fake-run",
-        )
+        return fake_report(sample_id)
+
+
+def fake_report(sample_id: str) -> PredictionReport:
+    """An obviously fake report with no MIC values."""
+    fake_prediction = DrugPrediction(
+        drug="fake-drug",
+        pred_mic=None,
+        band_low=None,
+        band_high=None,
+        call=Call.UNCERTAIN,
+        margin_steps=None,
+        reasons=[FAKE_REASON],
+    )
+    return PredictionReport(
+        sample_id=sample_id,
+        species=None,
+        qc_pass=True,
+        nearest_training_distance=None,
+        in_range=False,
+        predictions=[fake_prediction],
+        ranked_active=[],
+        model_version="fake-0.0",
+        run_id="fake-run",
+    )

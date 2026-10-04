@@ -35,6 +35,11 @@ data = [
     "pyarrow>=15",
     "numpy>=1.26",
 ]
+# Postgres job store on Neon (api/services/postgres_job_store.py). asyncpg is an async driver that
+# fits FastAPI's async handlers without an ORM. Without it the API uses the in-memory store.
+db = [
+    "asyncpg>=0.30",
+]
 test = [
     "pytest>=8",
     "pytest-asyncio>=0.24",

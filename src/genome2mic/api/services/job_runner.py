@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from genome2mic.api.request_context import request_id_var
-from genome2mic.api.services.job_store import InMemoryJobStore
+from genome2mic.api.services.job_store import JobStore
 from genome2mic.api.services.predictor import Predictor
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class JobRunner:
     """Runs a job, records the outcome and deletes the upload. A future worker queue calls the same run()."""
 
-    def __init__(self, predictor: Predictor, job_store: InMemoryJobStore) -> None:
+    def __init__(self, predictor: Predictor, job_store: JobStore) -> None:
         self.predictor = predictor
         self.job_store = job_store
 
