@@ -1,0 +1,4 @@
+{
+  "returncode": 0,
+  "output": "test_circular_orientation_and_observed_only (test_core.Tests.test_circular_orientation_and_observed_only) ... ok\ntest_union_not_double_counted (test_core.Tests.test_union_not_double_counted) ... ok\ntest_model_checksums (test_export.ExportTests.test_model_checksums) ... ok\ntest_restore_gzip_zip_and_reject_changed_sequence (test_export.ExportTests.test_restore_gzip_zip_and_reject_changed_sequence) ... ok\n\n----------------------------------------------------------------------\nRan 4 tests in 2.018s\n\nOK\n"
+}

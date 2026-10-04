@@ -1,0 +1,20 @@
+{
+  "chosen": "history",
+  "cross_validation": {
+    "base": {
+      "grouped_oof_brier": 0.13364961910536227,
+      "rows": 500,
+      "groups": 50
+    },
+    "history": {
+      "grouped_oof_brier": 0.13205693317617756,
+      "rows": 500,
+      "groups": 50
+    }
+  },
+  "artifact_sha256": "8cc8ee70261047ee97f3163c3fefb597cc479d79b1d6bccc00497d505db0997a",
+  "code_sha256": "2a398d94bb594616f33d8cf8d773c28c3a277c82641c2ea72c4d260c44e61b5e",
+  "rankers_sha256": "591819a75b92109b1ad52e12b2726a09718a292fe8e937340729ce37871c1643",
+  "test_read_for_selection": false,
+  "time": "2026-10-04 06:50:27 -0400"
+}

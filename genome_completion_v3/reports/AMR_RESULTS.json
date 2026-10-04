@@ -1,0 +1,3067 @@
+{
+  "status": "completed",
+  "genomes": 25,
+  "results": [
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "blaEC",
+              "mdtM"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "uhpT_E350Q"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "blaEC",
+              "mdtM"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "uhpT_E350Q"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_D87Y",
+              "gyrA_S83L"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_S83L"
+            ],
+            "missing": [
+              "gyrA_D87Y"
+            ],
+            "extra": [
+              "gyrA_D87N"
+            ],
+            "recall": 0.5,
+            "precision": 0.5
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "blaCTX-M-123",
+              "sul2"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_S83L"
+            ],
+            "missing": [
+              "marR_S3N"
+            ],
+            "extra": [
+              "gyrA_D87N"
+            ],
+            "recall": 0.5,
+            "precision": 0.5
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "blaCTX-M-123",
+              "sul2"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "marR_S3N"
+            ],
+            "missing": [
+              "gyrA_S83L"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "mdtM"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "acrR_A41DfsTer12"
+            ],
+            "recall": null,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "mdtM"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": true,
+        "hidden": {
+          "genes": {
+            "reference_count": 5,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "blaCTX-M-15",
+              "blaTEM-1",
+              "dfrA5",
+              "sul1",
+              "tet(A)"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_S83L"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 5,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "blaCTX-M-15",
+              "blaTEM-1",
+              "dfrA5",
+              "sul1",
+              "tet(A)"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_S83L"
+            ],
+            "missing": [],
+            "extra": [
+              "gyrA_D87N"
+            ],
+            "recall": 1.0,
+            "precision": 0.5
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "cirA_W243Ter"
+            ],
+            "recall": null,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [
+              "blaCTX-M-15",
+              "blaSHV-1"
+            ],
+            "extra": [
+              "blaSHV-11"
+            ],
+            "recall": 0.0,
+            "precision": 0.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "blaSHV-1"
+            ],
+            "missing": [
+              "blaCTX-M-15"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "ompK35_Y108TerfsTer0"
+            ],
+            "recall": null,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "blaSHV-11",
+              "oqxA",
+              "oqxB"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_S83I"
+            ],
+            "missing": [],
+            "extra": [
+              "crrB_P151L"
+            ],
+            "recall": 1.0,
+            "precision": 0.5
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 1,
+            "retained": [
+              "blaSHV-11"
+            ],
+            "missing": [
+              "oqxA",
+              "oqxB"
+            ],
+            "extra": [],
+            "recall": 0.3333333333333333,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S83I"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "cirA_N467MfsTer15"
+            ],
+            "recall": null,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 18,
+            "retained": [
+              "blaSHV-11",
+              "oqxA"
+            ],
+            "missing": [
+              "oqxB"
+            ],
+            "extra": [
+              "aac(3)-IIg",
+              "aac(6')-IIc",
+              "aac(6')-Ib3",
+              "aph(3'')-Ib",
+              "aph(3')-Ia",
+              "aph(6)-Id",
+              "arr",
+              "blaDHA-1",
+              "blaSHV-1",
+              "blaTEM-1",
+              "dfrA19",
+              "ere(A)",
+              "mcr-9.1",
+              "oqxB19",
+              "qnrB4",
+              "sul1"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.1111111111111111
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_D87A",
+              "gyrA_S83Y",
+              "ompK36_D135DGD"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "oqxA"
+            ],
+            "missing": [
+              "blaSHV-11",
+              "oqxB"
+            ],
+            "extra": [
+              "blaSHV",
+              "oqxB25"
+            ],
+            "recall": 0.3333333333333333,
+            "precision": 0.3333333333333333
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_D87A",
+              "gyrA_S83Y",
+              "ompK36_D135DGD"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "oqxA",
+              "oqxB"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "parC_S80I"
+            ],
+            "missing": [
+              "gyrA_D87A",
+              "gyrA_S83Y"
+            ],
+            "extra": [
+              "crrB_P151L",
+              "gyrA_S83I"
+            ],
+            "recall": 0.3333333333333333,
+            "precision": 0.3333333333333333
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "oqxA"
+            ],
+            "missing": [
+              "oqxB"
+            ],
+            "extra": [
+              "oqxB25"
+            ],
+            "recall": 0.5,
+            "precision": 0.5
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_D87A",
+              "gyrA_S83Y",
+              "parC_S80I"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 18,
+            "retained": [
+              "blaSHV-1",
+              "oqxA"
+            ],
+            "missing": [
+              "blaCTX-M-14",
+              "oqxB20"
+            ],
+            "extra": [
+              "aac(3)-IIg",
+              "aac(6')-IIc",
+              "aac(6')-Ib3",
+              "aph(3'')-Ib",
+              "aph(3')-Ia",
+              "aph(6)-Id",
+              "arr",
+              "blaDHA-1",
+              "blaSHV-11",
+              "blaTEM-1",
+              "dfrA19",
+              "ere(A)",
+              "mcr-9.1",
+              "oqxB19",
+              "qnrB4",
+              "sul1"
+            ],
+            "recall": 0.5,
+            "precision": 0.1111111111111111
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "gyrA_D87N",
+              "gyrA_S83Y",
+              "ompK36_D135DGD"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 3,
+            "retained": [
+              "blaSHV-1",
+              "oqxA",
+              "oqxB20"
+            ],
+            "missing": [
+              "blaCTX-M-14"
+            ],
+            "extra": [],
+            "recall": 0.75,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "gyrA_D87N",
+              "gyrA_S83Y",
+              "ompK36_D135DGD"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": true,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "parC_S80F"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 2,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "ant(9)-Ia",
+              "erm(A)"
+            ],
+            "recall": null,
+            "precision": 0.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "parC_S80F"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "dfrG",
+              "tet(M)"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "parC_S80F"
+            ],
+            "recall": null,
+            "precision": 0.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "tet(M)"
+            ],
+            "missing": [
+              "dfrG"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "blaI",
+              "blaR1",
+              "blaZ",
+              "fusB"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 2,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "murA_G257D",
+              "parC_S80Y"
+            ],
+            "recall": null,
+            "precision": 0.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [
+              "blaI",
+              "blaR1",
+              "blaZ",
+              "fusB"
+            ],
+            "extra": [
+              "dfrG"
+            ],
+            "recall": 0.0,
+            "precision": 0.0
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 2,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "murA_G257D",
+              "parC_S80Y"
+            ],
+            "recall": null,
+            "precision": 0.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 2,
+            "retained": [
+              "parC_S80F"
+            ],
+            "missing": [],
+            "extra": [
+              "parC_E84K"
+            ],
+            "recall": 1.0,
+            "precision": 0.5
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "parC_S80F"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": true,
+        "hidden": {
+          "genes": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "fexA"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "murA_D278E",
+              "murA_E291D"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 1,
+            "predicted_count": 4,
+            "retained": [],
+            "missing": [
+              "fexA"
+            ],
+            "extra": [
+              "aac(6')-Ie/aph(2'')-Ia",
+              "blaI",
+              "blaZ",
+              "dfrK"
+            ],
+            "recall": 0.0,
+            "precision": 0.0
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "murA_D278E",
+              "murA_E291D"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 9,
+            "predicted_count": 1,
+            "retained": [
+              "mexE"
+            ],
+            "missing": [
+              "aac(6')-Ib'",
+              "aadA7",
+              "blaOXA-56",
+              "blaSPM-1",
+              "cml",
+              "cmx",
+              "rmtD1",
+              "sul1"
+            ],
+            "extra": [],
+            "recall": 0.1111111111111111,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 2,
+            "retained": [
+              "nalC_G71E",
+              "nalC_S209R"
+            ],
+            "missing": [
+              "gyrA_T83I"
+            ],
+            "extra": [],
+            "recall": 0.6666666666666666,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 9,
+            "predicted_count": 8,
+            "retained": [
+              "aac(6')-Ib'",
+              "aadA7",
+              "blaOXA-56",
+              "blaSPM-1",
+              "cml",
+              "cmx",
+              "mexE",
+              "sul1"
+            ],
+            "missing": [
+              "rmtD1"
+            ],
+            "extra": [],
+            "recall": 0.8888888888888888,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "gyrA_T83I",
+              "nalC_G71E",
+              "nalC_S209R"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 4,
+            "retained": [
+              "mexX"
+            ],
+            "missing": [
+              "mexE"
+            ],
+            "extra": [
+              "aac(6')-Ib",
+              "blaOXA-796",
+              "sul1"
+            ],
+            "recall": 0.5,
+            "precision": 0.25
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 3,
+            "retained": [
+              "gyrA_T83I",
+              "nalC_G71E"
+            ],
+            "missing": [],
+            "extra": [
+              "nalC_S209R"
+            ],
+            "recall": 1.0,
+            "precision": 0.6666666666666666
+          },
+          "disruptions": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "mexZ_P184LfsTer55"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 6,
+            "retained": [
+              "mexE",
+              "mexX"
+            ],
+            "missing": [],
+            "extra": [
+              "aph(3'')-Ib",
+              "aph(3')-IIb",
+              "aph(3')-VIa",
+              "aph(6)-Id"
+            ],
+            "recall": 1.0,
+            "precision": 0.3333333333333333
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_T83I",
+              "nalC_G71E"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "mexZ_P184LfsTer55"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 12,
+            "predicted_count": 2,
+            "retained": [
+              "catB7",
+              "fosA"
+            ],
+            "missing": [
+              "aac(6')-Ib",
+              "aadA1",
+              "blaIMP-6",
+              "blaOXA-1",
+              "catB8/aac(6')-Ib'",
+              "cmx",
+              "sul1",
+              "tmexC3",
+              "tmexD3",
+              "toprJ1"
+            ],
+            "extra": [],
+            "recall": 0.16666666666666666,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "parC_S87L"
+            ],
+            "missing": [
+              "ftsI_F533L"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "oprD_L70PfsTer24"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 12,
+            "predicted_count": 10,
+            "retained": [
+              "catB7",
+              "fosA",
+              "sul1",
+              "tmexC3",
+              "tmexD3",
+              "toprJ1"
+            ],
+            "missing": [
+              "aac(6')-Ib",
+              "aadA1",
+              "blaIMP-6",
+              "blaOXA-1",
+              "catB8/aac(6')-Ib'",
+              "cmx"
+            ],
+            "extra": [
+              "aac(6')-Ib3",
+              "arr-7",
+              "blaOXA-35",
+              "blaVIM-4"
+            ],
+            "recall": 0.5,
+            "precision": 0.6
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "parC_S87L"
+            ],
+            "missing": [
+              "ftsI_F533L"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [
+              "oprD_L70PfsTer24"
+            ],
+            "extra": [
+              "oprD_Q402HfsTer99"
+            ],
+            "recall": 0.0,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "catB7",
+              "fosA",
+              "mexX"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "oprD_V359L"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 1,
+            "retained": [],
+            "missing": [],
+            "extra": [
+              "oprD_G80AfsTer14"
+            ],
+            "recall": null,
+            "precision": 0.0
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "catB7",
+              "fosA",
+              "mexX"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [
+              "oprD_V359L"
+            ],
+            "extra": [],
+            "recall": 0.0,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 9,
+            "predicted_count": 9,
+            "retained": [
+              "aph(3'')-Ib",
+              "aph(6)-Id",
+              "floR2",
+              "mexE",
+              "sul1",
+              "tet(G)"
+            ],
+            "missing": [
+              "aac(6')-Ib4",
+              "blaOXA-2",
+              "blaOXA-210"
+            ],
+            "extra": [
+              "aac(6')-Ib",
+              "aadA2",
+              "blaCARB-2"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.6666666666666666
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_T83I",
+              "nalC_G71E"
+            ],
+            "missing": [
+              "nalC_G125D"
+            ],
+            "extra": [],
+            "recall": 0.6666666666666666,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 9,
+            "predicted_count": 9,
+            "retained": [
+              "aph(3'')-Ib",
+              "aph(6)-Id",
+              "floR2",
+              "mexE",
+              "sul1",
+              "tet(G)"
+            ],
+            "missing": [
+              "aac(6')-Ib4",
+              "blaOXA-2",
+              "blaOXA-210"
+            ],
+            "extra": [
+              "aac(6')-Ib",
+              "aadA2",
+              "blaCARB-2"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.6666666666666666
+          },
+          "point_mutations": {
+            "reference_count": 3,
+            "predicted_count": 2,
+            "retained": [
+              "gyrA_T83I",
+              "nalC_G71E"
+            ],
+            "missing": [
+              "nalC_G125D"
+            ],
+            "extra": [],
+            "recall": 0.6666666666666666,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 4,
+            "retained": [
+              "adeC",
+              "amvA",
+              "cxpE"
+            ],
+            "missing": [
+              "blaADC-240"
+            ],
+            "extra": [
+              "blaADC-11"
+            ],
+            "recall": 0.75,
+            "precision": 0.75
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 4,
+            "predicted_count": 4,
+            "retained": [
+              "adeC",
+              "amvA",
+              "cxpE"
+            ],
+            "missing": [
+              "blaADC-240"
+            ],
+            "extra": [
+              "blaADC"
+            ],
+            "recall": 0.75,
+            "precision": 0.75
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 7,
+            "predicted_count": 7,
+            "retained": [
+              "adeC",
+              "amvA",
+              "armA",
+              "cxpE",
+              "mph(E)",
+              "msr(E)"
+            ],
+            "missing": [
+              "blaADC-73"
+            ],
+            "extra": [
+              "blaADC"
+            ],
+            "recall": 0.8571428571428571,
+            "precision": 0.8571428571428571
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 7,
+            "predicted_count": 7,
+            "retained": [
+              "adeC",
+              "amvA",
+              "armA",
+              "blaADC-73",
+              "cxpE",
+              "mph(E)",
+              "msr(E)"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 18,
+            "retained": [
+              "amvA",
+              "cxpE"
+            ],
+            "missing": [
+              "blaADC-356"
+            ],
+            "extra": [
+              "aadA1",
+              "aadA2",
+              "aadT",
+              "aph(3'')-Ib",
+              "aph(6)-Id",
+              "armA",
+              "blaADC-76",
+              "blaCARB-2",
+              "blaPER-1",
+              "cmlA1",
+              "ere(B)",
+              "mph(E)",
+              "msr(E)",
+              "sul1",
+              "sul2",
+              "tet(B)"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.1111111111111111
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 18,
+            "retained": [
+              "amvA",
+              "cxpE"
+            ],
+            "missing": [
+              "blaADC-356"
+            ],
+            "extra": [
+              "aadA1",
+              "aadA2",
+              "aadT",
+              "aph(3'')-Ib",
+              "aph(6)-Id",
+              "armA",
+              "blaADC-76",
+              "blaCARB-2",
+              "blaPER-1",
+              "cmlA1",
+              "ere(B)",
+              "mph(E)",
+              "msr(E)",
+              "sul1",
+              "sul2",
+              "tet(B)"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.1111111111111111
+          },
+          "point_mutations": {
+            "reference_count": 1,
+            "predicted_count": 1,
+            "retained": [
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "amvA",
+              "blaADC-26",
+              "cxpE"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 2,
+            "retained": [
+              "adeS_H189Y",
+              "gyrA_S81L"
+            ],
+            "missing": [],
+            "extra": [],
+            "recall": 1.0,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 3,
+            "predicted_count": 3,
+            "retained": [
+              "amvA",
+              "cxpE"
+            ],
+            "missing": [
+              "blaADC-26"
+            ],
+            "extra": [
+              "blaADC"
+            ],
+            "recall": 0.6666666666666666,
+            "precision": 0.6666666666666666
+          },
+          "point_mutations": {
+            "reference_count": 2,
+            "predicted_count": 1,
+            "retained": [
+              "adeS_H189Y"
+            ],
+            "missing": [
+              "gyrA_S81L"
+            ],
+            "extra": [],
+            "recall": 0.5,
+            "precision": 1.0
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "observed_percent": 65,
+      "boundary_reference": {
+        "genes": [],
+        "point_mutations": [],
+        "disruptions": []
+      },
+      "v2": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 7,
+            "retained": [
+              "abaF",
+              "blaOXA-66"
+            ],
+            "missing": [],
+            "extra": [
+              "aac(3)-Ia",
+              "aadA1",
+              "aph(3')-Ia",
+              "blaTEM-1",
+              "sul1"
+            ],
+            "recall": 1.0,
+            "precision": 0.2857142857142857
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      },
+      "v3": {
+        "unresolved": false,
+        "hidden": {
+          "genes": {
+            "reference_count": 2,
+            "predicted_count": 6,
+            "retained": [
+              "abaF",
+              "blaOXA-66"
+            ],
+            "missing": [],
+            "extra": [
+              "aac(3)-Ia",
+              "aadA1",
+              "catA1",
+              "sul1"
+            ],
+            "recall": 1.0,
+            "precision": 0.3333333333333333
+          },
+          "point_mutations": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          },
+          "disruptions": {
+            "reference_count": 0,
+            "predicted_count": 0,
+            "retained": [],
+            "missing": [],
+            "extra": [],
+            "recall": null,
+            "precision": null
+          }
+        },
+        "boundary_prediction": {
+          "genes": [],
+          "point_mutations": [],
+          "disruptions": []
+        }
+      }
+    }
+  ],
+  "summary": [
+    {
+      "species": "ALL",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 85,
+      "predicted": 103,
+      "retained": 41,
+      "missing": 44,
+      "extra": 62,
+      "recall": 0.4823529411764706,
+      "precision": 0.39805825242718446
+    },
+    {
+      "species": "ALL",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 36,
+      "predicted": 25,
+      "retained": 16,
+      "missing": 20,
+      "extra": 9,
+      "recall": 0.4444444444444444,
+      "precision": 0.64
+    },
+    {
+      "species": "ALL",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 2,
+      "predicted": 2,
+      "retained": 0,
+      "missing": 2,
+      "extra": 2,
+      "recall": 0.0,
+      "precision": 0.0
+    },
+    {
+      "species": "ALL",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 85,
+      "predicted": 95,
+      "retained": 52,
+      "missing": 33,
+      "extra": 43,
+      "recall": 0.611764705882353,
+      "precision": 0.5473684210526316
+    },
+    {
+      "species": "ALL",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 36,
+      "predicted": 26,
+      "retained": 22,
+      "missing": 14,
+      "extra": 4,
+      "recall": 0.6111111111111112,
+      "precision": 0.8461538461538461
+    },
+    {
+      "species": "ALL",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 2,
+      "predicted": 4,
+      "retained": 0,
+      "missing": 2,
+      "extra": 4,
+      "recall": 0.0,
+      "precision": 0.0
+    },
+    {
+      "species": "ECOLI",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 10,
+      "predicted": 3,
+      "retained": 3,
+      "missing": 7,
+      "extra": 0,
+      "recall": 0.3,
+      "precision": 1.0
+    },
+    {
+      "species": "ECOLI",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 6,
+      "predicted": 2,
+      "retained": 1,
+      "missing": 5,
+      "extra": 1,
+      "recall": 0.16666666666666666,
+      "precision": 0.5
+    },
+    {
+      "species": "ECOLI",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 1,
+      "retained": 0,
+      "missing": 0,
+      "extra": 1,
+      "recall": null,
+      "precision": 0.0
+    },
+    {
+      "species": "ECOLI",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 10,
+      "predicted": 3,
+      "retained": 3,
+      "missing": 7,
+      "extra": 0,
+      "recall": 0.3,
+      "precision": 1.0
+    },
+    {
+      "species": "ECOLI",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 6,
+      "predicted": 5,
+      "retained": 3,
+      "missing": 3,
+      "extra": 2,
+      "recall": 0.5,
+      "precision": 0.6
+    },
+    {
+      "species": "ECOLI",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 1,
+      "retained": 0,
+      "missing": 0,
+      "extra": 1,
+      "recall": null,
+      "precision": 0.0
+    },
+    {
+      "species": "KPNEU",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 14,
+      "predicted": 42,
+      "retained": 9,
+      "missing": 5,
+      "extra": 33,
+      "recall": 0.6428571428571429,
+      "precision": 0.21428571428571427
+    },
+    {
+      "species": "KPNEU",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 10,
+      "predicted": 5,
+      "retained": 2,
+      "missing": 8,
+      "extra": 3,
+      "recall": 0.2,
+      "precision": 0.4
+    },
+    {
+      "species": "KPNEU",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 0,
+      "extra": 0,
+      "recall": null,
+      "precision": null
+    },
+    {
+      "species": "KPNEU",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 14,
+      "predicted": 10,
+      "retained": 7,
+      "missing": 7,
+      "extra": 3,
+      "recall": 0.5,
+      "precision": 0.7
+    },
+    {
+      "species": "KPNEU",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 10,
+      "predicted": 4,
+      "retained": 4,
+      "missing": 6,
+      "extra": 0,
+      "recall": 0.4,
+      "precision": 1.0
+    },
+    {
+      "species": "KPNEU",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 2,
+      "retained": 0,
+      "missing": 0,
+      "extra": 2,
+      "recall": null,
+      "precision": 0.0
+    },
+    {
+      "species": "SAUR",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 7,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 7,
+      "extra": 0,
+      "recall": 0.0,
+      "precision": null
+    },
+    {
+      "species": "SAUR",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 4,
+      "predicted": 5,
+      "retained": 1,
+      "missing": 3,
+      "extra": 4,
+      "recall": 0.25,
+      "precision": 0.2
+    },
+    {
+      "species": "SAUR",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 0,
+      "extra": 0,
+      "recall": null,
+      "precision": null
+    },
+    {
+      "species": "SAUR",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 7,
+      "predicted": 8,
+      "retained": 1,
+      "missing": 6,
+      "extra": 7,
+      "recall": 0.14285714285714285,
+      "precision": 0.125
+    },
+    {
+      "species": "SAUR",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 4,
+      "predicted": 5,
+      "retained": 3,
+      "missing": 1,
+      "extra": 2,
+      "recall": 0.75,
+      "precision": 0.6
+    },
+    {
+      "species": "SAUR",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 0,
+      "extra": 0,
+      "recall": null,
+      "precision": null
+    },
+    {
+      "species": "PAER",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 35,
+      "predicted": 19,
+      "retained": 13,
+      "missing": 22,
+      "extra": 6,
+      "recall": 0.37142857142857144,
+      "precision": 0.6842105263157895
+    },
+    {
+      "species": "PAER",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 11,
+      "predicted": 8,
+      "retained": 7,
+      "missing": 4,
+      "extra": 1,
+      "recall": 0.6363636363636364,
+      "precision": 0.875
+    },
+    {
+      "species": "PAER",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 2,
+      "predicted": 1,
+      "retained": 0,
+      "missing": 2,
+      "extra": 1,
+      "recall": 0.0,
+      "precision": 0.0
+    },
+    {
+      "species": "PAER",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 35,
+      "predicted": 36,
+      "retained": 25,
+      "missing": 10,
+      "extra": 11,
+      "recall": 0.7142857142857143,
+      "precision": 0.6944444444444444
+    },
+    {
+      "species": "PAER",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 11,
+      "predicted": 8,
+      "retained": 8,
+      "missing": 3,
+      "extra": 0,
+      "recall": 0.7272727272727273,
+      "precision": 1.0
+    },
+    {
+      "species": "PAER",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 2,
+      "predicted": 1,
+      "retained": 0,
+      "missing": 2,
+      "extra": 1,
+      "recall": 0.0,
+      "precision": 0.0
+    },
+    {
+      "species": "ABAU",
+      "version": "v2",
+      "kind": "genes",
+      "reference": 19,
+      "predicted": 39,
+      "retained": 16,
+      "missing": 3,
+      "extra": 23,
+      "recall": 0.8421052631578947,
+      "precision": 0.41025641025641024
+    },
+    {
+      "species": "ABAU",
+      "version": "v2",
+      "kind": "point_mutations",
+      "reference": 5,
+      "predicted": 5,
+      "retained": 5,
+      "missing": 0,
+      "extra": 0,
+      "recall": 1.0,
+      "precision": 1.0
+    },
+    {
+      "species": "ABAU",
+      "version": "v2",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 0,
+      "extra": 0,
+      "recall": null,
+      "precision": null
+    },
+    {
+      "species": "ABAU",
+      "version": "v3",
+      "kind": "genes",
+      "reference": 19,
+      "predicted": 38,
+      "retained": 16,
+      "missing": 3,
+      "extra": 22,
+      "recall": 0.8421052631578947,
+      "precision": 0.42105263157894735
+    },
+    {
+      "species": "ABAU",
+      "version": "v3",
+      "kind": "point_mutations",
+      "reference": 5,
+      "predicted": 4,
+      "retained": 4,
+      "missing": 1,
+      "extra": 0,
+      "recall": 0.8,
+      "precision": 1.0
+    },
+    {
+      "species": "ABAU",
+      "version": "v3",
+      "kind": "disruptions",
+      "reference": 0,
+      "predicted": 0,
+      "retained": 0,
+      "missing": 0,
+      "extra": 0,
+      "recall": null,
+      "precision": null
+    }
+  ],
+  "clinical_accuracy": false
+}

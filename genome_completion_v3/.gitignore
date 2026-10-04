@@ -1,0 +1,6 @@
+/cache/
+/run/
+/.venv/
+__pycache__/
+*.log
+*.part

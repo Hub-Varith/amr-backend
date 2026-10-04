@@ -1,0 +1,66 @@
+{
+  "status": "verified",
+  "confidence_mode": "history",
+  "checks": [
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 20,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "percent": 30,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 20,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "percent": 30,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 20,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "percent": 30,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 20,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "percent": 30,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 20,
+      "matches_frozen_confidence": true
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "percent": 30,
+      "matches_frozen_confidence": true
+    }
+  ]
+}

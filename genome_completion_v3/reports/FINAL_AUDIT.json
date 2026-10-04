@@ -1,0 +1,13 @@
+{
+  "status": "verified",
+  "fresh_genomes": 50,
+  "primary_steps": 550,
+  "second_origin_steps": 50,
+  "marker_genomes": 25,
+  "prefixes_checked": 550,
+  "models_unchanged": true,
+  "code_unchanged": true,
+  "fresh_groups_disjoint_from_all_previous_data": true,
+  "confidence_event": "hidden recovery >=95% AND hidden prediction precision >=95%",
+  "clinical_or_mic_validation": false
+}

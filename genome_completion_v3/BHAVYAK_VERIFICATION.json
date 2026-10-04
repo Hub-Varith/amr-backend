@@ -1,0 +1,82 @@
+{
+  "status": "verified",
+  "target_branch": "bhavyak",
+  "packaged_from_commit": "7ddac33",
+  "reference_chromosomes_verified": 756,
+  "checks": [
+    {
+      "species": "ECOLI",
+      "percent": 65,
+      "confidence": 0.129128137897483,
+      "confidence_and_selection_unchanged": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "stale_public_fasta_removed": true
+    },
+    {
+      "species": "KPNEU",
+      "percent": 65,
+      "confidence": 0.13788164019924992,
+      "confidence_and_selection_unchanged": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "stale_public_fasta_removed": true
+    },
+    {
+      "species": "SAUR",
+      "percent": 65,
+      "confidence": 0.08718250334000142,
+      "confidence_and_selection_unchanged": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "stale_public_fasta_removed": true
+    },
+    {
+      "species": "PAER",
+      "percent": 65,
+      "confidence": 0.17299370801343808,
+      "confidence_and_selection_unchanged": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "stale_public_fasta_removed": true
+    },
+    {
+      "species": "ABAU",
+      "percent": 65,
+      "confidence": 0.18916327747204834,
+      "confidence_and_selection_unchanged": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "stale_public_fasta_removed": true
+    },
+    {
+      "species": "ECOLI",
+      "percent": 20,
+      "confidence": 0.0594302893821752,
+      "incremental_confidence_matches_original": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "internal_history_preserved": true
+    },
+    {
+      "species": "ECOLI",
+      "percent": 30,
+      "confidence": 0.0262902609188586,
+      "incremental_confidence_matches_original": true,
+      "status": "no_result",
+      "no_public_fasta": true,
+      "internal_history_preserved": true
+    },
+    {
+      "percent": 100,
+      "status": "full_sequence_observed",
+      "unchanged_passthrough": true,
+      "confidence": null
+    }
+  ],
+  "tests": "test_circular_orientation_and_observed_only (test_core.Tests.test_circular_orientation_and_observed_only) ... ok\ntest_union_not_double_counted (test_core.Tests.test_union_not_double_counted) ... ok\ntest_model_checksums (test_export.ExportTests.test_model_checksums) ... ok\ntest_restore_gzip_zip_and_reject_changed_sequence (test_export.ExportTests.test_restore_gzip_zip_and_reject_changed_sequence) ... ok\ntest_all_species_abstain_and_clear_old_public_file (test_release_policy.GateTests.test_all_species_abstain_and_clear_old_public_file) ... ok\ntest_boundary_acceptance_then_insufficient_support_removes_output (test_release_policy.GateTests.test_boundary_acceptance_then_insufficient_support_removes_output) ... ok\ntest_incremental_history_remains_private (test_release_policy.GateTests.test_incremental_history_remains_private) ... ok\ntest_no_candidate (test_release_policy.GateTests.test_no_candidate) ... ok\ntest_threshold_and_invalid_values (test_release_policy.GateTests.test_threshold_and_invalid_values) ... ok\n\n----------------------------------------------------------------------\nRan 9 tests in 3.798s\n\nOK\n",
+  "weights_retrained": false,
+  "execution_cwd_was_outside_repository": true,
+  "demo_perfect_database_examples_verified": false,
+  "note": "These checks preserve earlier model behavior and enforce output gating; they do not establish exact reconstruction of database genomes."
+}

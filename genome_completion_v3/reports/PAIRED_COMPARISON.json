@@ -1,0 +1,3304 @@
+{
+  "percent_observed": 65,
+  "summary": [
+    {
+      "species": "ALL",
+      "genomes": 50,
+      "v1_hidden_recovery": 0.6177918286109325,
+      "v1_prediction_precision": 0.6009213074015368,
+      "v1_f1": 0.6074052058355145,
+      "v1_quality_successes": 1,
+      "v2_hidden_recovery": 0.7418031622473781,
+      "v2_prediction_precision": 0.7261177123181376,
+      "v2_f1": 0.7333247543418757,
+      "v2_quality_successes": 1,
+      "v3_hidden_recovery": 0.9014150789426505,
+      "v3_prediction_precision": 0.8905543592596743,
+      "v3_f1": 0.8953662894782515,
+      "v3_quality_successes": 6,
+      "v3_minus_v2": 0.1620415351363759,
+      "bootstrap95": [
+        0.08847711784782553,
+        0.24752142563639692
+      ],
+      "improved": 39,
+      "worse": 7
+    },
+    {
+      "species": "ECOLI",
+      "genomes": 10,
+      "v1_hidden_recovery": 0.30112632736797557,
+      "v1_prediction_precision": 0.31698708630089323,
+      "v1_f1": 0.30840754584702734,
+      "v1_quality_successes": 0,
+      "v2_hidden_recovery": 0.5270194625952642,
+      "v2_prediction_precision": 0.5107108671262198,
+      "v2_f1": 0.5181364063229924,
+      "v2_quality_successes": 0,
+      "v3_hidden_recovery": 0.8486586266189917,
+      "v3_prediction_precision": 0.8448807368952738,
+      "v3_f1": 0.8460965329865555,
+      "v3_quality_successes": 0,
+      "v3_minus_v2": 0.3279601266635631,
+      "bootstrap95": [
+        0.11202740164808014,
+        0.5639115416812571
+      ],
+      "improved": 7,
+      "worse": 2
+    },
+    {
+      "species": "KPNEU",
+      "genomes": 10,
+      "v1_hidden_recovery": 0.8388865826230484,
+      "v1_prediction_precision": 0.8201661600362676,
+      "v1_f1": 0.8284798280348357,
+      "v1_quality_successes": 1,
+      "v2_hidden_recovery": 0.833083185025683,
+      "v2_prediction_precision": 0.8139580376742399,
+      "v2_f1": 0.8220605285272551,
+      "v2_quality_successes": 0,
+      "v3_hidden_recovery": 0.8991757525059094,
+      "v3_prediction_precision": 0.8936911075706598,
+      "v3_f1": 0.8961393328897154,
+      "v3_quality_successes": 2,
+      "v3_minus_v2": 0.07407880436246031,
+      "bootstrap95": [
+        0.011461860583534246,
+        0.15817386565886268
+      ],
+      "improved": 8,
+      "worse": 2
+    },
+    {
+      "species": "SAUR",
+      "genomes": 10,
+      "v1_hidden_recovery": 0.44946377383618874,
+      "v1_prediction_precision": 0.44116275575133407,
+      "v1_f1": 0.44470345671625733,
+      "v1_quality_successes": 0,
+      "v2_hidden_recovery": 0.7099341809836616,
+      "v2_prediction_precision": 0.7038365519730517,
+      "v2_f1": 0.7066789174307706,
+      "v2_quality_successes": 0,
+      "v3_hidden_recovery": 0.9321676984410295,
+      "v3_prediction_precision": 0.9087607801586988,
+      "v3_f1": 0.9196259982385302,
+      "v3_quality_successes": 1,
+      "v3_minus_v2": 0.21294708080775954,
+      "bootstrap95": [
+        0.028603046189085452,
+        0.47442320963377516
+      ],
+      "improved": 9,
+      "worse": 1
+    },
+    {
+      "species": "PAER",
+      "genomes": 10,
+      "v1_hidden_recovery": 0.7821841544186839,
+      "v1_prediction_precision": 0.718307128584447,
+      "v1_f1": 0.746116653358384,
+      "v1_quality_successes": 0,
+      "v2_hidden_recovery": 0.8600159234447495,
+      "v2_prediction_precision": 0.8406699898661456,
+      "v2_f1": 0.8500191515432354,
+      "v2_quality_successes": 1,
+      "v3_hidden_recovery": 0.9336131187441088,
+      "v3_prediction_precision": 0.9217905557143103,
+      "v3_f1": 0.9269485636352556,
+      "v3_quality_successes": 2,
+      "v3_minus_v2": 0.07692941209202038,
+      "bootstrap95": [
+        0.019657850368983366,
+        0.15436606637523945
+      ],
+      "improved": 7,
+      "worse": 1
+    },
+    {
+      "species": "ABAU",
+      "genomes": 10,
+      "v1_hidden_recovery": 0.717298304808766,
+      "v1_prediction_precision": 0.7079834063347421,
+      "v1_f1": 0.7093185452210681,
+      "v1_quality_successes": 0,
+      "v2_hidden_recovery": 0.7789630591875317,
+      "v2_prediction_precision": 0.7614131149510313,
+      "v2_f1": 0.7697287678851255,
+      "v2_quality_successes": 0,
+      "v3_hidden_recovery": 0.8934601984032137,
+      "v3_prediction_precision": 0.8836486159594287,
+      "v3_f1": 0.8880210196412015,
+      "v3_quality_successes": 1,
+      "v3_minus_v2": 0.11829225175607612,
+      "bootstrap95": [
+        0.007038251478871811,
+        0.3119898965419555
+      ],
+      "improved": 8,
+      "worse": 1
+    }
+  ],
+  "results": [
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001900355.1",
+      "group": "GCF_001900355.1",
+      "origin": 2853508,
+      "observed_bases": 3519471,
+      "hidden_bases": 1895100,
+      "observed_sha256": "b2bfbc5bed07910b213e81a0aa07bc4cc67e7220628b9d758399cf494f3e7e51",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1895100,
+          "predicted_bases": 2035622,
+          "hidden_exact_bases": 1603379,
+          "predicted_exact_bases": 1613239,
+          "hidden_recovery": 0.8460656429739856,
+          "prediction_precision": 0.7925042075591637,
+          "f1": 0.8184095193866353,
+          "mismatch_events": 14681,
+          "insertion_events": 139017,
+          "deletion_events": 115553,
+          "uncovered_hidden_bases": 161688,
+          "exact_complement": false
+        },
+        "candidate_count": 20,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_001900355.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1895100,
+          "predicted_bases": 1742292,
+          "hidden_exact_bases": 1530369,
+          "predicted_exact_bases": 1530372,
+          "hidden_recovery": 0.8075399715054614,
+          "prediction_precision": 0.8783671164190617,
+          "f1": 0.8414657738198429,
+          "mismatch_events": 21098,
+          "insertion_events": 59133,
+          "deletion_events": 115234,
+          "uncovered_hidden_bases": 228399,
+          "exact_complement": false
+        },
+        "candidate_count": 6,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_001900355.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1895100,
+          "predicted_bases": 1863913,
+          "hidden_exact_bases": 1586364,
+          "predicted_exact_bases": 1586364,
+          "hidden_recovery": 0.8370872249485515,
+          "prediction_precision": 0.8510933718472912,
+          "f1": 0.8440321967495191,
+          "mismatch_events": 14139,
+          "insertion_events": 155057,
+          "deletion_events": 150723,
+          "uncovered_hidden_bases": 143874,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_001900355.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_019431185.1",
+      "group": "GCF_019431185.1",
+      "origin": 2827931,
+      "observed_bases": 3487925,
+      "hidden_bases": 1878114,
+      "observed_sha256": "9955ce85aa4b93ee36c95fc61790783c7ee7d90b81dbfd39085266c2916eaa7f",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1878114,
+          "predicted_bases": 1804953,
+          "hidden_exact_bases": 1479509,
+          "predicted_exact_bases": 1486407,
+          "hidden_recovery": 0.7877631496277648,
+          "prediction_precision": 0.8235156261686593,
+          "f1": 0.8052427341353723,
+          "mismatch_events": 17720,
+          "insertion_events": 159573,
+          "deletion_events": 308192,
+          "uncovered_hidden_bases": 73298,
+          "exact_complement": false
+        },
+        "candidate_count": 23,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_019431185.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1878114,
+          "predicted_bases": 2087663,
+          "hidden_exact_bases": 1349149,
+          "predicted_exact_bases": 1370816,
+          "hidden_recovery": 0.7183530925172806,
+          "prediction_precision": 0.6566270513967053,
+          "f1": 0.6861045595300378,
+          "mismatch_events": 36413,
+          "insertion_events": 128284,
+          "deletion_events": 193963,
+          "uncovered_hidden_bases": 300747,
+          "exact_complement": false
+        },
+        "candidate_count": 3,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_019431185.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1878114,
+          "predicted_bases": 1919227,
+          "hidden_exact_bases": 1339432,
+          "predicted_exact_bases": 1339432,
+          "hidden_recovery": 0.7131792851765122,
+          "prediction_precision": 0.6979018115105717,
+          "f1": 0.7054578453712742,
+          "mismatch_events": 32962,
+          "insertion_events": 306920,
+          "deletion_events": 192107,
+          "uncovered_hidden_bases": 313613,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_019431185.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_040529145.1",
+      "group": "GCF_040529145.1",
+      "origin": 2826506,
+      "observed_bases": 3486167,
+      "hidden_bases": 1877167,
+      "observed_sha256": "c2f4c67faaea892c833cadd0fabbba7297ee0b81480ea5fee8f0d522c747dc9d",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1877167,
+          "predicted_bases": 1809235,
+          "hidden_exact_bases": 1698050,
+          "predicted_exact_bases": 1698050,
+          "hidden_recovery": 0.9045812120072428,
+          "prediction_precision": 0.9385458494888723,
+          "f1": 0.921250585259014,
+          "mismatch_events": 5169,
+          "insertion_events": 44236,
+          "deletion_events": 73820,
+          "uncovered_hidden_bases": 100128,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_040529145.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_040529145.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_040529145.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_030007975.1",
+      "group": "GCF_030007975.1",
+      "origin": 2805680,
+      "observed_bases": 3460481,
+      "hidden_bases": 1863336,
+      "observed_sha256": "5ae5b9035b3ccc8f732f63fda96e41c8d90c82e11c2a853cb1bd7e46ce4a0428",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1863336,
+          "predicted_bases": 2042245,
+          "hidden_exact_bases": 1756833,
+          "predicted_exact_bases": 1775967,
+          "hidden_recovery": 0.9428428367186594,
+          "prediction_precision": 0.8696150559800612,
+          "f1": 0.9047496546390531,
+          "mismatch_events": 1584,
+          "insertion_events": 123701,
+          "deletion_events": 50795,
+          "uncovered_hidden_bases": 54128,
+          "exact_complement": false
+        },
+        "candidate_count": 19,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_030007975.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_030007975.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1863336,
+          "predicted_bases": 2053512,
+          "hidden_exact_bases": 1178890,
+          "predicted_exact_bases": 1181128,
+          "hidden_recovery": 0.6326770909809074,
+          "prediction_precision": 0.5751746276622683,
+          "f1": 0.6025570930911495,
+          "mismatch_events": 17542,
+          "insertion_events": 83156,
+          "deletion_events": 94868,
+          "uncovered_hidden_bases": 572183,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_030007975.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_013004045.1",
+      "group": "GCF_013004045.1",
+      "origin": 2797246,
+      "observed_bases": 3450079,
+      "hidden_bases": 1857735,
+      "observed_sha256": "226d0dff757206387df1fb8c42a8517f4935269a006bc6aca241114de58642e7",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1857735,
+          "predicted_bases": 1702546,
+          "hidden_exact_bases": 1539184,
+          "predicted_exact_bases": 1539170,
+          "hidden_recovery": 0.8285272119005133,
+          "prediction_precision": 0.9040401845236486,
+          "f1": 0.8646381030548158,
+          "mismatch_events": 14363,
+          "insertion_events": 57793,
+          "deletion_events": 88764,
+          "uncovered_hidden_bases": 215424,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_013004045.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1857735,
+          "predicted_bases": 1702546,
+          "hidden_exact_bases": 1539184,
+          "predicted_exact_bases": 1539170,
+          "hidden_recovery": 0.8285272119005133,
+          "prediction_precision": 0.9040401845236486,
+          "f1": 0.8646381030548158,
+          "mismatch_events": 14363,
+          "insertion_events": 57793,
+          "deletion_events": 88764,
+          "uncovered_hidden_bases": 215424,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_013004045.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1857735,
+          "predicted_bases": 1786370,
+          "hidden_exact_bases": 1314544,
+          "predicted_exact_bases": 1314548,
+          "hidden_recovery": 0.7076057672380615,
+          "prediction_precision": 0.7358766660882124,
+          "f1": 0.7214643709934763,
+          "mismatch_events": 38101,
+          "insertion_events": 225320,
+          "deletion_events": 119887,
+          "uncovered_hidden_bases": 385203,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_013004045.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_054931755.1",
+      "group": "GCF_054931755.1",
+      "origin": 2790567,
+      "observed_bases": 3441841,
+      "hidden_bases": 1853299,
+      "observed_sha256": "3c24e29c362740c8837fd5b7d063abbab4c6db75a50ca5c51d2fdcf51438e00b",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1853299,
+          "predicted_bases": 2017715,
+          "hidden_exact_bases": 1636133,
+          "predicted_exact_bases": 1636282,
+          "hidden_recovery": 0.8828219299746021,
+          "prediction_precision": 0.8109579400460422,
+          "f1": 0.8453654060145946,
+          "mismatch_events": 10922,
+          "insertion_events": 170805,
+          "deletion_events": 9442,
+          "uncovered_hidden_bases": 196802,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_054931755.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_054931755.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1853299,
+          "predicted_bases": 2015856,
+          "hidden_exact_bases": 1636133,
+          "predicted_exact_bases": 1636282,
+          "hidden_recovery": 0.8828219299746021,
+          "prediction_precision": 0.8117057964457779,
+          "f1": 0.8457715581952778,
+          "mismatch_events": 10922,
+          "insertion_events": 170805,
+          "deletion_events": 9442,
+          "uncovered_hidden_bases": 196802,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_054931755.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_057773685.1",
+      "group": "GCF_057773685.1",
+      "origin": 2787164,
+      "observed_bases": 3437643,
+      "hidden_bases": 1851039,
+      "observed_sha256": "da56f908edd4e57a7b850ae55e122fd8d646e27be7abe0d1556d3aedd7462f1b",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1851039,
+          "predicted_bases": 1777702,
+          "hidden_exact_bases": 1529352,
+          "predicted_exact_bases": 1529347,
+          "hidden_recovery": 0.8262127378191383,
+          "prediction_precision": 0.8602943575469905,
+          "f1": 0.8429091800825765,
+          "mismatch_events": 8869,
+          "insertion_events": 96464,
+          "deletion_events": 214545,
+          "uncovered_hidden_bases": 98273,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_057773685.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_057773685.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1851039,
+          "predicted_bases": 1777702,
+          "hidden_exact_bases": 1529352,
+          "predicted_exact_bases": 1529347,
+          "hidden_recovery": 0.8262127378191383,
+          "prediction_precision": 0.8602943575469905,
+          "f1": 0.8429091800825765,
+          "mismatch_events": 8869,
+          "insertion_events": 96464,
+          "deletion_events": 214545,
+          "uncovered_hidden_bases": 98273,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_057773685.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_001936315.1",
+      "group": "GCF_001936315.1",
+      "origin": 2784610,
+      "observed_bases": 3434493,
+      "hidden_bases": 1849343,
+      "observed_sha256": "3c325d8f7b96b3f6d96197fda08a869c14b6ea35faa8b05787ac94c1e3091f5d",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1849343,
+          "predicted_bases": 1849342,
+          "hidden_exact_bases": 1439570,
+          "predicted_exact_bases": 1447836,
+          "hidden_recovery": 0.7784223910869968,
+          "prediction_precision": 0.7828925098764858,
+          "f1": 0.780651051400435,
+          "mismatch_events": 3487,
+          "insertion_events": 45952,
+          "deletion_events": 57218,
+          "uncovered_hidden_bases": 349069,
+          "exact_complement": false
+        },
+        "candidate_count": 8,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_001936315.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1849343,
+          "predicted_bases": 1673834,
+          "hidden_exact_bases": 1214728,
+          "predicted_exact_bases": 1223299,
+          "hidden_recovery": 0.6568429977565006,
+          "prediction_precision": 0.7308365106695168,
+          "f1": 0.6918670220655768,
+          "mismatch_events": 31175,
+          "insertion_events": 60357,
+          "deletion_events": 180861,
+          "uncovered_hidden_bases": 423196,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_001936315.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1849343,
+          "predicted_bases": 2173995,
+          "hidden_exact_bases": 1240189,
+          "predicted_exact_bases": 1250182,
+          "hidden_recovery": 0.6706105898148694,
+          "prediction_precision": 0.575062040161086,
+          "f1": 0.6191718187466508,
+          "mismatch_events": 18671,
+          "insertion_events": 74751,
+          "deletion_events": 38222,
+          "uncovered_hidden_bases": 552705,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_001936315.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_055397645.1",
+      "group": "GCF_055397645.1",
+      "origin": 2779979,
+      "observed_bases": 3428781,
+      "hidden_bases": 1846268,
+      "observed_sha256": "789cc509939b6f95b37d653daae805f5eb832b8f293466718064d8c0409c021f",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1846268,
+          "predicted_bases": 1894912,
+          "hidden_exact_bases": 1676791,
+          "predicted_exact_bases": 1677561,
+          "hidden_recovery": 0.9082056342849467,
+          "prediction_precision": 0.8852975758241016,
+          "f1": 0.8966053050257627,
+          "mismatch_events": 4648,
+          "insertion_events": 139114,
+          "deletion_events": 50567,
+          "uncovered_hidden_bases": 114262,
+          "exact_complement": false
+        },
+        "candidate_count": 27,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_055397645.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_055397645.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_055397645.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ECOLI",
+      "genome_id": "GCF_024700815.2",
+      "group": "GCF_024700815.2",
+      "origin": 2777368,
+      "observed_bases": 3425561,
+      "hidden_bases": 1844533,
+      "observed_sha256": "db1cb4f7114f5ba42d37a8e8b10444633d4afdad253c545072ca9c78efbea0f6",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1844533,
+          "predicted_bases": 1844533,
+          "hidden_exact_bases": 1440845,
+          "predicted_exact_bases": 1440846,
+          "hidden_recovery": 0.7811435197960677,
+          "prediction_precision": 0.781144061938713,
+          "f1": 0.7811437908672962,
+          "mismatch_events": 24930,
+          "insertion_events": 175888,
+          "deletion_events": 177584,
+          "uncovered_hidden_bases": 201174,
+          "exact_complement": false
+        },
+        "candidate_count": 9,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ECOLI/GCF_024700815.2/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_024700815.2/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ECOLI/GCF_024700815.2/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_030863585.1",
+      "group": "GCF_030863585.1",
+      "origin": 2925340,
+      "observed_bases": 3608067,
+      "hidden_bases": 1942806,
+      "observed_sha256": "1c7b6458e53ca20b40eeb04d0f6debcbd5d1087a3d4d69e25e05362f4703be93",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1942806,
+          "predicted_bases": 2078384,
+          "hidden_exact_bases": 1696243,
+          "predicted_exact_bases": 1696243,
+          "hidden_recovery": 0.8730892327900984,
+          "prediction_precision": 0.8161355168246099,
+          "f1": 0.8436522521940023,
+          "mismatch_events": 12954,
+          "insertion_events": 284861,
+          "deletion_events": 159028,
+          "uncovered_hidden_bases": 74581,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_030863585.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1942806,
+          "predicted_bases": 2067000,
+          "hidden_exact_bases": 1617089,
+          "predicted_exact_bases": 1623541,
+          "hidden_recovery": 0.8323471309024164,
+          "prediction_precision": 0.7854576681180455,
+          "f1": 0.8082228917842254,
+          "mismatch_events": 13159,
+          "insertion_events": 30529,
+          "deletion_events": 244516,
+          "uncovered_hidden_bases": 68212,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_030863585.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1942806,
+          "predicted_bases": 2067000,
+          "hidden_exact_bases": 1617089,
+          "predicted_exact_bases": 1623541,
+          "hidden_recovery": 0.8323471309024164,
+          "prediction_precision": 0.7854576681180455,
+          "f1": 0.8082228917842254,
+          "mismatch_events": 13159,
+          "insertion_events": 30529,
+          "deletion_events": 244516,
+          "uncovered_hidden_bases": 68212,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_030863585.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_036347655.1",
+      "group": "GCF_036347655.1",
+      "origin": 2917849,
+      "observed_bases": 3598828,
+      "hidden_bases": 1937831,
+      "observed_sha256": "e5a247c41639f6023bbabe4fcbc4b78c46aa46161bef2950af759ea972a3b4c1",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1937831,
+          "predicted_bases": 1886148,
+          "hidden_exact_bases": 1867198,
+          "predicted_exact_bases": 1867198,
+          "hidden_recovery": 0.9635504850526181,
+          "prediction_precision": 0.9899530683700325,
+          "f1": 0.9765733546130876,
+          "mismatch_events": 292,
+          "insertion_events": 4106,
+          "deletion_events": 56924,
+          "uncovered_hidden_bases": 13417,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_036347655.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1937831,
+          "predicted_bases": 1988547,
+          "hidden_exact_bases": 1519032,
+          "predicted_exact_bases": 1529292,
+          "hidden_recovery": 0.7838825986373424,
+          "prediction_precision": 0.7690499646224103,
+          "f1": 0.776395445639626,
+          "mismatch_events": 12895,
+          "insertion_events": 38554,
+          "deletion_events": 241956,
+          "uncovered_hidden_bases": 164253,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_036347655.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1937831,
+          "predicted_bases": 1988547,
+          "hidden_exact_bases": 1519032,
+          "predicted_exact_bases": 1529292,
+          "hidden_recovery": 0.7838825986373424,
+          "prediction_precision": 0.7690499646224103,
+          "f1": 0.776395445639626,
+          "mismatch_events": 12895,
+          "insertion_events": 38554,
+          "deletion_events": 241956,
+          "uncovered_hidden_bases": 164253,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_036347655.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_033254545.1",
+      "group": "GCF_033254545.1",
+      "origin": 2915707,
+      "observed_bases": 3596186,
+      "hidden_bases": 1936409,
+      "observed_sha256": "f950e5539f1cb031270c0e29c42239217db1d21ef3ae640dd312986cc69efd19",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1936409,
+          "predicted_bases": 2037093,
+          "hidden_exact_bases": 1715561,
+          "predicted_exact_bases": 1727227,
+          "hidden_recovery": 0.885949714135805,
+          "prediction_precision": 0.847888142563938,
+          "f1": 0.8665011605566137,
+          "mismatch_events": 11905,
+          "insertion_events": 240155,
+          "deletion_events": 146944,
+          "uncovered_hidden_bases": 62123,
+          "exact_complement": false
+        },
+        "candidate_count": 21,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_033254545.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1936409,
+          "predicted_bases": 1932127,
+          "hidden_exact_bases": 1647013,
+          "predicted_exact_bases": 1647018,
+          "hidden_recovery": 0.8505501678622647,
+          "prediction_precision": 0.852437753832952,
+          "f1": 0.8514929147507008,
+          "mismatch_events": 10765,
+          "insertion_events": 196749,
+          "deletion_events": 176322,
+          "uncovered_hidden_bases": 102309,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 6,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_033254545.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1936409,
+          "predicted_bases": 1966778,
+          "hidden_exact_bases": 1685554,
+          "predicted_exact_bases": 1685554,
+          "hidden_recovery": 0.8704535043991223,
+          "prediction_precision": 0.8570128402900582,
+          "f1": 0.863680884364495,
+          "mismatch_events": 9177,
+          "insertion_events": 159053,
+          "deletion_events": 128734,
+          "uncovered_hidden_bases": 112944,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_033254545.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_013423825.1",
+      "group": "GCF_013423825.1",
+      "origin": 2905550,
+      "observed_bases": 3583659,
+      "hidden_bases": 1929663,
+      "observed_sha256": "a42c643d892abdc9b776c57e5da7cb571292bd19f49b8226131819c1ab37d394",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1929663,
+          "predicted_bases": 1859655,
+          "hidden_exact_bases": 1715913,
+          "predicted_exact_bases": 1715897,
+          "hidden_recovery": 0.8892293628472951,
+          "prediction_precision": 0.9226964141198233,
+          "f1": 0.9056538130415307,
+          "mismatch_events": 3931,
+          "insertion_events": 47256,
+          "deletion_events": 146150,
+          "uncovered_hidden_bases": 63669,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_013423825.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1929663,
+          "predicted_bases": 1913219,
+          "hidden_exact_bases": 1776020,
+          "predicted_exact_bases": 1776044,
+          "hidden_recovery": 0.9203783251272373,
+          "prediction_precision": 0.9283014647042498,
+          "f1": 0.924322916274796,
+          "mismatch_events": 4813,
+          "insertion_events": 17889,
+          "deletion_events": 9413,
+          "uncovered_hidden_bases": 139417,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 6,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_013423825.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1929663,
+          "predicted_bases": 1978256,
+          "hidden_exact_bases": 1822610,
+          "predicted_exact_bases": 1822610,
+          "hidden_recovery": 0.944522437337504,
+          "prediction_precision": 0.9213216085279154,
+          "f1": 0.9327777776356162,
+          "mismatch_events": 79,
+          "insertion_events": 153980,
+          "deletion_events": 76745,
+          "uncovered_hidden_bases": 30229,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_013423825.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_046622495.1",
+      "group": "GCF_046622495.1",
+      "origin": 2904510,
+      "observed_bases": 3582376,
+      "hidden_bases": 1928973,
+      "observed_sha256": "e1598f86cbbeb281452c85ef86dedd107b9be4ec99c891cc0c7789b7335d17c0",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1928973,
+          "predicted_bases": 1928972,
+          "hidden_exact_bases": 1416472,
+          "predicted_exact_bases": 1418479,
+          "hidden_recovery": 0.7343140624570691,
+          "prediction_precision": 0.7353548936946726,
+          "f1": 0.7348341095133927,
+          "mismatch_events": 156,
+          "insertion_events": 104949,
+          "deletion_events": 43550,
+          "uncovered_hidden_bases": 468874,
+          "exact_complement": false
+        },
+        "candidate_count": 11,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_046622495.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1928973,
+          "predicted_bases": 2616130,
+          "hidden_exact_bases": 839721,
+          "predicted_exact_bases": 840278,
+          "hidden_recovery": 0.4353202455399842,
+          "prediction_precision": 0.32119122520669846,
+          "f1": 0.36964685514752044,
+          "mismatch_events": 5809,
+          "insertion_events": 45952,
+          "deletion_events": 55373,
+          "uncovered_hidden_bases": 1028075,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_046622495.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1928973,
+          "predicted_bases": 2845101,
+          "hidden_exact_bases": 840731,
+          "predicted_exact_bases": 841910,
+          "hidden_recovery": 0.4358438402196402,
+          "prediction_precision": 0.29591568102503213,
+          "f1": 0.35250112381123766,
+          "mismatch_events": 5848,
+          "insertion_events": 45952,
+          "deletion_events": 54348,
+          "uncovered_hidden_bases": 1028072,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_046622495.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_003432165.1",
+      "group": "GCF_003432165.1",
+      "origin": 2903746,
+      "observed_bases": 3581434,
+      "hidden_bases": 1928465,
+      "observed_sha256": "37f5a595147ebbc52b864e14384fc1c9831bf8070f1a6a11c2dbafefec5a19fe",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1928465,
+          "predicted_bases": 2033085,
+          "hidden_exact_bases": 1889658,
+          "predicted_exact_bases": 1889663,
+          "hidden_recovery": 0.9798767413460965,
+          "prediction_precision": 0.929455974541153,
+          "f1": 0.9540006139106323,
+          "mismatch_events": 214,
+          "insertion_events": 87316,
+          "deletion_events": 35838,
+          "uncovered_hidden_bases": 2755,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_003432165.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1928465,
+          "predicted_bases": 1918551,
+          "hidden_exact_bases": 1757485,
+          "predicted_exact_bases": 1757493,
+          "hidden_recovery": 0.9113388109195656,
+          "prediction_precision": 0.9160522706980424,
+          "f1": 0.9136894620051733,
+          "mismatch_events": 12079,
+          "insertion_events": 44338,
+          "deletion_events": 109824,
+          "uncovered_hidden_bases": 49077,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 11,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_003432165.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1928465,
+          "predicted_bases": 1915376,
+          "hidden_exact_bases": 1730527,
+          "predicted_exact_bases": 1730527,
+          "hidden_recovery": 0.8973598172639897,
+          "prediction_precision": 0.9034920558678818,
+          "f1": 0.900415495854277,
+          "mismatch_events": 13361,
+          "insertion_events": 65609,
+          "deletion_events": 92667,
+          "uncovered_hidden_bases": 91910,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 4,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_003432165.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_039705005.1",
+      "group": "GCF_039705005.1",
+      "origin": 2901847,
+      "observed_bases": 3579092,
+      "hidden_bases": 1927204,
+      "observed_sha256": "5f31ae4d71e697d1251f9ed9dd2f074cd2cb797a56b1894a40a9f0a205235f96",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1927204,
+          "predicted_bases": 1861405,
+          "hidden_exact_bases": 1665095,
+          "predicted_exact_bases": 1665106,
+          "hidden_recovery": 0.8639951971872204,
+          "prediction_precision": 0.8945425632788135,
+          "f1": 0.8790035627641198,
+          "mismatch_events": 12966,
+          "insertion_events": 74140,
+          "deletion_events": 106638,
+          "uncovered_hidden_bases": 142505,
+          "exact_complement": false
+        },
+        "candidate_count": 15,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_039705005.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1927204,
+          "predicted_bases": 1924112,
+          "hidden_exact_bases": 1662315,
+          "predicted_exact_bases": 1662300,
+          "hidden_recovery": 0.8625526929167852,
+          "prediction_precision": 0.863930997779755,
+          "f1": 0.8632412951767551,
+          "mismatch_events": 10538,
+          "insertion_events": 132767,
+          "deletion_events": 144761,
+          "uncovered_hidden_bases": 109590,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 10,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_039705005.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1927204,
+          "predicted_bases": 1948474,
+          "hidden_exact_bases": 1698663,
+          "predicted_exact_bases": 1698654,
+          "hidden_recovery": 0.8814131768095126,
+          "prediction_precision": 0.8717868444741885,
+          "f1": 0.8765735828888546,
+          "mismatch_events": 10492,
+          "insertion_events": 94079,
+          "deletion_events": 145555,
+          "uncovered_hidden_bases": 72494,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_039705005.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_057812755.1",
+      "group": "GCF_057812755.1",
+      "origin": 2901248,
+      "observed_bases": 3578353,
+      "hidden_bases": 1926806,
+      "observed_sha256": "6011f2d8cc3f8ddd7c25be5836f3db110cb2bfa49b1e4fbd739a996b1ad473b0",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1926806,
+          "predicted_bases": 1892009,
+          "hidden_exact_bases": 1688147,
+          "predicted_exact_bases": 1688147,
+          "hidden_recovery": 0.8761375042427727,
+          "prediction_precision": 0.892251041089128,
+          "f1": 0.8841208594812788,
+          "mismatch_events": 6333,
+          "insertion_events": 152445,
+          "deletion_events": 138486,
+          "uncovered_hidden_bases": 93840,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_057812755.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1926806,
+          "predicted_bases": 1864093,
+          "hidden_exact_bases": 1657054,
+          "predicted_exact_bases": 1657054,
+          "hidden_recovery": 0.8600004359546316,
+          "prediction_precision": 0.8889331165344219,
+          "f1": 0.8742274589747708,
+          "mismatch_events": 4418,
+          "insertion_events": 111195,
+          "deletion_events": 87570,
+          "uncovered_hidden_bases": 177764,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 10,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_057812755.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1926806,
+          "predicted_bases": 1888455,
+          "hidden_exact_bases": 1650168,
+          "predicted_exact_bases": 1650175,
+          "hidden_recovery": 0.8564266459622816,
+          "prediction_precision": 0.873822781056472,
+          "f1": 0.8650372620958726,
+          "mismatch_events": 3680,
+          "insertion_events": 118011,
+          "deletion_events": 131731,
+          "uncovered_hidden_bases": 141227,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_057812755.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_053797065.1",
+      "group": "GCF_053797065.1",
+      "origin": 2900417,
+      "observed_bases": 3577328,
+      "hidden_bases": 1926254,
+      "observed_sha256": "9fcba9c2534a5e2b42cd7637f39e75cb10a0f69006254b94d5aaf9383850a95e",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1926254,
+          "predicted_bases": 1960256,
+          "hidden_exact_bases": 1791239,
+          "predicted_exact_bases": 1791239,
+          "hidden_recovery": 0.9299079975953327,
+          "prediction_precision": 0.913778098370825,
+          "f1": 0.9217724899717227,
+          "mismatch_events": 4601,
+          "insertion_events": 78845,
+          "deletion_events": 21399,
+          "uncovered_hidden_bases": 109015,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_053797065.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1926254,
+          "predicted_bases": 2150745,
+          "hidden_exact_bases": 1804492,
+          "predicted_exact_bases": 1895778,
+          "hidden_recovery": 0.9367881909654697,
+          "prediction_precision": 0.881451776012498,
+          "f1": 0.9082779277440163,
+          "mismatch_events": 4720,
+          "insertion_events": 100337,
+          "deletion_events": 22824,
+          "uncovered_hidden_bases": 94224,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 7,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_053797065.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1926254,
+          "predicted_bases": 1896015,
+          "hidden_exact_bases": 1794403,
+          "predicted_exact_bases": 1794382,
+          "hidden_recovery": 0.9315505639443189,
+          "prediction_precision": 0.9463965211245692,
+          "f1": 0.9389148607839437,
+          "mismatch_events": 4594,
+          "insertion_events": 46000,
+          "deletion_events": 100230,
+          "uncovered_hidden_bases": 27027,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_053797065.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "KPNEU",
+      "genome_id": "GCF_041200225.2",
+      "group": "GCF_041200225.2",
+      "origin": 2899726,
+      "observed_bases": 3576475,
+      "hidden_bases": 1925795,
+      "observed_sha256": "31ac6c9793f6bd6cf5241b1708009cf8ec923e2a45adf23334b8ae016f30069c",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1925795,
+          "predicted_bases": 1927444,
+          "hidden_exact_bases": 1917528,
+          "predicted_exact_bases": 1917528,
+          "hidden_recovery": 0.9957072274047861,
+          "prediction_precision": 0.994855362853603,
+          "f1": 0.9952811128507731,
+          "mismatch_events": 270,
+          "insertion_events": 5667,
+          "deletion_events": 6942,
+          "uncovered_hidden_bases": 1055,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/KPNEU/GCF_041200225.2/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1925795,
+          "predicted_bases": 1927444,
+          "hidden_exact_bases": 1917528,
+          "predicted_exact_bases": 1917528,
+          "hidden_recovery": 0.9957072274047861,
+          "prediction_precision": 0.994855362853603,
+          "f1": 0.9952811128507731,
+          "mismatch_events": 270,
+          "insertion_events": 5667,
+          "deletion_events": 6942,
+          "uncovered_hidden_bases": 1055,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_041200225.2/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1925795,
+          "predicted_bases": 1887309,
+          "hidden_exact_bases": 1727500,
+          "predicted_exact_bases": 1727500,
+          "hidden_recovery": 0.897032134780701,
+          "prediction_precision": 0.9153244116358265,
+          "f1": 0.9060859604144026,
+          "mismatch_events": 13082,
+          "insertion_events": 93580,
+          "deletion_events": 79206,
+          "uncovered_hidden_bases": 106007,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/KPNEU/GCF_041200225.2/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_046268045.1",
+      "group": "GCF_046268045.1",
+      "origin": 1539039,
+      "observed_bases": 1898226,
+      "hidden_bases": 1022122,
+      "observed_sha256": "94029f481faac2a6ac96d84ae73096562cff45cd64b6300f3ec117322ed410c9",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1022122,
+          "predicted_bases": 985568,
+          "hidden_exact_bases": 935801,
+          "predicted_exact_bases": 935801,
+          "hidden_recovery": 0.9155472634382197,
+          "prediction_precision": 0.9495042452677035,
+          "f1": 0.93221662706892,
+          "mismatch_events": 1062,
+          "insertion_events": 14796,
+          "deletion_events": 5687,
+          "uncovered_hidden_bases": 79572,
+          "exact_complement": false
+        },
+        "candidate_count": 30,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_046268045.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1022122,
+          "predicted_bases": 1060782,
+          "hidden_exact_bases": 960224,
+          "predicted_exact_bases": 960224,
+          "hidden_recovery": 0.9394416713464733,
+          "prediction_precision": 0.9052038967478709,
+          "f1": 0.9220050468000445,
+          "mismatch_events": 6381,
+          "insertion_events": 25941,
+          "deletion_events": 52035,
+          "uncovered_hidden_bases": 3482,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_046268045.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1022122,
+          "predicted_bases": 989561,
+          "hidden_exact_bases": 909148,
+          "predicted_exact_bases": 909148,
+          "hidden_recovery": 0.8894711198858845,
+          "prediction_precision": 0.9187387134294904,
+          "f1": 0.9038680547581304,
+          "mismatch_events": 5386,
+          "insertion_events": 69613,
+          "deletion_events": 53326,
+          "uncovered_hidden_bases": 54262,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 6,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_046268045.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_049244655.1",
+      "group": "GCF_049244655.1",
+      "origin": 1533084,
+      "observed_bases": 1890881,
+      "hidden_bases": 1018168,
+      "observed_sha256": "1cd902f135c3cdf96b313115f5dc901a574f0b9a5644a57735fb96a911f83853",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1018168,
+          "predicted_bases": 1084039,
+          "hidden_exact_bases": 984740,
+          "predicted_exact_bases": 984730,
+          "hidden_recovery": 0.9671684830008407,
+          "prediction_precision": 0.9083898273032612,
+          "f1": 0.936858114641971,
+          "mismatch_events": 1558,
+          "insertion_events": 76791,
+          "deletion_events": 7852,
+          "uncovered_hidden_bases": 24018,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_049244655.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_049244655.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1018168,
+          "predicted_bases": 1058171,
+          "hidden_exact_bases": 902645,
+          "predicted_exact_bases": 902654,
+          "hidden_recovery": 0.8865383708778904,
+          "prediction_precision": 0.8530322603813562,
+          "f1": 0.869462632715681,
+          "mismatch_events": 20581,
+          "insertion_events": 68754,
+          "deletion_events": 16308,
+          "uncovered_hidden_bases": 78634,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_049244655.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881655.1",
+      "group": "GCF_050881655.1",
+      "origin": 1532539,
+      "observed_bases": 1890209,
+      "hidden_bases": 1017806,
+      "observed_sha256": "dd7b0cacc9f365c290ba710eda372530f7c9fc9f2adc5e6236d4bfea2e27d6e1",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1017806,
+          "predicted_bases": 991264,
+          "hidden_exact_bases": 971962,
+          "predicted_exact_bases": 971962,
+          "hidden_recovery": 0.9549580175396883,
+          "prediction_precision": 0.9805278916615553,
+          "f1": 0.9675740516756509,
+          "mismatch_events": 95,
+          "insertion_events": 19207,
+          "deletion_events": 45749,
+          "uncovered_hidden_bases": 0,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_050881655.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_050881655.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1017806,
+          "predicted_bases": 1035280,
+          "hidden_exact_bases": 910236,
+          "predicted_exact_bases": 910236,
+          "hidden_recovery": 0.8943118826181021,
+          "prediction_precision": 0.8792172165984081,
+          "f1": 0.8867003135767328,
+          "mismatch_events": 12037,
+          "insertion_events": 70063,
+          "deletion_events": 9076,
+          "uncovered_hidden_bases": 86457,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_050881655.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_003111745.1",
+      "group": "GCF_003111745.1",
+      "origin": 1529728,
+      "observed_bases": 1886742,
+      "hidden_bases": 1015939,
+      "observed_sha256": "eaad8c0ffceece8c038447bde957cf3cb2f640930fef7b949757b1c50d12ca6f",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1015939,
+          "predicted_bases": 1029867,
+          "hidden_exact_bases": 967546,
+          "predicted_exact_bases": 967567,
+          "hidden_recovery": 0.952366234586919,
+          "prediction_precision": 0.9395067518427137,
+          "f1": 0.9458927888283077,
+          "mismatch_events": 147,
+          "insertion_events": 48421,
+          "deletion_events": 46666,
+          "uncovered_hidden_bases": 1580,
+          "exact_complement": false
+        },
+        "candidate_count": 20,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_003111745.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_003111745.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1015939,
+          "predicted_bases": 979420,
+          "hidden_exact_bases": 893404,
+          "predicted_exact_bases": 893404,
+          "hidden_recovery": 0.8793874435374565,
+          "prediction_precision": 0.9121765943109187,
+          "f1": 0.8954819659018752,
+          "mismatch_events": 19345,
+          "insertion_events": 12383,
+          "deletion_events": 42473,
+          "uncovered_hidden_bases": 60717,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_003111745.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_009857055.1",
+      "group": "GCF_016496025.1",
+      "origin": 1527950,
+      "observed_bases": 1884549,
+      "hidden_bases": 1014758,
+      "observed_sha256": "d0dc1a0a575639392bd13e7a8cdc5df35f683d7b2975217b97b10882264db095",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1014758,
+          "predicted_bases": 1095910,
+          "hidden_exact_bases": 961740,
+          "predicted_exact_bases": 961736,
+          "hidden_recovery": 0.9477530603355677,
+          "prediction_precision": 0.8775684134646093,
+          "f1": 0.9113114171426909,
+          "mismatch_events": 350,
+          "insertion_events": 99745,
+          "deletion_events": 7117,
+          "uncovered_hidden_bases": 45551,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_009857055.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1014758,
+          "predicted_bases": 1005475,
+          "hidden_exact_bases": 962714,
+          "predicted_exact_bases": 962714,
+          "hidden_recovery": 0.9487128950941998,
+          "prediction_precision": 0.9574718416668738,
+          "f1": 0.9530722446371285,
+          "mismatch_events": 349,
+          "insertion_events": 8652,
+          "deletion_events": 8293,
+          "uncovered_hidden_bases": 43402,
+          "exact_complement": false
+        },
+        "candidate_count": 8,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_009857055.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1014758,
+          "predicted_bases": 1027023,
+          "hidden_exact_bases": 895221,
+          "predicted_exact_bases": 895217,
+          "hidden_recovery": 0.8822014706954762,
+          "prediction_precision": 0.8716620757276127,
+          "f1": 0.8769001063106286,
+          "mismatch_events": 325,
+          "insertion_events": 47361,
+          "deletion_events": 7181,
+          "uncovered_hidden_bases": 112031,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_009857055.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_048296715.1",
+      "group": "GCF_048296715.1",
+      "origin": 1523700,
+      "observed_bases": 1879307,
+      "hidden_bases": 1011935,
+      "observed_sha256": "41f79f4290c35f7a2842108287b0c23e064c1a3248293521332558b8df22ba8a",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1011935,
+          "predicted_bases": 937016,
+          "hidden_exact_bases": 887408,
+          "predicted_exact_bases": 887408,
+          "hidden_recovery": 0.8769417008009408,
+          "prediction_precision": 0.9470574675352396,
+          "f1": 0.910651935323156,
+          "mismatch_events": 365,
+          "insertion_events": 11195,
+          "deletion_events": 55408,
+          "uncovered_hidden_bases": 68754,
+          "exact_complement": false
+        },
+        "candidate_count": 20,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_048296715.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1011935,
+          "predicted_bases": 948503,
+          "hidden_exact_bases": 829465,
+          "predicted_exact_bases": 829449,
+          "hidden_recovery": 0.8196820942056555,
+          "prediction_precision": 0.8744822103883699,
+          "f1": 0.8461958590592507,
+          "mismatch_events": 21132,
+          "insertion_events": 30286,
+          "deletion_events": 13611,
+          "uncovered_hidden_bases": 147727,
+          "exact_complement": false
+        },
+        "candidate_count": 9,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_048296715.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1011935,
+          "predicted_bases": 1012192,
+          "hidden_exact_bases": 930149,
+          "predicted_exact_bases": 930149,
+          "hidden_recovery": 0.9191786033687934,
+          "prediction_precision": 0.9189452198792324,
+          "f1": 0.9190618968078584,
+          "mismatch_events": 1608,
+          "insertion_events": 6717,
+          "deletion_events": 22317,
+          "uncovered_hidden_bases": 57861,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_048296715.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_019915585.1",
+      "group": "GCF_019915585.1",
+      "origin": 1522408,
+      "observed_bases": 1877714,
+      "hidden_bases": 1011077,
+      "observed_sha256": "0541badf81f8055bf95956a6dabfe1cd04718da2949f7261e34e00e3d2f55f55",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1011077,
+          "predicted_bases": 1092539,
+          "hidden_exact_bases": 986232,
+          "predicted_exact_bases": 986232,
+          "hidden_recovery": 0.9754271929833237,
+          "prediction_precision": 0.9026972950164708,
+          "f1": 0.9376540205056436,
+          "mismatch_events": 1798,
+          "insertion_events": 39681,
+          "deletion_events": 4607,
+          "uncovered_hidden_bases": 18440,
+          "exact_complement": false
+        },
+        "candidate_count": 19,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_019915585.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1011077,
+          "predicted_bases": 1000172,
+          "hidden_exact_bases": 959536,
+          "predicted_exact_bases": 959536,
+          "hidden_recovery": 0.9490236648642981,
+          "prediction_precision": 0.9593709881900313,
+          "f1": 0.9541692749132504,
+          "mismatch_events": 7134,
+          "insertion_events": 6152,
+          "deletion_events": 10782,
+          "uncovered_hidden_bases": 33625,
+          "exact_complement": false
+        },
+        "candidate_count": 10,
+        "index": 7,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_019915585.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1011077,
+          "predicted_bases": 1016154,
+          "hidden_exact_bases": 939752,
+          "predicted_exact_bases": 939752,
+          "hidden_recovery": 0.929456411331679,
+          "prediction_precision": 0.9248125776211086,
+          "f1": 0.9271286794647478,
+          "mismatch_events": 6194,
+          "insertion_events": 64145,
+          "deletion_events": 16013,
+          "uncovered_hidden_bases": 49118,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_019915585.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_050881625.1",
+      "group": "GCF_050881625.1",
+      "origin": 1522077,
+      "observed_bases": 1877305,
+      "hidden_bases": 1010858,
+      "observed_sha256": "7fa6da95ba8d90eaf1aeeafbe551be26efb683921b920123fadff37d78fe101e",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1010858,
+          "predicted_bases": 1124265,
+          "hidden_exact_bases": 864974,
+          "predicted_exact_bases": 864974,
+          "hidden_recovery": 0.8556829940505986,
+          "prediction_precision": 0.7693684318199001,
+          "f1": 0.8102334151240935,
+          "mismatch_events": 272,
+          "insertion_events": 44247,
+          "deletion_events": 18867,
+          "uncovered_hidden_bases": 126745,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_050881625.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1010858,
+          "predicted_bases": 1184287,
+          "hidden_exact_bases": 846874,
+          "predicted_exact_bases": 846882,
+          "hidden_recovery": 0.8377774128512611,
+          "prediction_precision": 0.7150986205201949,
+          "f1": 0.7715921417528997,
+          "mismatch_events": 987,
+          "insertion_events": 139398,
+          "deletion_events": 17559,
+          "uncovered_hidden_bases": 145438,
+          "exact_complement": false
+        },
+        "candidate_count": 10,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_050881625.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1010858,
+          "predicted_bases": 1091366,
+          "hidden_exact_bases": 827687,
+          "predicted_exact_bases": 829199,
+          "hidden_recovery": 0.8187965075213334,
+          "prediction_precision": 0.7597808617823901,
+          "f1": 0.7881855247720515,
+          "mismatch_events": 7276,
+          "insertion_events": 29655,
+          "deletion_events": 44765,
+          "uncovered_hidden_bases": 131132,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_050881625.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_042753635.1",
+      "group": "GCF_042753635.1",
+      "origin": 1521802,
+      "observed_bases": 1876966,
+      "hidden_bases": 1010675,
+      "observed_sha256": "04625a59f319903e52fcc2b6a462f879968cf212b6534555e8fde537effdbfa0",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1010675,
+          "predicted_bases": 1041792,
+          "hidden_exact_bases": 972040,
+          "predicted_exact_bases": 972031,
+          "hidden_recovery": 0.9617730724515794,
+          "prediction_precision": 0.9330374969283696,
+          "f1": 0.9471873913253305,
+          "mismatch_events": 619,
+          "insertion_events": 64889,
+          "deletion_events": 21847,
+          "uncovered_hidden_bases": 16169,
+          "exact_complement": false
+        },
+        "candidate_count": 22,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_042753635.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_042753635.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_042753635.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "SAUR",
+      "genome_id": "GCF_001298325.2",
+      "group": "GCF_001298325.2",
+      "origin": 1520866,
+      "observed_bases": 1875812,
+      "hidden_bases": 1010053,
+      "observed_sha256": "91922ff6df772bd099f78d0de4981af0ac3debd837bca75b53a0a7a2a66c8ed6",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1010053,
+          "predicted_bases": 1049196,
+          "hidden_exact_bases": 923248,
+          "predicted_exact_bases": 923240,
+          "hidden_recovery": 0.914058965222617,
+          "prediction_precision": 0.8799499807471626,
+          "f1": 0.896680220749537,
+          "mismatch_events": 5186,
+          "insertion_events": 89640,
+          "deletion_events": 6732,
+          "uncovered_hidden_bases": 74887,
+          "exact_complement": false
+        },
+        "candidate_count": 24,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/SAUR/GCF_001298325.2/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_001298325.2/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/SAUR/GCF_001298325.2/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_951691365.1",
+      "group": "GCF_951691365.1",
+      "origin": 3737652,
+      "observed_bases": 4609960,
+      "hidden_bases": 2482287,
+      "observed_sha256": "1910ca2930797b5f87a8a82a28fd84153ad9ac8ae358805ff03b045df1b9d953",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2482287,
+          "predicted_bases": 2484688,
+          "hidden_exact_bases": 2315489,
+          "predicted_exact_bases": 2315489,
+          "hidden_recovery": 0.9328047079165303,
+          "prediction_precision": 0.9319033214632985,
+          "f1": 0.9323537968280494,
+          "mismatch_events": 1985,
+          "insertion_events": 153286,
+          "deletion_events": 152664,
+          "uncovered_hidden_bases": 12149,
+          "exact_complement": false
+        },
+        "candidate_count": 14,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_951691365.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2482287,
+          "predicted_bases": 2477594,
+          "hidden_exact_bases": 2217531,
+          "predicted_exact_bases": 2217531,
+          "hidden_recovery": 0.8933419060729078,
+          "prediction_precision": 0.8950340531983852,
+          "f1": 0.8941871790875628,
+          "mismatch_events": 16396,
+          "insertion_events": 156942,
+          "deletion_events": 208240,
+          "uncovered_hidden_bases": 40120,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 7,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_951691365.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2482287,
+          "predicted_bases": 2533191,
+          "hidden_exact_bases": 2315469,
+          "predicted_exact_bases": 2315487,
+          "hidden_recovery": 0.932796650830464,
+          "prediction_precision": 0.9140593820205425,
+          "f1": 0.9233329669911644,
+          "mismatch_events": 1989,
+          "insertion_events": 194025,
+          "deletion_events": 152680,
+          "uncovered_hidden_bases": 12149,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_951691365.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036776515.1",
+      "group": "GCF_036776515.1",
+      "origin": 3731021,
+      "observed_bases": 4601781,
+      "hidden_bases": 2477883,
+      "observed_sha256": "659549c2c640136420636da6ba6c499a3636ada053b6144e2b8282056e195d71",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2477883,
+          "predicted_bases": 2649305,
+          "hidden_exact_bases": 2451693,
+          "predicted_exact_bases": 2451723,
+          "hidden_recovery": 0.9894304936915908,
+          "prediction_precision": 0.9254211953701065,
+          "f1": 0.9563559992015698,
+          "mismatch_events": 139,
+          "insertion_events": 184736,
+          "deletion_events": 13859,
+          "uncovered_hidden_bases": 12192,
+          "exact_complement": false
+        },
+        "candidate_count": 21,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_036776515.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2477883,
+          "predicted_bases": 2966767,
+          "hidden_exact_bases": 1557017,
+          "predicted_exact_bases": 1563752,
+          "hidden_recovery": 0.6283658267965033,
+          "prediction_precision": 0.527089589441975,
+          "f1": 0.5732892520314736,
+          "mismatch_events": 9700,
+          "insertion_events": 131982,
+          "deletion_events": 90150,
+          "uncovered_hidden_bases": 821039,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_036776515.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2477883,
+          "predicted_bases": 2649305,
+          "hidden_exact_bases": 2451693,
+          "predicted_exact_bases": 2451723,
+          "hidden_recovery": 0.9894304936915908,
+          "prediction_precision": 0.9254211953701065,
+          "f1": 0.9563559992015698,
+          "mismatch_events": 139,
+          "insertion_events": 184736,
+          "deletion_events": 13859,
+          "uncovered_hidden_bases": 12192,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_036776515.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_033219955.1",
+      "group": "GCF_033219955.1",
+      "origin": 3717559,
+      "observed_bases": 4585178,
+      "hidden_bases": 2468942,
+      "observed_sha256": "42268f3c8d71a3b9f57d6c978b98bf3723a4d5b4c143c0b67b1be3ead383fef6",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2468942,
+          "predicted_bases": 2469988,
+          "hidden_exact_bases": 2387298,
+          "predicted_exact_bases": 2387298,
+          "hidden_recovery": 0.9669315844600642,
+          "prediction_precision": 0.9665221045608319,
+          "f1": 0.9667268011492368,
+          "mismatch_events": 221,
+          "insertion_events": 75031,
+          "deletion_events": 64364,
+          "uncovered_hidden_bases": 17059,
+          "exact_complement": false
+        },
+        "candidate_count": 15,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_033219955.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2468942,
+          "predicted_bases": 2796944,
+          "hidden_exact_bases": 2016441,
+          "predicted_exact_bases": 2067135,
+          "hidden_recovery": 0.8167227095654738,
+          "prediction_precision": 0.7390691411769417,
+          "f1": 0.7759579808188581,
+          "mismatch_events": 23865,
+          "insertion_events": 43091,
+          "deletion_events": 184414,
+          "uncovered_hidden_bases": 245490,
+          "exact_complement": false
+        },
+        "candidate_count": 6,
+        "index": 4,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_033219955.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2468942,
+          "predicted_bases": 2432669,
+          "hidden_exact_bases": 2152278,
+          "predicted_exact_bases": 2152278,
+          "hidden_recovery": 0.8717410129521066,
+          "prediction_precision": 0.8847393541825871,
+          "f1": 0.8781920882746509,
+          "mismatch_events": 3360,
+          "insertion_events": 218683,
+          "deletion_events": 150304,
+          "uncovered_hidden_bases": 163000,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_033219955.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_024266915.1",
+      "group": "GCF_024266915.1",
+      "origin": 3713773,
+      "observed_bases": 4580509,
+      "hidden_bases": 2466428,
+      "observed_sha256": "f97c7c85d9cb015033112341ac6c6c039164f0fc1a6b3190913f5ca471f8b7a5",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2466428,
+          "predicted_bases": 2226217,
+          "hidden_exact_bases": 2145499,
+          "predicted_exact_bases": 2145499,
+          "hidden_recovery": 0.8698810587619018,
+          "prediction_precision": 0.9637420790515929,
+          "f1": 0.9144092510726893,
+          "mismatch_events": 5487,
+          "insertion_events": 3893,
+          "deletion_events": 228354,
+          "uncovered_hidden_bases": 87088,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_024266915.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2466428,
+          "predicted_bases": 4456901,
+          "hidden_exact_bases": 703330,
+          "predicted_exact_bases": 713479,
+          "hidden_recovery": 0.2851613750735882,
+          "prediction_precision": 0.16008410328163,
+          "f1": 0.2050545383991182,
+          "mismatch_events": 9488,
+          "insertion_events": 855,
+          "deletion_events": 2218,
+          "uncovered_hidden_bases": 1751914,
+          "exact_complement": false
+        },
+        "candidate_count": 3,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_024266915.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2466428,
+          "predicted_bases": 2376476,
+          "hidden_exact_bases": 1293223,
+          "predicted_exact_bases": 1293223,
+          "hidden_recovery": 0.5243303270965136,
+          "prediction_precision": 0.5441767558351105,
+          "f1": 0.5340692278847566,
+          "mismatch_events": 6297,
+          "insertion_events": 75294,
+          "deletion_events": 7742,
+          "uncovered_hidden_bases": 1159166,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_024266915.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_035621255.1",
+      "group": "GCF_035621255.1",
+      "origin": 3710697,
+      "observed_bases": 4576715,
+      "hidden_bases": 2464385,
+      "observed_sha256": "58d9faa8c1b80bd953bebb5b73141a30679205927ffd56ee3b242b2f52daf9e2",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2464385,
+          "predicted_bases": 2759484,
+          "hidden_exact_bases": 2244261,
+          "predicted_exact_bases": 2244338,
+          "hidden_recovery": 0.9106779176143338,
+          "prediction_precision": 0.8133179971327973,
+          "f1": 0.8592488342361243,
+          "mismatch_events": 11790,
+          "insertion_events": 155380,
+          "deletion_events": 149631,
+          "uncovered_hidden_bases": 58703,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_035621255.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2464385,
+          "predicted_bases": 2452706,
+          "hidden_exact_bases": 2207324,
+          "predicted_exact_bases": 2288176,
+          "hidden_recovery": 0.8956895939554899,
+          "prediction_precision": 0.932918988252159,
+          "f1": 0.9139253068276971,
+          "mismatch_events": 11514,
+          "insertion_events": 56478,
+          "deletion_events": 217231,
+          "uncovered_hidden_bases": 32508,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_035621255.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2464385,
+          "predicted_bases": 2640525,
+          "hidden_exact_bases": 2199526,
+          "predicted_exact_bases": 2199526,
+          "hidden_recovery": 0.8925253156467029,
+          "prediction_precision": 0.8329881368288503,
+          "f1": 0.8617295897479093,
+          "mismatch_events": 12765,
+          "insertion_events": 47475,
+          "deletion_events": 170332,
+          "uncovered_hidden_bases": 81762,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_035621255.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_001792875.1",
+      "group": "GCF_001792875.1",
+      "origin": 3692504,
+      "observed_bases": 4554275,
+      "hidden_bases": 2452303,
+      "observed_sha256": "91ac93a4e4588fcc3029010a645623a7ce21e6727526352d4e3f4623c95e44d1",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2452303,
+          "predicted_bases": 2367276,
+          "hidden_exact_bases": 2317272,
+          "predicted_exact_bases": 2317272,
+          "hidden_recovery": 0.9449370652810848,
+          "prediction_precision": 0.9788769877276667,
+          "f1": 0.9616076424932551,
+          "mismatch_events": 50,
+          "insertion_events": 49954,
+          "deletion_events": 134981,
+          "uncovered_hidden_bases": 0,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_001792875.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2452303,
+          "predicted_bases": 2565543,
+          "hidden_exact_bases": 1982160,
+          "predicted_exact_bases": 2022441,
+          "hidden_recovery": 0.8082851099558251,
+          "prediction_precision": 0.7883091415735383,
+          "f1": 0.7981721599781558,
+          "mismatch_events": 31252,
+          "insertion_events": 208628,
+          "deletion_events": 237070,
+          "uncovered_hidden_bases": 208018,
+          "exact_complement": false
+        },
+        "candidate_count": 11,
+        "index": 10,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_001792875.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2452303,
+          "predicted_bases": 2416228,
+          "hidden_exact_bases": 1996411,
+          "predicted_exact_bases": 1996411,
+          "hidden_recovery": 0.8140963820539305,
+          "prediction_precision": 0.8262510822654153,
+          "f1": 0.8201287000123857,
+          "mismatch_events": 16092,
+          "insertion_events": 228155,
+          "deletion_events": 232646,
+          "uncovered_hidden_bases": 207154,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_001792875.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_056134385.1",
+      "group": "GCF_056134385.1",
+      "origin": 3691888,
+      "observed_bases": 4553515,
+      "hidden_bases": 2451894,
+      "observed_sha256": "76f68957f9aa94f907c85b9fd1a0a07adb77d6756ec29daef41881fbb7168a18",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2451894,
+          "predicted_bases": 2517480,
+          "hidden_exact_bases": 2393284,
+          "predicted_exact_bases": 2393284,
+          "hidden_recovery": 0.9760960302525313,
+          "prediction_precision": 0.9506665395554285,
+          "f1": 0.9632134751781614,
+          "mismatch_events": 162,
+          "insertion_events": 96136,
+          "deletion_events": 22329,
+          "uncovered_hidden_bases": 36119,
+          "exact_complement": false
+        },
+        "candidate_count": 14,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_056134385.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2451894,
+          "predicted_bases": 3191391,
+          "hidden_exact_bases": 2224969,
+          "predicted_exact_bases": 2231795,
+          "hidden_recovery": 0.9074490985336234,
+          "prediction_precision": 0.6993173196264576,
+          "f1": 0.7899030800141535,
+          "mismatch_events": 9127,
+          "insertion_events": 126903,
+          "deletion_events": 133135,
+          "uncovered_hidden_bases": 84678,
+          "exact_complement": false
+        },
+        "candidate_count": 3,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_056134385.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2451894,
+          "predicted_bases": 2517480,
+          "hidden_exact_bases": 2393284,
+          "predicted_exact_bases": 2393284,
+          "hidden_recovery": 0.9760960302525313,
+          "prediction_precision": 0.9506665395554285,
+          "f1": 0.9632134751781614,
+          "mismatch_events": 162,
+          "insertion_events": 96136,
+          "deletion_events": 22329,
+          "uncovered_hidden_bases": 36119,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_056134385.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_045946455.1",
+      "group": "GCF_045946455.1",
+      "origin": 3676946,
+      "observed_bases": 4535086,
+      "hidden_bases": 2441970,
+      "observed_sha256": "2e47b0c9b1b38919541df4812571865833b3530e9b77f049b06dae80ae3ffe22",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2441970,
+          "predicted_bases": 2477200,
+          "hidden_exact_bases": 2271279,
+          "predicted_exact_bases": 2325545,
+          "hidden_recovery": 0.930101106893205,
+          "prediction_precision": 0.938779670595834,
+          "f1": 0.9344202383237843,
+          "mismatch_events": 17396,
+          "insertion_events": 43829,
+          "deletion_events": 104421,
+          "uncovered_hidden_bases": 50585,
+          "exact_complement": false
+        },
+        "candidate_count": 22,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_045946455.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2441970,
+          "predicted_bases": 2665603,
+          "hidden_exact_bases": 2104845,
+          "predicted_exact_bases": 2106102,
+          "hidden_recovery": 0.8619454784456811,
+          "prediction_precision": 0.79010340249467,
+          "f1": 0.8244623547666301,
+          "mismatch_events": 12327,
+          "insertion_events": 274394,
+          "deletion_events": 122959,
+          "uncovered_hidden_bases": 201840,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 8,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_045946455.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2441970,
+          "predicted_bases": 2539320,
+          "hidden_exact_bases": 2055072,
+          "predicted_exact_bases": 2055793,
+          "hidden_recovery": 0.8415631641666359,
+          "prediction_precision": 0.8095840618748327,
+          "f1": 0.8252639304657021,
+          "mismatch_events": 12557,
+          "insertion_events": 268012,
+          "deletion_events": 80441,
+          "uncovered_hidden_bases": 293952,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_045946455.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_040268335.1",
+      "group": "GCF_040268335.1",
+      "origin": 3661246,
+      "observed_bases": 4515722,
+      "hidden_bases": 2431544,
+      "observed_sha256": "23fddc74ecef5ca1c7b70a8b2c3a8b1d5fc721df393933a82659b68db38de68b",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2431544,
+          "predicted_bases": 2470660,
+          "hidden_exact_bases": 2169633,
+          "predicted_exact_bases": 2169633,
+          "hidden_recovery": 0.892286135887321,
+          "prediction_precision": 0.8781592772781363,
+          "f1": 0.8851663455865975,
+          "mismatch_events": 13540,
+          "insertion_events": 146641,
+          "deletion_events": 116729,
+          "uncovered_hidden_bases": 131642,
+          "exact_complement": false
+        },
+        "candidate_count": 14,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_040268335.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2431544,
+          "predicted_bases": 2421971,
+          "hidden_exact_bases": 2085924,
+          "predicted_exact_bases": 2085922,
+          "hidden_recovery": 0.8578598618819976,
+          "prediction_precision": 0.8612497837505073,
+          "f1": 0.8595514805133622,
+          "mismatch_events": 21886,
+          "insertion_events": 70489,
+          "deletion_events": 148921,
+          "uncovered_hidden_bases": 174813,
+          "exact_complement": false
+        },
+        "candidate_count": 11,
+        "index": 9,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_040268335.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2431544,
+          "predicted_bases": 2519082,
+          "hidden_exact_bases": 2161018,
+          "predicted_exact_bases": 2161003,
+          "hidden_recovery": 0.8887431195980825,
+          "prediction_precision": 0.8578533767459733,
+          "f1": 0.8730250951525792,
+          "mismatch_events": 14652,
+          "insertion_events": 224719,
+          "deletion_events": 128047,
+          "uncovered_hidden_bases": 127827,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_040268335.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "PAER",
+      "genome_id": "GCF_036835625.1",
+      "group": "GCF_036835625.1",
+      "origin": 3653736,
+      "observed_bases": 4506460,
+      "hidden_bases": 2426556,
+      "observed_sha256": "83464380560eccfc06ebb936291376655a3ed9ccc0f83e6fb0d3a3916527d972",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 2426556,
+          "predicted_bases": 2572812,
+          "hidden_exact_bases": 2239675,
+          "predicted_exact_bases": 2239675,
+          "hidden_recovery": 0.9229850866825245,
+          "prediction_precision": 0.8705163844074111,
+          "f1": 0.8959832522830886,
+          "mismatch_events": 224,
+          "insertion_events": 231788,
+          "deletion_events": 53845,
+          "uncovered_hidden_bases": 132812,
+          "exact_complement": false
+        },
+        "candidate_count": 15,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/PAER/GCF_036835625.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 2426556,
+          "predicted_bases": 2663259,
+          "hidden_exact_bases": 2103874,
+          "predicted_exact_bases": 2103697,
+          "hidden_recovery": 0.8670205839057495,
+          "prediction_precision": 0.7898957630482052,
+          "f1": 0.8266632011468282,
+          "mismatch_events": 14250,
+          "insertion_events": 34152,
+          "deletion_events": 67293,
+          "uncovered_hidden_bases": 241139,
+          "exact_complement": false
+        },
+        "candidate_count": 11,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_036835625.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 2426556,
+          "predicted_bases": 2448756,
+          "hidden_exact_bases": 2108281,
+          "predicted_exact_bases": 2108281,
+          "hidden_recovery": 0.868836738158938,
+          "prediction_precision": 0.8609600139826099,
+          "f1": 0.8648804425234734,
+          "mismatch_events": 12479,
+          "insertion_events": 145072,
+          "deletion_events": 67727,
+          "uncovered_hidden_bases": 238069,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 4,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/PAER/GCF_036835625.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_051622705.1",
+      "group": "GCF_051622705.1",
+      "origin": 2149856,
+      "observed_bases": 2651598,
+      "hidden_bases": 1427785,
+      "observed_sha256": "f8724d19c43ac81a093c879ed94e07229e32b2b03b90576efde770c0c37bc2ac",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1427785,
+          "predicted_bases": 1523302,
+          "hidden_exact_bases": 1272148,
+          "predicted_exact_bases": 1272129,
+          "hidden_recovery": 0.8909940922477824,
+          "prediction_precision": 0.8351128010072855,
+          "f1": 0.8621488912019959,
+          "mismatch_events": 480,
+          "insertion_events": 201100,
+          "deletion_events": 65089,
+          "uncovered_hidden_bases": 90068,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_051622705.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1427785,
+          "predicted_bases": 1394944,
+          "hidden_exact_bases": 1195019,
+          "predicted_exact_bases": 1195019,
+          "hidden_recovery": 0.8369740542168463,
+          "prediction_precision": 0.8566788344191595,
+          "f1": 0.8467118168269075,
+          "mismatch_events": 28552,
+          "insertion_events": 109396,
+          "deletion_events": 157934,
+          "uncovered_hidden_bases": 46280,
+          "exact_complement": false
+        },
+        "candidate_count": 8,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_051622705.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1427785,
+          "predicted_bases": 1536371,
+          "hidden_exact_bases": 1226442,
+          "predicted_exact_bases": 1226438,
+          "hidden_recovery": 0.8589822697394915,
+          "prediction_precision": 0.7982694284127987,
+          "f1": 0.8275137521309225,
+          "mismatch_events": 10497,
+          "insertion_events": 147568,
+          "deletion_events": 60359,
+          "uncovered_hidden_bases": 130487,
+          "exact_complement": false
+        },
+        "candidate_count": 4,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_051622705.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_058833925.1",
+      "group": "GCF_058833925.1",
+      "origin": 2149708,
+      "observed_bases": 2651416,
+      "hidden_bases": 1427686,
+      "observed_sha256": "899f1791b352a1ef5be0225c93be1a27d4de9f461fca9b439f090c4ec51ffffc",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1427686,
+          "predicted_bases": 1412062,
+          "hidden_exact_bases": 1364133,
+          "predicted_exact_bases": 1364133,
+          "hidden_recovery": 0.9554853097950109,
+          "prediction_precision": 0.9660574394042188,
+          "f1": 0.9607422912173897,
+          "mismatch_events": 90,
+          "insertion_events": 39754,
+          "deletion_events": 56709,
+          "uncovered_hidden_bases": 6754,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_058833925.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1427686,
+          "predicted_bases": 1546401,
+          "hidden_exact_bases": 1290719,
+          "predicted_exact_bases": 1290719,
+          "hidden_recovery": 0.904063638643231,
+          "prediction_precision": 0.8346599620667602,
+          "f1": 0.8679766261040782,
+          "mismatch_events": 72,
+          "insertion_events": 173307,
+          "deletion_events": 117462,
+          "uncovered_hidden_bases": 19433,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_058833925.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1427686,
+          "predicted_bases": 1403032,
+          "hidden_exact_bases": 1347635,
+          "predicted_exact_bases": 1347635,
+          "hidden_recovery": 0.9439295475335613,
+          "prediction_precision": 0.9605162248615855,
+          "f1": 0.9521506557700201,
+          "mismatch_events": 54,
+          "insertion_events": 55343,
+          "deletion_events": 79997,
+          "uncovered_hidden_bases": 0,
+          "exact_complement": false
+        },
+        "candidate_count": 5,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_058833925.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024732425.1",
+      "group": "GCF_024732425.1",
+      "origin": 2148184,
+      "observed_bases": 2649536,
+      "hidden_bases": 1426674,
+      "observed_sha256": "96188c5c1ace3574007c7460dee13f9083d232ff0a2a2ac450fe058aac6823b9",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1426674,
+          "predicted_bases": 1317580,
+          "hidden_exact_bases": 1076045,
+          "predicted_exact_bases": 1077941,
+          "hidden_recovery": 0.7542332726327108,
+          "prediction_precision": 0.8181218597732206,
+          "f1": 0.7848795923919968,
+          "mismatch_events": 2913,
+          "insertion_events": 24460,
+          "deletion_events": 165,
+          "uncovered_hidden_bases": 347551,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_024732425.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1426674,
+          "predicted_bases": 1353806,
+          "hidden_exact_bases": 1002259,
+          "predicted_exact_bases": 1002260,
+          "hidden_recovery": 0.7025143795989833,
+          "prediction_precision": 0.7403276392629372,
+          "f1": 0.7209255142250673,
+          "mismatch_events": 19158,
+          "insertion_events": 198460,
+          "deletion_events": 28001,
+          "uncovered_hidden_bases": 377256,
+          "exact_complement": false
+        },
+        "candidate_count": 12,
+        "index": 10,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_024732425.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1426674,
+          "predicted_bases": 1372231,
+          "hidden_exact_bases": 1037271,
+          "predicted_exact_bases": 1039981,
+          "hidden_recovery": 0.7270553749490073,
+          "prediction_precision": 0.7578760427362449,
+          "f1": 0.7421458578543791,
+          "mismatch_events": 3379,
+          "insertion_events": 209355,
+          "deletion_events": 382,
+          "uncovered_hidden_bases": 385646,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_024732425.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_025854155.1",
+      "group": "GCF_025854155.1",
+      "origin": 2141890,
+      "observed_bases": 2641773,
+      "hidden_bases": 1422494,
+      "observed_sha256": "b1ca0323b4a8a1c7c517e2e016dbe0073532f852d279bdb536c8b6aa09984c7f",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1422494,
+          "predicted_bases": 1427796,
+          "hidden_exact_bases": 1207584,
+          "predicted_exact_bases": 1208767,
+          "hidden_recovery": 0.8489202766408857,
+          "prediction_precision": 0.8465964325435846,
+          "f1": 0.8477567620831907,
+          "mismatch_events": 115,
+          "insertion_events": 24594,
+          "deletion_events": 108293,
+          "uncovered_hidden_bases": 106502,
+          "exact_complement": false
+        },
+        "candidate_count": 15,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_025854155.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1422494,
+          "predicted_bases": 1709912,
+          "hidden_exact_bases": 1028759,
+          "predicted_exact_bases": 1035744,
+          "hidden_recovery": 0.7232079713517245,
+          "prediction_precision": 0.6057294176542418,
+          "f1": 0.6592761208373512,
+          "mismatch_events": 375,
+          "insertion_events": 159313,
+          "deletion_events": 111582,
+          "uncovered_hidden_bases": 281778,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_025854155.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1422494,
+          "predicted_bases": 1555892,
+          "hidden_exact_bases": 1045866,
+          "predicted_exact_bases": 1050482,
+          "hidden_recovery": 0.7352340326215787,
+          "prediction_precision": 0.6751638288518741,
+          "f1": 0.7039197068100949,
+          "mismatch_events": 1647,
+          "insertion_events": 42825,
+          "deletion_events": 61115,
+          "uncovered_hidden_bases": 313866,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_025854155.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_001399655.1",
+      "group": "GCF_001399655.1",
+      "origin": 2141537,
+      "observed_bases": 2641337,
+      "hidden_bases": 1422259,
+      "observed_sha256": "1e1eb1331cf7ee6f1bc515b5504577f7221ed74932a126b4e14a9619abaece84",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1422259,
+          "predicted_bases": 1504159,
+          "hidden_exact_bases": 1252940,
+          "predicted_exact_bases": 1252940,
+          "hidden_recovery": 0.8809506566666128,
+          "prediction_precision": 0.8329837470639739,
+          "f1": 0.8562959905249352,
+          "mismatch_events": 5285,
+          "insertion_events": 130019,
+          "deletion_events": 63808,
+          "uncovered_hidden_bases": 100226,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 4,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_001399655.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1422259,
+          "predicted_bases": 1547000,
+          "hidden_exact_bases": 1131066,
+          "predicted_exact_bases": 1131066,
+          "hidden_recovery": 0.7952602163178436,
+          "prediction_precision": 0.7311351001939237,
+          "f1": 0.761850683958523,
+          "mismatch_events": 25044,
+          "insertion_events": 218911,
+          "deletion_events": 75623,
+          "uncovered_hidden_bases": 190526,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 10,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_001399655.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1422259,
+          "predicted_bases": 1466201,
+          "hidden_exact_bases": 1276518,
+          "predicted_exact_bases": 1276518,
+          "hidden_recovery": 0.8975285092237067,
+          "prediction_precision": 0.8706296067183149,
+          "f1": 0.8838744521302009,
+          "mismatch_events": 3297,
+          "insertion_events": 58534,
+          "deletion_events": 50499,
+          "uncovered_hidden_bases": 91945,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_001399655.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_024426665.1",
+      "group": "GCF_024426665.1",
+      "origin": 2137657,
+      "observed_bases": 2636552,
+      "hidden_bases": 1419683,
+      "observed_sha256": "86062b280ac70e826764ea72c4382d21424beb4bc28b7e23afbe02f2f6bf89b0",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1419683,
+          "predicted_bases": 1357875,
+          "hidden_exact_bases": 1286041,
+          "predicted_exact_bases": 1286041,
+          "hidden_recovery": 0.9058649008264521,
+          "prediction_precision": 0.9470982233268894,
+          "f1": 0.9260227869229013,
+          "mismatch_events": 2551,
+          "insertion_events": 67029,
+          "deletion_events": 78050,
+          "uncovered_hidden_bases": 53041,
+          "exact_complement": false
+        },
+        "candidate_count": 18,
+        "index": 3,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_024426665.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1419683,
+          "predicted_bases": 1495668,
+          "hidden_exact_bases": 1379622,
+          "predicted_exact_bases": 1379622,
+          "hidden_recovery": 0.9717817287380351,
+          "prediction_precision": 0.922411925641252,
+          "f1": 0.9464534459144027,
+          "mismatch_events": 738,
+          "insertion_events": 115308,
+          "deletion_events": 39323,
+          "uncovered_hidden_bases": 0,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 5,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_024426665.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1419683,
+          "predicted_bases": 1429536,
+          "hidden_exact_bases": 1306230,
+          "predicted_exact_bases": 1306230,
+          "hidden_recovery": 0.9200856810992313,
+          "prediction_precision": 0.9137440400241756,
+          "f1": 0.9169038954183585,
+          "mismatch_events": 2389,
+          "insertion_events": 42581,
+          "deletion_events": 43708,
+          "uncovered_hidden_bases": 67356,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_024426665.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_012935145.1",
+      "group": "GCF_012935145.1",
+      "origin": 2135678,
+      "observed_bases": 2634112,
+      "hidden_bases": 1418368,
+      "observed_sha256": "7d347abbce0e9fc0e01eebb9e6a8e0cb8747d076c79c6d8e6880ae976d47d3b9",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1418368,
+          "predicted_bases": 1393521,
+          "hidden_exact_bases": 1303230,
+          "predicted_exact_bases": 1303230,
+          "hidden_recovery": 0.9188236057215052,
+          "prediction_precision": 0.9352065738514167,
+          "f1": 0.9269427064866358,
+          "mismatch_events": 1084,
+          "insertion_events": 50871,
+          "deletion_events": 52913,
+          "uncovered_hidden_bases": 61141,
+          "exact_complement": false
+        },
+        "candidate_count": 16,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_012935145.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1418368,
+          "predicted_bases": 1496473,
+          "hidden_exact_bases": 1129276,
+          "predicted_exact_bases": 1129265,
+          "hidden_recovery": 0.7961798348524501,
+          "prediction_precision": 0.7546176910642558,
+          "f1": 0.7748418199121454,
+          "mismatch_events": 21098,
+          "insertion_events": 175884,
+          "deletion_events": 162604,
+          "uncovered_hidden_bases": 105390,
+          "exact_complement": false
+        },
+        "candidate_count": 13,
+        "index": 11,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_012935145.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1418368,
+          "predicted_bases": 1383443,
+          "hidden_exact_bases": 1286258,
+          "predicted_exact_bases": 1286258,
+          "hidden_recovery": 0.9068577407273711,
+          "prediction_precision": 0.9297513522421957,
+          "f1": 0.9181618603110631,
+          "mismatch_events": 956,
+          "insertion_events": 62556,
+          "deletion_events": 103522,
+          "uncovered_hidden_bases": 27632,
+          "exact_complement": false
+        },
+        "candidate_count": 7,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_012935145.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_029713865.1",
+      "group": "GCF_029713865.1",
+      "origin": 2125739,
+      "observed_bases": 2621852,
+      "hidden_bases": 1411767,
+      "observed_sha256": "d43418a9d373e17ac8069eb6d61201f6a1e54f5ca1e107558d1e9acf48a2d3fc",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1411767,
+          "predicted_bases": 1485671,
+          "hidden_exact_bases": 1391342,
+          "predicted_exact_bases": 1391342,
+          "hidden_recovery": 0.9855323151766545,
+          "prediction_precision": 0.9365074770928422,
+          "f1": 0.9603946659082955,
+          "mismatch_events": 429,
+          "insertion_events": 89973,
+          "deletion_events": 14515,
+          "uncovered_hidden_bases": 5481,
+          "exact_complement": false
+        },
+        "candidate_count": 30,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_029713865.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1411767,
+          "predicted_bases": 991658,
+          "hidden_exact_bases": 848440,
+          "predicted_exact_bases": 848436,
+          "hidden_recovery": 0.6009773567451286,
+          "prediction_precision": 0.8555731915640271,
+          "f1": 0.706024402331977,
+          "mismatch_events": 20546,
+          "insertion_events": 44996,
+          "deletion_events": 47449,
+          "uncovered_hidden_bases": 495332,
+          "exact_complement": false
+        },
+        "candidate_count": 2,
+        "index": 1,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_029713865.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1411767,
+          "predicted_bases": 1454984,
+          "hidden_exact_bases": 1352379,
+          "predicted_exact_bases": 1352379,
+          "hidden_recovery": 0.9579335683579514,
+          "prediction_precision": 0.929480324182259,
+          "f1": 0.9434924763259872,
+          "mismatch_events": 434,
+          "insertion_events": 51248,
+          "deletion_events": 18078,
+          "uncovered_hidden_bases": 40876,
+          "exact_complement": false
+        },
+        "candidate_count": 6,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_029713865.1/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_033378915.2",
+      "group": "GCF_033378915.2",
+      "origin": 2125541,
+      "observed_bases": 2621609,
+      "hidden_bases": 1411636,
+      "observed_sha256": "04b58166e6d677ed71bc2566c6bbe96d590af04f59e2178367c9fdb34659d96f",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1411636,
+          "predicted_bases": 1429163,
+          "hidden_exact_bases": 1343558,
+          "predicted_exact_bases": 1343558,
+          "hidden_recovery": 0.9517736867011043,
+          "prediction_precision": 0.9401013040499929,
+          "f1": 0.9459014875744465,
+          "mismatch_events": 76,
+          "insertion_events": 74177,
+          "deletion_events": 9308,
+          "uncovered_hidden_bases": 58694,
+          "exact_complement": false
+        },
+        "candidate_count": 17,
+        "index": 2,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_033378915.2/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_033378915.2/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_recovery": 0.0,
+          "prediction_precision": 0.0,
+          "f1": 0.0,
+          "exact_complement": false
+        },
+        "candidate_count": 0,
+        "index": null,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_033378915.2/v2/completed.fasta.gz"
+      }
+    },
+    {
+      "species": "ABAU",
+      "genome_id": "GCF_021729465.1",
+      "group": "GCF_021729465.1",
+      "origin": 2119586,
+      "observed_bases": 2614264,
+      "hidden_bases": 1407681,
+      "observed_sha256": "157231945c6a313eb567fc160f8a13f6d8ece2ad456bc985be765dc57cb16049",
+      "v3": {
+        "metrics": {
+          "hidden_known_bases": 1407681,
+          "predicted_bases": 1522153,
+          "hidden_exact_bases": 1185301,
+          "predicted_exact_bases": 1185301,
+          "hidden_recovery": 0.8420238676234175,
+          "prediction_precision": 0.778700301480863,
+          "f1": 0.8091250221002283,
+          "mismatch_events": 24279,
+          "insertion_events": 100835,
+          "deletion_events": 14966,
+          "uncovered_hidden_bases": 183135,
+          "exact_complement": false
+        },
+        "candidate_count": 20,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/test/ABAU/GCF_021729465.1/s2026100403_p65/completed.fasta.gz"
+      },
+      "v1": {
+        "metrics": {
+          "hidden_known_bases": 1407681,
+          "predicted_bases": 1522153,
+          "hidden_exact_bases": 1185301,
+          "predicted_exact_bases": 1185301,
+          "hidden_recovery": 0.8420238676234175,
+          "prediction_precision": 0.778700301480863,
+          "f1": 0.8091250221002283,
+          "mismatch_events": 24279,
+          "insertion_events": 100835,
+          "deletion_events": 14966,
+          "uncovered_hidden_bases": 183135,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_021729465.1/v1/completed.fasta.gz"
+      },
+      "v2": {
+        "metrics": {
+          "hidden_known_bases": 1407681,
+          "predicted_bases": 1522153,
+          "hidden_exact_bases": 1185301,
+          "predicted_exact_bases": 1185301,
+          "hidden_recovery": 0.8420238676234175,
+          "prediction_precision": 0.778700301480863,
+          "f1": 0.8091250221002283,
+          "mismatch_events": 24279,
+          "insertion_events": 100835,
+          "deletion_events": 14966,
+          "uncovered_hidden_bases": 183135,
+          "exact_complement": false
+        },
+        "candidate_count": 1,
+        "index": 0,
+        "completed_path": "/Users/bhavya/VScode/MHacks Project/amr-backend-develop/experiments/completion_v3/run/paired65/ABAU/GCF_021729465.1/v2/completed.fasta.gz"
+      }
+    }
+  ],
+  "whole_system_comparison": true,
+  "different_reference_libraries": true,
+  "test_used_for_training": false
+}

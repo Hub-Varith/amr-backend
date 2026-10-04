@@ -673,3 +673,22 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 - [ ] Do we re-derive all S/I/R labels from MIC under one standard, or use labels
       as reported? (Doc says as-reported for now; revisit once MIC coverage is known.)
 - [ ] Minimum `n` per species × drug — is 50/50 the right bar after seeing real counts?
+
+
+## 7. Optional chromosome completion gate (2026-10-04)
+
+`genome_completion_v3/predict.py` accepts one continuous partial chromosome
+for the five supported species. This is separate from the MIC feature contract.
+For partial DNA, release `completed.fasta` only if the frozen calibrated probability
+is >=0.95 and at least ten independent calibration groups lie within 0.05 of that
+probability. Otherwise `prediction.json` returns `status=decision=no_result`,
+`message="no result"`, `result=null`, `sequence_file=null`, `predicted_bases=0`,
+and `next_action=request_more_sequence`. Confidence, reason and the next requested
+input percentage remain available. Never pass internal candidates downstream.
+
+Accepted partial outputs have `status=accepted`, `result=completed_sequence`, and
+`sequence_file=completed.fasta`. A 100%-observed input is passed through with
+`status=result=full_sequence_observed` and null confidence; this is not successful
+inference. The confidence event remains missing-region recall AND precision >=95%,
+not an exact-genome probability. Plasmids are excluded. Downstream MIC performance
+on inferred sequence remains unvalidated. Existing lab-label schemas are unchanged.
