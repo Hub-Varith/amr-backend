@@ -1,59 +1,80 @@
-# Handoff to the model agent — training data
+# Developer handoff — training data
 
-**From:** data pipeline, merged into `develop` on 2026-10-04 (data code, pull script, configs, contract updates)
-**Date:** 2026-10-04 · **Release:** `2026-10-04-hackathon` (provisional) · **Species with features:** KPNEU only
+**For:** anyone (person or AI agent) training or serving models on this repo.
+**Branch:** `develop` · **Release:** `2026-10-04-hackathon` (provisional) · **Species with features:** KPNEU only
+**Data owner:** Hub · **Last updated:** 2026-10-04
 
-Read this whole file before writing training code. `DATA_CONTRACT.md` defines the
-columns; this file says what is actually in the release and what to watch for.
+Read this whole file before writing training code. `DATA_CONTRACT.md` defines every
+column; this file says what is actually in the current release, how to get it, and
+what to watch for.
 
 These are predictions of in-vitro susceptibility, not prescribing advice.
 
 ---
+
+## 0. Quick start (about 15 minutes)
+
+Ask Hub for your own AWS access key first (one per person). Never put it in the repo —
+the repo is public.
+
+```bash
+# 1. Tools and code
+brew install awscli
+git clone -b develop https://github.com/Hub-Varith/amr-backend.git
+cd amr-backend
+
+# 2. Python env (3.11) and the package
+conda create -n genome2mic python=3.11 -y
+conda activate genome2mic
+pip install -e ".[model,data,test]"
+
+# 3. Your AWS key, saved under the profile "g2m"
+aws configure --profile g2m        # key id + secret from Hub, region us-east-1, output json
+aws sts get-caller-identity --profile g2m   # should show .../user/<your-name>
+
+# 4. Data
+make pull-data                     # -> OK: release 2026-10-04-hackathon verified in data/processed
+
+# 5. Check everything works (2 epochs, about 1 minute)
+python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir /tmp/g2m_smoke \
+  --species KPNEU --drugs meropenem --no-unitigs --max-epochs 2
+```
 
 ## 1. Where the data is
 
 | What | Where |
 | ---- | ----- |
 | S3 bucket | `s3://g2m-data-v1` (region `us-east-1`) |
-| This release | `s3://g2m-data-v1/releases/2026-10-04-hackathon/` |
-| Newest release name | `s3://g2m-data-v1/releases/LATEST` (text file; now `2026-10-04-hackathon`) |
-| After pulling | `data/processed/` in your working folder (gitignored) |
+| Current release | `s3://g2m-data-v1/releases/2026-10-04-hackathon/` |
+| Name of the newest release | `s3://g2m-data-v1/releases/LATEST` (a text file) |
+| After `make pull-data` | `data/processed/` in your repo folder |
 
-Access is read-only through the AWS CLI profile `g2m` (already set up on Hub's Mac in
-`~/.aws/credentials`). You may write only to `s3://g2m-data-v1/models/<aws-user-name>/`.
+- Your key can **read** every release and every model, and **write** only to
+  `s3://g2m-data-v1/models/<your-aws-user-name>/`.
+- A release never changes after upload. New data = new dated release.
+- Genomes and raw tool output stay on the data VM; you never need them for training.
 
-## 2. How to pull it
-
-On `develop`, once per machine:
-
-```bash
-conda activate genome2mic                 # Python 3.11
-pip install -e ".[model,data,test]"
-aws configure --profile g2m               # read-only key from Hub; see docs/ENGINEER_SETUP.md
-```
-
-Then, from the repo root:
+## 2. Pulling data
 
 ```bash
-make pull-data                            # latest release
-make pull-data RELEASE=2026-10-04-hackathon   # pinned
+make pull-data                                 # newest release
+make pull-data RELEASE=2026-10-04-hackathon    # a pinned release (use this when comparing models)
+aws s3 cp s3://g2m-data-v1/releases/LATEST - --profile g2m   # which release is newest?
 ```
 
-Success looks like:
+What `make pull-data` does (`scripts/pull_data.sh`): reads `LATEST`, runs `aws s3 sync`
+into `data/processed/`, checks every file against `SHA256SUMS`, and writes the release
+name to `data/processed/RELEASE`. Running it again downloads only changed files.
 
-```
-OK: release 2026-10-04-hackathon verified in data/processed
-release=2026-10-04-hackathon
-```
-
-The script (`scripts/pull_data.sh`) downloads with `aws s3 sync`, checks every file
-against `SHA256SUMS`, and writes `data/processed/RELEASE`. `data/processed/` is gitignored
-except `pairs_kept.csv`; never commit data.
+`data/processed/` is gitignored (except `pairs_kept.csv`). **Never commit data.** The
+current `splits.parquet` is provisional and is deliberately not in git.
 
 | Error | Fix |
 | ----- | --- |
-| `cannot read .../LATEST` | AWS profile missing: `aws configure --profile g2m` |
-| `checksum mismatch` | `rm -rf data/processed` and pull again |
+| `cannot read .../LATEST` | Profile missing or wrong key: `aws configure --profile g2m` |
+| `AccessDenied` | Your user is not in the IAM group `g2m-engineers` — ask Hub |
+| `checksum mismatch` | `rm -rf data/processed`, then `make pull-data` |
+| `No rule to make target 'pull-data'` | Old code: `git checkout develop && git pull` |
 
 ## 3. Files in the release
 
@@ -63,7 +84,7 @@ except `pairs_kept.csv`; never commit data.
 | `known_amr.parquet` | 7,229 | genome | **Features** (KPNEU only) |
 | `known_amr_columns.csv` | 952 | feature column | Column → source gene symbol, AMR class, genome count |
 | `splits.parquet` | 7,229 | genome | `train` (folds 0–4) / `test` |
-| `lineages.parquet` | 7,229 | genome | Cluster IDs. **Evaluation/splitting only, never a feature** |
+| `lineages.parquet` | 7,229 | genome | Cluster IDs. **Splitting/evaluation only, never a feature** |
 | `pairs_kept.csv` | 97 | species × drug | Pairs with enough data (29 for KPNEU) |
 | `label_counts.csv` | 219 | species × drug | Counts behind `pairs_kept.csv` |
 | `RELEASE`, `SHA256SUMS`, `download_manifest.json`, `tool_versions.json` | — | — | Provenance |
@@ -101,9 +122,9 @@ Real rows (KPNEU × meropenem):
  72407.2374    meropenem  0.0       0.500     left   NaN <=0.5       dilution   <- MIC with no reported S/I/R
 ```
 
-Meaning: the true MIC is in `(mic_lower, mic_upper]`. `=8` → `(4, 8]`; `<=1` → `(0, 1]`;
-`>8` → `(8, inf]`. Every finite bound is an exact doubling step 2^k (0.015625 … 512),
-because rounded panel values were snapped (`0.06` → 0.0625).
+How to read it: the true MIC is in `(mic_lower, mic_upper]`. `=8` → `(4, 8]`;
+`<=1` → `(0, 1]`; `>8` → `(8, inf]`. Every finite bound is an exact doubling step 2^k
+(0.015625 … 512), because rounded panel values were snapped (`0.06` → 0.0625).
 
 KPNEU rows that join to `known_amr`: 89,440 over 7,229 genomes. Censoring: 44,631 right,
 22,784 left, 22,025 interval. `sir`: 37,152 R, 20,176 S, 3,212 I, 28,900 null.
@@ -124,7 +145,8 @@ KPNEU rows that join to `known_amr`: 89,440 over 7,229 genomes. Censoring: 44,63
  1284788.3 KPNEU   1             0             1           1               1               3                   4
 ```
 
-Naming rules (the prediction side must apply the same ones; see section 8 — code: `src/genome2mic/features/ncbi_known_amr.py`):
+Naming rules (the prediction side must apply the same ones; see section 9 — code:
+`src/genome2mic/features/ncbi_known_amr.py`):
 
 - lowercase; every run of non-alphanumeric characters → one `_` (`aac(6')-Ib` → `gene_aac_6_ib`).
 - beta-lactamase alleles collapse to the family (`blaSHV-12` → `gene_blashv`), except the
@@ -136,7 +158,7 @@ Naming rules (the prediction side must apply the same ones; see section 8 — co
   (`AMINOGLYCOSIDE/QUINOLONE`) counts once in each class. Some genes have no class (e.g.
   `fosA`), so `n_class_*` can undercount; the `gene_` column is still there.
 
-Sanity check done: meropenem R share is 0.89 with any `gene_blakpc_*` vs 0.27 without;
+Sanity check: meropenem R share is 0.89 with any `gene_blakpc_*` vs 0.27 without;
 ceftriaxone R share is 0.87 with `gene_blactx_m` vs 0.64 without.
 
 ### `splits.parquet`
@@ -152,10 +174,26 @@ ceftriaxone R share is 0.87 with `gene_blactx_m` vs 0.64 without.
 
 `genome_id`, `species`, `lineage_cluster` (e.g. `KPNEU_PDS000045272`, or
 `KPNEU_SOLO_<biosample>` for genomes in no cluster), `st` (null), `cluster_method`
-(`ncbi_snp_cluster`). 3,573 clusters; 4,950 genomes belong to an NCBI SNP cluster, the rest are SOLO.
-No cluster spans train/test or two folds (checked when built).
+(`ncbi_snp_cluster`). 3,573 clusters; 4,950 genomes belong to an NCBI SNP cluster, the
+rest are SOLO. No cluster spans train/test or two folds (checked when built).
 
-## 5. How to build the training table
+## 5. Training the existing shared model
+
+The shared multi-drug model (`multitask_aft`, see `MODEL_DESIGN.md`) reads
+`data/processed/` directly.
+
+```bash
+python -m genome2mic.models.train_cli --processed-dir data/processed --out-dir models/multitask \
+  --species KPNEU --no-unitigs
+```
+
+- `--no-unitigs` is **required**: this release has no unitig matrix.
+- `--drugs a b c` restricts the drugs; `--max-epochs N` (default 200) shortens a run.
+- Output in `--out-dir`: `model.pt`, `spec.json`, `conformal.json`, `preds_oof.parquet`
+  (out-of-fold predictions), `history.parquet`, `label_counts.csv`.
+- `models/` is not a data release. Share runs through S3 (section 8), not git.
+
+## 6. Building your own training table
 
 ```python
 import numpy as np, pandas as pd
@@ -178,7 +216,7 @@ test = data[data["split"] == "test"]         # score ONCE, at the very end
 Inner joins are correct: labels without features (other species, and 10% of KPNEU) drop
 out; nothing is imputed.
 
-## 6. Rules (break one and the results are invalid)
+## 7. Rules (break one and the results are invalid)
 
 1. **Never impute a label.** No row = no result.
 2. **Never use as a feature:** `lineage_cluster`, `st`, `country`, `year`, `source`,
@@ -190,8 +228,20 @@ out; nothing is imputed.
 5. **Round MIC predictions up** to the next doubling step (a high prediction is the safer error).
 6. **Report VME first** (predicted S, lab R). Targets: VME ≤ 1.5%, ME ≤ 3%, EA ≥ 90% — these
    are common device-evaluation figures, not thresholds we have met.
+7. **Write the release name next to every result** (`release=2026-10-04-hackathon`).
+8. **Never edit files in `data/processed/` by hand.** If the data looks wrong, tell Hub.
 
-## 7. Known limits of this release (say them in the demo)
+## 8. Sharing trained models
+
+```bash
+aws s3 cp --recursive --profile g2m models/multitask/ s3://g2m-data-v1/models/<your-aws-user-name>/<run-name>/
+aws s3 ls --profile g2m s3://g2m-data-v1/models/            # everyone's runs
+```
+
+Put a `README.txt` in each run folder: release name, git commit, command line, and the
+headline metrics (VME first).
+
+## 9. Known limits of this release (say them in any demo)
 
 1. **Test scores are optimistic.** Splits come from NCBI SNP clusters: near-identical
    isolates stay together, but a lineage such as ST258 can sit in train and test.
@@ -206,20 +256,31 @@ out; nothing is imputed.
 7. Only KPNEU has features. The other species' labels are in `labels.parquet` but cannot
    train until their features exist.
 
-## 8. Prediction side (demo)
+Background on the shortcut: `docs/HACKATHON_DATA.md`.
+
+## 10. Prediction side (API / demo)
 
 - A new genome needs AMRFinderPlus (`amrfinder -n <fasta> -O Klebsiella_pneumoniae --plus`),
   then conversion of its output to **exactly** these 952 columns with the naming rules in
   section 4: unknown genes ignored, missing columns 0, same order. That converter does not
   exist yet; use `known_amr_columns.csv` as the column list.
-- AMRFinderPlus is installed only on the data VM (Linux), not on the Mac.
-- **For tonight's demo:** take rows for a few `test` genomes straight from
-  `known_amr.parquet` and feed them to the model — no AMRFinderPlus needed.
+- AMRFinderPlus runs on Linux (the data VM), not on a Mac.
+- **Demo without AMRFinderPlus:** take rows for a few `test` genomes straight from
+  `known_amr.parquet` and feed them to the model.
 
-## 9. Contacts and next releases
+## 11. Where to read more
 
-- Data questions: Hub. Do not edit files in `data/processed/` by hand.
-- New releases are announced by name; check with
-  `aws s3 cp s3://g2m-data-v1/releases/LATEST - --profile g2m`.
-- Planned (after the hackathon): own AMRFinderPlus run, Mash/PopPUNK lineages, frozen
-  splits committed to git, unitig matrix, more species.
+| Doc | What |
+| --- | ---- |
+| `DATA_CONTRACT.md` | Every column, the interval rule, the leakage checklist |
+| `MODEL_DESIGN.md` | The shared multi-drug model |
+| `docs/HACKATHON_DATA.md` | Why this release is provisional |
+| `docs/ENGINEER_SETUP.md` | AWS key setup in more detail |
+| `docs/DATA_PIPELINE_PLAN.md` | How the data is built, and what comes next |
+
+## 12. Next releases
+
+- New releases are announced by name in the team chat; check with
+  `aws s3 cp s3://g2m-data-v1/releases/LATEST - --profile g2m`, then `make pull-data`.
+- Planned: own AMRFinderPlus run, Mash/PopPUNK lineages, frozen splits committed to git,
+  unitig matrix, more species.
