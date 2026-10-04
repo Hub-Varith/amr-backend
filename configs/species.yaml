@@ -1,5 +1,7 @@
 # Species in scope. Keys match DATA_CONTRACT.md. Confirm amrfinder_organism with `amrfinder -l`.
 # reference_accession is the Mash species reference for stage 3 QC (NCBI reference genomes).
+# ncbi_pd_group is the NCBI Pathogen Detection folder; hackathon_split_drugs must have R and S
+# in the hackathon test set (docs/HACKATHON_DATA.md).
 species:
   ECOLI:
     name: Escherichia coli
@@ -7,27 +9,37 @@ species:
     taxon_id: 562
     expected_genome_size: 5100000
     reference_accession: GCF_000005845.2  # K-12 MG1655
+    ncbi_pd_group: Escherichia_coli_Shigella
+    hackathon_split_drugs: [ceftriaxone, ciprofloxacin, gentamicin]
   KPNEU:
     name: Klebsiella pneumoniae
     amrfinder_organism: Klebsiella_pneumoniae
     taxon_id: 573
     expected_genome_size: 5600000
     reference_accession: GCF_000240185.1  # HS11286
+    ncbi_pd_group: Klebsiella
+    hackathon_split_drugs: [ceftriaxone, meropenem, ciprofloxacin]
   SAUR:
     name: Staphylococcus aureus
     amrfinder_organism: Staphylococcus_aureus
     taxon_id: 1280
     expected_genome_size: 2800000
     reference_accession: GCF_000013425.1  # NCTC 8325
+    ncbi_pd_group: Staphylococcus_aureus
+    hackathon_split_drugs: [oxacillin, erythromycin, clindamycin]
   PAER:
     name: Pseudomonas aeruginosa
     amrfinder_organism: Pseudomonas_aeruginosa
     taxon_id: 287
     expected_genome_size: 6600000
     reference_accession: GCF_000006765.1  # PAO1
+    ncbi_pd_group: Pseudomonas_aeruginosa
+    hackathon_split_drugs: [meropenem, amikacin, levofloxacin]
   ABAU:
     name: Acinetobacter baumannii
     amrfinder_organism: Acinetobacter_baumannii
     taxon_id: 470
     expected_genome_size: 4000000
     reference_accession: GCF_009035845.1  # ATCC 19606
+    ncbi_pd_group: Acinetobacter
+    hackathon_split_drugs: [meropenem, amikacin, ciprofloxacin]
