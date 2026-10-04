@@ -7,7 +7,7 @@ The layout follows ``DATA_CONTRACT.md`` section 1 and the repository layout in
       data/raw/            ast_<source>.csv, genomes/<gid>.fasta, references/
       data/interim/<gid>/  amrfinder.tsv, resfinder/, mlst.tsv, mash.tsv
       data/processed/      labels.parquet, qc.parquet, known_amr.parquet, ...
-      results/             preds_<SPECIES>_<drug>.parquet, metrics.parquet, figures/
+      results/             preds_<SPECIES>_<drug>.parquet, metrics.parquet, test_ledger.csv, figures/
       models/              <SPECIES>/<drug>/ bundles, manifest.json
 
 Stage CLIs take ``--root`` and ``--configs-dir`` and build a :class:`Paths` from
@@ -193,6 +193,17 @@ class Paths:
     def metrics_by_distance(self) -> Path:
         """Accuracy by nearest-training-distance bin: ``results/metrics_by_distance.parquet``."""
         return self.results_dir / "metrics_by_distance.parquet"
+
+    @property
+    def test_ledger(self) -> Path:
+        """Append-only record of every test-set scoring: ``results/test_ledger.csv``.
+
+        Columns ``run_id,created_utc,species,drug,n_test_rows``; the train stage
+        appends one row per pair each time it writes test predictions and never
+        truncates the file. The leakage check reads it to verify CLAUDE.md rule 8
+        (test set touched once): more than one distinct ``run_id`` for a pair fails.
+        """
+        return self.results_dir / "test_ledger.csv"
 
     @property
     def figures_dir(self) -> Path:

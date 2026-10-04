@@ -14,7 +14,23 @@
 # strong_markers Known-AMR feature columns (gene_* / point_*) whose presence
 #                forces the call to likely_inactive regardless of the model
 #                (override 2 in DATA_CONTRACT.md stage 12). Matched as column
-#                prefixes so kept variants (gene_blakpc_2) still match.
+#                prefixes so kept variants (gene_blakpc_2) still match. Every
+#                carbapenemase prefix in keep_variant.csv (blaOXA-48, blaOXA-181,
+#                blaOXA-232, ...) gets its own gene_ column and must be listed
+#                here, or the override never sees it.
+# strong_subclasses
+#                Optional. AMRFinderPlus Subclass values; a detected ACQUIRED gene
+#                (Subtype AMR, never a POINT mutation such as an ompK36 porin
+#                change) carrying one of them also forces likely_inactive. The
+#                carbapenems list CARBAPENEM so carbapenemases whose family column
+#                is shared with non-carbapenemases (blaOXA-23/-24/-58 and blaOXA-1
+#                all map to gene_blaoxa; blaGES-5 and blaGES-1 to gene_blages) or
+#                that no prefix covers (blaIMI, blaSME, ...) still trigger it.
+#                CAUTION (ABAU): AMRFinderPlus reports the intrinsic, chromosomal
+#                OXA-51-like genes of A. baumannii (blaOXA-51, -66, -69, ...) with
+#                Subclass CARBAPENEM, so this rule would call every A. baumannii
+#                isolate carbapenem-inactive. Add an exclusion for the OXA-51
+#                family (or an ISAba1-upstream rule) before an ABAU model ships.
 #
 # call_standard  Breakpoint table used for pred_sir and for the final call.
 
@@ -80,6 +96,8 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
       - gene_blactx_m
@@ -90,6 +108,8 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
       - gene_blactx_m
@@ -100,6 +120,8 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
       - gene_blactx_m
@@ -110,6 +132,8 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
       - gene_blactx_m
@@ -133,8 +157,11 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
+    strong_subclasses: [CARBAPENEM]
   imipenem:
     synonyms:
       - IPM
@@ -150,8 +177,11 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
+    strong_subclasses: [CARBAPENEM]
   meropenem:
     synonyms: [MEM, MER, MERO, MRP, meropenem trihydrate, merrem]
     spectrum_tier: 4
@@ -159,8 +189,11 @@ drugs:
       - gene_blakpc
       - gene_blandm
       - gene_blaoxa_48
+      - gene_blaoxa_181
+      - gene_blaoxa_232
       - gene_blavim
       - gene_blaimp
+    strong_subclasses: [CARBAPENEM]
   ciprofloxacin:
     synonyms: [CIP, CI, ciprofloxacin hydrochloride, cipro, ciproxin]
     spectrum_tier: 2

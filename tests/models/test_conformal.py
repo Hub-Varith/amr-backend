@@ -58,6 +58,21 @@ class TestResidualSteps:
         with pytest.raises(ValueError):
             residual_steps(np.array([3.0]), np.array([4.0, 4.0]), np.array([8.0, 8.0]))
 
+    def test_exact_rows_mask_excludes_one_step_rows_that_are_not_mics(self) -> None:
+        """A disk I-only (1, 2] row looks exact by its interval but is not a measured MIC."""
+        pred = np.array([3.0, 1.0, 1.0, 4.0])
+        lo = np.array([4.0, 1.0, 1.0, 4.0])
+        hi = np.array([8.0, 2.0, 2.0, 8.0])
+        measured = np.array([True, False, True, True])  # row 1: disk diffusion
+        log = DropLog("conformal_test")
+        resid = residual_steps(pred, lo, hi, droplog=log, exact_rows=measured)
+        np.testing.assert_array_equal(resid, [0.0, 0.0, 1.0])
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert [n for reason, n in reasons.items() if "not a measured MIC" in reason] == [1]
+        np.testing.assert_array_equal(residual_steps(pred, lo, hi), [0.0, 0.0, 0.0, 1.0])
+        with pytest.raises(ValueError, match="exact_rows"):
+            residual_steps(pred, lo, hi, exact_rows=measured[:2])
+
 
 # ----------------------------------------------------------------- conformal_q
 class TestConformalQ:

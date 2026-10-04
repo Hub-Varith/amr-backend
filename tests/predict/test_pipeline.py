@@ -192,21 +192,26 @@ def configs_dir(tmp_path: Path) -> Path:
     return target
 
 
-def write_bundle(models_dir: Path, dna: dict[str, str], *, with_markers: bool = True) -> Path:
-    """Write a FAKE model bundle in the ``models/train.py`` layout."""
+def write_bundle(
+    models_dir: Path, dna: dict[str, str], *, with_markers: bool = True, synthetic: bool | None = True
+) -> Path:
+    """Write a FAKE model bundle in the ``models/train.py`` layout.
+
+    ``synthetic`` is the manifest flag that allows the MarkerScan fallback (``None``
+    leaves the key out, like a bundle written before the flag existed).
+    """
     rng = np.random.default_rng(11)
     models_dir.mkdir(parents=True, exist_ok=True)
-    (models_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "model_version": MODEL_VERSION,
-                "run_id": RUN_ID,
-                "created": "2026-10-03T00:00:00Z",
-                "species": {SPECIES: list(FAKE_MODELS)},
-                "note": "FAKE synthetic test bundle",
-            }
-        )
-    )
+    manifest: dict[str, object] = {
+        "model_version": MODEL_VERSION,
+        "run_id": RUN_ID,
+        "created": "2026-10-03T00:00:00Z",
+        "species": {SPECIES: list(FAKE_MODELS)},
+        "note": "FAKE synthetic test bundle",
+    }
+    if synthetic is not None:
+        manifest["synthetic"] = synthetic
+    (models_dir / "manifest.json").write_text(json.dumps(manifest))
     ref_keys = ["KPNEU", "ECOLI", "PAER"]
     sk.save_sketches(models_dir / "reference_sketches.npz", ref_keys, [sk.sketch(dna[f"ref_{k}"]) for k in ref_keys])
 
@@ -345,9 +350,125 @@ def test_load_resolves_string_unitig_ids_via_index(models_dir: Path, configs_dir
     features = json.loads(features_path.read_text())
     features["unitig_cols"] = ["u_000003", "u_000007"]
     features_path.write_text(json.dumps(features))
-    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    # The FAKE unitig_kmers.npz is not a real k-mer set; the injected query keeps load() from reading it.
+    pipe = PredictionPipeline(
+        models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=RecordingUnitigQuery()
+    )
     pipe.load()
     assert pipe.species_bundles[SPECIES].drugs["ciprofloxacin"].unitig_cols == (3, 7)
+
+
+# --------------------------------------------------------------------------- #
+# Feature layout checks at load (features.json vs the saved model)
+# --------------------------------------------------------------------------- #
+
+
+def _edit_features(models_dir: Path, drug: str, **updates: object) -> None:
+    path = models_dir / SPECIES / drug / "features.json"
+    features = json.loads(path.read_text())
+    features.update(updates)
+    path.write_text(json.dumps(features))
+
+
+def _features(models_dir: Path, drug: str) -> dict:
+    return json.loads((models_dir / SPECIES / drug / "features.json").read_text())
+
+
+def test_load_accepts_feature_names_that_match_the_layout(models_dir: Path, configs_dir: Path) -> None:
+    for drug in FAKE_MODELS:
+        features = _features(models_dir, drug)
+        names = features["known_columns"] + [f"u_{int(c):06d}" for c in features["unitig_cols"]]
+        _edit_features(models_dir, drug, feature_names=names)
+    pipe = PredictionPipeline(
+        models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=RecordingUnitigQuery()
+    )
+    pipe.load()
+    assert pipe.available_models() == {SPECIES: sorted(FAKE_MODELS)}
+
+
+def test_load_rejects_reordered_feature_names(models_dir: Path, configs_dir: Path) -> None:
+    known = _features(models_dir, "meropenem")["known_columns"]
+    _edit_features(models_dir, "meropenem", feature_names=list(reversed(known)))
+    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    with pytest.raises(BundleError, match="feature_names"):
+        pipe.load()
+
+
+def test_load_rejects_feature_names_with_a_substituted_unitig(models_dir: Path, configs_dir: Path) -> None:
+    features = _features(models_dir, "ciprofloxacin")  # unitig_cols [3, 7]
+    _edit_features(models_dir, "ciprofloxacin", feature_names=features["known_columns"] + ["u_000003", "u_000008"])
+    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    with pytest.raises(BundleError, match="u_000008"):
+        pipe.load()
+
+
+def test_load_rejects_known_columns_that_disagree_with_the_saved_model(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str]
+) -> None:
+    """Same-length reorder: passes a column-count check but would feed KPC into the NDM input."""
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _edit_features(models, "meropenem", known_columns=["gene_blandm_1", "gene_blakpc_2"])
+    with pytest.raises(BundleError, match="meropenem"):
+        PredictionPipeline(models, configs_dir).load()
+
+
+def test_load_rejects_unitig_columns_that_disagree_with_the_saved_model(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str]
+) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _edit_features(models, "ciprofloxacin", unitig_cols=[1])  # model was fitted on u_000000
+    with pytest.raises(BundleError, match="u_000001"):
+        PredictionPipeline(models, configs_dir).load()
+
+
+# --------------------------------------------------------------------------- #
+# Frozen k-mer set: loaded once, validated at load
+# --------------------------------------------------------------------------- #
+
+
+def test_default_unitig_query_loads_the_kmer_set_once(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str], genomes: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    loads: list[Path] = []
+    original = unitig_mod.load_kmer_set
+
+    def counting_load(path: Path) -> unitig_mod.KmerSet:
+        loads.append(Path(path))
+        return original(path)
+
+    def no_reload(*args: object, **kwargs: object) -> np.ndarray:
+        raise AssertionError("query_genome re-reads the k-mer set from disk on every request")
+
+    monkeypatch.setattr(unitig_mod, "load_kmer_set", counting_load)
+    monkeypatch.setattr(unitig_mod, "query_genome", no_reload)
+    pipe = PredictionPipeline(models, configs_dir)
+    pipe.load()
+    assert loads == [models / SPECIES / "unitig_kmers.npz"]
+
+    first = pipe.run(genomes["kpc"], "REAL-KPC-1")
+    pipe.run(genomes["clean"], "REAL-CLEAN")
+    again = pipe.run(genomes["kpc"], "REAL-KPC-2")
+    assert len(loads) == 1
+    assert by_drug(first)["ciprofloxacin"]["pred_mic"] == by_drug(again)["ciprofloxacin"]["pred_mic"]
+    assert by_drug(first)["ciprofloxacin"]["call"] == "likely_inactive"
+
+
+def test_load_rejects_an_unreadable_kmer_set(models_dir: Path, configs_dir: Path) -> None:
+    # The FAKE bundle's unitig_kmers.npz lacks k / n_patterns; only the default query reads it.
+    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    with pytest.raises(BundleError, match="unitig_kmers.npz"):
+        pipe.load()
+
+
+def test_load_rejects_unitig_columns_outside_the_kmer_set(models_dir: Path, configs_dir: Path, dna: dict[str, str]) -> None:
+    kmer_set = unitig_mod.KmerSet.from_sequences(
+        [dna["marker_gyrA_S83L"], dna["marker_blaKPC-2"]], pattern_col=np.array([0, 1]), n_patterns=2, species=SPECIES
+    )
+    unitig_mod.save_kmer_set(models_dir / SPECIES / "unitig_kmers.npz", kmer_set)
+    pipe = PredictionPipeline(models_dir, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel})
+    with pytest.raises(BundleError, match="ciprofloxacin"):  # unitig_cols [3, 7] but only 2 patterns
+        pipe.load()
 
 
 # --------------------------------------------------------------------------- #
@@ -579,6 +700,156 @@ def test_run_raises_tool_not_available_without_any_backend(tmp_path: Path, confi
         pipe.run(genomes["clean"], "FAKE-NO-BACKEND")
 
 
+@pytest.mark.skipif(shutil.which("amrfinder") is not None, reason="amrfinder on PATH is a valid backend")
+@pytest.mark.parametrize("synthetic", [False, None], ids=["synthetic_false", "no_synthetic_key"])
+def test_markers_fasta_is_ignored_unless_the_bundle_is_synthetic(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str], genomes: dict[str, Path], synthetic: bool | None
+) -> None:
+    """A real bundle must never fall back to the exact-substring MarkerScan (misses split/SNP'd markers)."""
+    models = write_bundle(tmp_path / "models_real", dna, synthetic=synthetic)
+    assert (models / "markers.fasta").is_file()
+    pipe = PredictionPipeline(models, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=RecordingUnitigQuery())
+    pipe.load()
+    assert pipe.markers_fasta is None
+    with pytest.raises(ToolNotAvailable) as excinfo:
+        pipe.run(genomes["kpc"], "FAKE-NOT-SYNTHETIC")
+    message = str(excinfo.value)
+    assert "AMRFinderPlus" in message and "--amrfinder-tsv" in message and "kpc.fasta.amrfinder.tsv" in message
+    assert "synthetic" in message
+
+
+@pytest.mark.skipif(shutil.which("amrfinder") is not None, reason="amrfinder on PATH takes precedence over the sidecar")
+def test_non_synthetic_bundle_reads_a_sidecar_tsv(tmp_path: Path, configs_dir: Path, dna: dict[str, str], genomes: dict[str, Path]) -> None:
+    models = write_bundle(tmp_path / "models_real", dna, synthetic=False)
+    amr_detect.sidecar_path(genomes["clean"]).write_text(
+        _AMRFINDER_HEADER + "\n" + _amrfinder_row("blaNDM-1", "AMR", "AMR", "BETA-LACTAM", "CARBAPENEM") + "\n"
+    )
+    pipe = PredictionPipeline(models, configs_dir, model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=RecordingUnitigQuery())
+    meropenem = by_drug(pipe.run(genomes["clean"], "FAKE-REAL-SIDECAR"))["meropenem"]
+    assert meropenem["override"] == "strong_marker" and meropenem["reasons"] == ["blaNDM-1"]
+
+
+def test_synthetic_bundle_keeps_the_marker_scan_fallback(pipeline: PredictionPipeline) -> None:
+    assert pipeline.markers_fasta == pipeline.models_dir / "markers.fasta"
+
+
+@pytest.mark.skipif(shutil.which("amrfinder") is not None, reason="amrfinder on PATH takes precedence over the sidecar")
+@pytest.mark.parametrize("symbol", ["blaOXA-181", "blaOXA-232", "blaOXA-23", "blaGES-5"])
+def test_carbapenemase_outside_the_model_forces_meropenem_inactive(
+    pipeline: PredictionPipeline, genomes: dict[str, Path], symbol: str
+) -> None:
+    """End to end: the model knows nothing about these genes (zero-filled), the override still fires."""
+    amr_detect.sidecar_path(genomes["clean"]).write_text(
+        _AMRFINDER_HEADER + "\n" + _amrfinder_row(symbol, "AMR", "AMR", "BETA-LACTAM", "CARBAPENEM") + "\n"
+    )
+    report = pipeline.run(genomes["clean"], f"FAKE-{symbol}")
+    PredictionReport.model_validate(report)
+    meropenem = by_drug(report)["meropenem"]
+    assert meropenem["call"] == "likely_inactive"
+    assert meropenem["override"] == "strong_marker"
+    assert meropenem["reasons"] == [symbol]
+    assert meropenem["pred_mic"] == 0.0625  # the model output is kept, only the call is overridden
+    assert "meropenem" not in report["ranked_active"]
+
+
+@pytest.mark.skipif(shutil.which("amrfinder") is not None, reason="amrfinder on PATH takes precedence over the sidecar")
+def test_porin_point_mutation_does_not_override_meropenem(pipeline: PredictionPipeline, genomes: dict[str, Path]) -> None:
+    amr_detect.sidecar_path(genomes["clean"]).write_text(
+        _AMRFINDER_HEADER + "\n" + _amrfinder_row("ompK36_D135DGD", "AMR", "POINT", "BETA-LACTAM", "CARBAPENEM") + "\n"
+    )
+    meropenem = by_drug(pipeline.run(genomes["clean"], "FAKE-OMPK36"))["meropenem"]
+    assert meropenem["override"] is None
+    assert meropenem["pred_mic"] == 0.125  # -4 + 1 (point_ompk36_d135dgd) -> 2^-3
+
+
+# --------------------------------------------------------------------------- #
+# AMRFinderPlus parsing: prediction applies exactly the training row filter
+# --------------------------------------------------------------------------- #
+
+# (symbol, Type, Subtype, Class, Subclass). FAKE detections covering every filter branch.
+PARITY_ROWS: list[tuple[str, str, str, str, str]] = [
+    ("blaKPC-2", "AMR", "AMR", "BETA-LACTAM", "CARBAPENEM"),
+    ("blaCTX-M-15", "AMR", "AMR", "BETA-LACTAM", "CEPHALOSPORIN"),
+    ("blaCTX-M-27", "AMR", "AMR", "BETA-LACTAM", "CEPHALOSPORIN"),
+    ("blaOXA-1", "AMR", "AMR", "BETA-LACTAM", "BETA-LACTAM"),
+    ("blaOXA-181", "AMR", "AMR", "BETA-LACTAM", "CARBAPENEM"),
+    ("gyrA_S83L", "AMR", "POINT", "QUINOLONE", "QUINOLONE"),
+    ("ompK36_D135DGD", "AMR", "POINT", "BETA-LACTAM", "CARBAPENEM"),
+    ("aac(6')-Ib-cr", "AMR", "AMR", "AMINOGLYCOSIDE/QUINOLONE", "AMIKACIN/KANAMYCIN/QUINOLONE"),
+    ("blaSHV-11", "AMR", "AMR", "NA", "NA"),  # no class: gene_ column, no n_class_ count
+    ("blaTEM-1", "AMR", "AMR-SUSCEPTIBLE", "BETA-LACTAM", "BETA-LACTAM"),  # dropped: subtype
+    ("blaFAKE-1", "", "AMR", "BETA-LACTAM", "BETA-LACTAM"),  # dropped: blank Type
+    ("blaFAKE-2", "amr", "AMR", "BETA-LACTAM", "BETA-LACTAM"),  # dropped: Type is case-sensitive in training
+    ("qacE", "STRESS", "BIOCIDE", "QUATERNARY AMMONIUM", "QUATERNARY AMMONIUM"),
+    ("iutA", "VIRULENCE", "VIRULENCE", "NA", "NA"),
+    ("NA", "AMR", "AMR", "BETA-LACTAM", "BETA-LACTAM"),  # dropped: no symbol
+]
+
+
+def _write_amrfinder(path: Path, rows: Sequence[tuple[str, str, str, str, str]], version: str) -> Path:
+    if version == "4":
+        header, row_text = _AMRFINDER_HEADER, [_amrfinder_row(*row) for row in rows]
+    else:
+        header = (
+            "Protein identifier\tContig id\tStart\tStop\tStrand\tGene symbol\tSequence name\tScope\tElement type\t"
+            "Element subtype\tClass\tSubclass\tMethod\tTarget length\tReference sequence length\t"
+            "% Coverage of reference sequence\t% Identity to reference sequence\tAlignment length\t"
+            "Accession of closest sequence\tName of closest sequence\tHMM id\tHMM description"
+        )
+        row_text = [_amrfinder_row(*row) for row in rows]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join([header, *row_text]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_parse_amrfinder_tsv_applies_the_training_row_filter(tmp_path: Path) -> None:
+    droplog = DropLog("test")
+    frame = amr_detect.parse_amrfinder_tsv(_write_amrfinder(tmp_path / "a.tsv", PARITY_ROWS, "4"), droplog)
+    assert frame["symbol"].tolist() == [r[0] for r in PARITY_ROWS[:9]]
+    assert set(frame["type"]) == {"AMR"}
+    assert set(frame["subtype"]) == {"AMR", "POINT"}
+    assert frame["class"].isna().sum() == 1  # blaSHV-11 "NA" is null, as in training
+    counts = {r.reason: r.n_dropped for r in droplog.records}
+    assert counts == {
+        "amrfinder_type_not_amr": 4,
+        "amrfinder_subtype_not_amr_or_point": 1,
+        "amrfinder_no_symbol": 1,
+    }
+
+
+@pytest.mark.parametrize("version", ["4", "3"])
+def test_amrfinder_tsv_gives_the_same_feature_row_in_training_and_prediction(
+    tmp_path: Path, configs_dir: Path, version: str
+) -> None:
+    """Parity: one AMRFinderPlus TSV -> identical known-AMR features in ``known_amr.build`` and the pipeline."""
+    from genome2mic.features import known_amr  # noqa: PLC0415
+    from genome2mic.paths import Paths  # noqa: PLC0415
+
+    config = load_config(configs_dir)
+    paths = Paths(root=tmp_path / "project", configs_dir=configs_dir)
+    paths.qc.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"genome_id": ["g1"], "species": [SPECIES], "qc_pass": [True]}).to_parquet(paths.qc, index=False)
+    tsv = _write_amrfinder(paths.interim_dir("g1") / "amrfinder.tsv", PARITY_ROWS, version)
+
+    features, _columns = known_amr.build(paths, config)
+    training = {
+        str(column): int(value)
+        for column, value in features.iloc[0].items()
+        if str(column).startswith(known_amr.FEATURE_PREFIXES) and int(value) != 0
+    }
+    prediction = amr_detect.known_amr_row(amr_detect.parse_amrfinder_tsv(tsv), config).values
+    assert prediction == training
+    assert training["gene_blaoxa_181"] == 1 and training["n_class_beta_lactam"] == 6
+    assert "gene_blatem" not in prediction and "gene_iuta" not in prediction and "gene_blafake" not in prediction
+
+
+def test_parse_amrfinder_tsv_rejects_a_non_amrfinder_table(tmp_path: Path) -> None:
+    path = tmp_path / "bad.tsv"
+    path.write_text("foo\tbar\n1\t2\n")
+    with pytest.raises(ValueError, match="AMRFinderPlus"):
+        amr_detect.parse_amrfinder_tsv(path)
+
+
 def test_parse_amrfinder_tsv_handles_old_header_and_filters_type(tmp_path: Path) -> None:
     path = tmp_path / "old.tsv"
     path.write_text(
@@ -620,6 +891,66 @@ def test_marker_scan_finds_forward_and_reverse_complement(tmp_path: Path, dna: d
     frame = amr_detect.MarkerScan(markers_fasta).detect(genome, SPECIES, load_config(configs_dir))
     assert sorted(frame["symbol"]) == ["aac(6')-Ib-cr", "blaCTX-M-15"]
     assert set(frame["backend"]) == {"marker_scan"}
+
+
+@pytest.mark.parametrize(
+    ("header", "element_type", "subtype", "amr_class", "subclass"),
+    [
+        (
+            'blaKPC-2 type=AMR subtype=AMR class=BETA-LACTAM subclass=CARBAPENEM scope=core '
+            'name="carbapenem-hydrolyzing class A beta-lactamase KPC-2" synthetic=true',
+            "AMR", "AMR", "BETA-LACTAM", "CARBAPENEM",
+        ),
+        (
+            'iutA type=VIRULENCE subtype=VIRULENCE class=NA subclass=NA scope=plus name="aerobactin receptor" synthetic=true',
+            "VIRULENCE", "VIRULENCE", None, None,
+        ),
+        ("qacE QUATERNARY_AMMONIUM QUATERNARY_AMMONIUM STRESS", "STRESS", "STRESS", "QUATERNARY_AMMONIUM", "QUATERNARY_AMMONIUM"),
+        ("blaTEM-1 type=AMR subtype=AMR-SUSCEPTIBLE class=BETA-LACTAM", "AMR", "AMR-SUSCEPTIBLE", "BETA-LACTAM", "BETA-LACTAM"),
+        ("gyrA_S83L type=AMR class=QUINOLONE", "AMR", "POINT", "QUINOLONE", "QUINOLONE"),
+    ],
+)
+def test_parse_marker_header_keeps_type_and_subtype(
+    header: str, element_type: str, subtype: str, amr_class: str | None, subclass: str | None
+) -> None:
+    marker = amr_detect.parse_marker_header(header)
+    assert (marker.element_type, marker.subtype, marker.amr_class, marker.subclass) == (element_type, subtype, amr_class, subclass)
+    assert marker.is_resistance_feature is (element_type == "AMR" and subtype in ("AMR", "POINT"))
+
+
+def test_marker_scan_skips_records_training_would_drop(tmp_path: Path, dna: dict[str, str], configs_dir: Path) -> None:
+    """A VIRULENCE / STRESS / AMR-SUSCEPTIBLE marker never becomes a gene_ feature (training drops it)."""
+    rng = np.random.default_rng(3)
+    seqs = {name: random_dna(rng, 120) for name in ("iutA", "qacE", "blaTEM-1")}
+    records = [
+        (MARKERS["blaKPC-2"][0], dna["marker_blaKPC-2"]),
+        ("iutA type=VIRULENCE subtype=VIRULENCE class=NA subclass=NA synthetic=true", seqs["iutA"]),
+        ("qacE QUATERNARY_AMMONIUM QUATERNARY_AMMONIUM STRESS", seqs["qacE"]),
+        ("blaTEM-1 type=AMR subtype=AMR-SUSCEPTIBLE class=BETA-LACTAM", seqs["blaTEM-1"]),
+    ]
+    markers_fasta = write_fasta(records, tmp_path / "markers.fasta")
+    genome = write_fasta([("c1", random_dna(rng, 300) + "".join(seq for _, seq in records) + random_dna(rng, 300))], tmp_path / "g.fasta")
+    droplog = DropLog("test")
+    frame = amr_detect.MarkerScan(markers_fasta).detect(genome, SPECIES, load_config(configs_dir), droplog)
+    assert frame["symbol"].tolist() == ["blaKPC-2"]
+    counts = {r.reason: r.n_dropped for r in droplog.records}
+    assert counts["marker_records_not_amr"] == 3
+    row = amr_detect.known_amr_row(frame, load_config(configs_dir))
+    assert set(row.values) == {"gene_blakpc_2", "n_class_beta_lactam"}
+
+
+def test_known_amr_row_skips_non_amr_rows_from_custom_detectors(configs_dir: Path) -> None:
+    detections = pd.DataFrame(
+        {
+            "symbol": ["blaKPC-2", "iutA", "blaTEM-1"],
+            "type": ["AMR", "VIRULENCE", "AMR"],
+            "subtype": ["AMR", "VIRULENCE", "AMR-SUSCEPTIBLE"],
+            "class": ["BETA-LACTAM", None, "BETA-LACTAM"],
+            "subclass": ["CARBAPENEM", None, "BETA-LACTAM"],
+        }
+    )
+    row = amr_detect.known_amr_row(detections, load_config(configs_dir))
+    assert row.values == {"gene_blakpc_2": 1, "n_class_beta_lactam": 1}
 
 
 # --------------------------------------------------------------------------- #
@@ -732,7 +1063,15 @@ def write_real_bundle(models_dir: Path, dna: dict[str, str]) -> Path:
     models_dir.mkdir(parents=True, exist_ok=True)
     species_dir = models_dir / SPECIES
     (models_dir / "manifest.json").write_text(
-        json.dumps({"model_version": REAL_VERSION, "run_id": RUN_ID, "created": "2026-10-03", "species": {SPECIES: ["meropenem", "ciprofloxacin"]}})
+        json.dumps(
+            {
+                "model_version": REAL_VERSION,
+                "run_id": RUN_ID,
+                "created": "2026-10-03",
+                "species": {SPECIES: ["meropenem", "ciprofloxacin"]},
+                "synthetic": True,
+            }
+        )
     )
     ref_keys = ["KPNEU", "ECOLI", "PAER"]
     sk.save_sketches(models_dir / "reference_sketches.npz", ref_keys, [sk.sketch(dna[f"ref_{k}"]) for k in ref_keys])
@@ -822,3 +1161,61 @@ def test_real_model_classes_end_to_end(tmp_path: Path, configs_dir: Path, dna: d
     assert clean_p["ciprofloxacin"]["reasons"] == []
     assert kpc["ranked_active"] == []
     assert clean["ranked_active"] == ["ciprofloxacin", "meropenem"]
+
+
+# --------------------------------------------------------------------------- #
+# Shared k-mer set: every unitig model must index the species' set
+# --------------------------------------------------------------------------- #
+
+
+def _set_recorded_sha1(models_dir: Path, drug: str, value: str | None) -> None:
+    path = models_dir / SPECIES / drug / "features.json"
+    features = json.loads(path.read_text())
+    if value is None:
+        features.pop("unitig_kmer_set_sha1", None)
+    else:
+        features["unitig_kmer_set_sha1"] = value
+    path.write_text(json.dumps(features))
+
+
+def test_load_accepts_a_drug_trained_on_the_species_kmer_set(tmp_path: Path, configs_dir: Path, dna: dict[str, str]) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    sha1 = unitig_mod.read_kmer_set_sha1(models / SPECIES / "unitig_kmers.npz")
+    _set_recorded_sha1(models, "ciprofloxacin", sha1)
+    _set_recorded_sha1(models, "meropenem", None)  # no unitig features: nothing to record
+    pipe = PredictionPipeline(models, configs_dir)
+    pipe.load()
+    assert pipe.species_bundles[SPECIES].drugs["ciprofloxacin"].unitig_kmer_set_sha1 == sha1
+    assert pipe.species_bundles[SPECIES].kmer_set.sha1() == sha1
+
+
+@pytest.mark.parametrize("injected_query", [False, True])
+def test_load_rejects_a_drug_trained_on_another_kmer_set(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str], injected_query: bool
+) -> None:
+    """A partial retrain replaced unitig_kmers.npz: the old model's columns would index the new set."""
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _set_recorded_sha1(models, "ciprofloxacin", "f" * 40)
+    # With an injected query the set is never loaded; the sha1 stored in the npz is compared instead.
+    query = RecordingUnitigQuery() if injected_query else None
+    pipe = PredictionPipeline(models, configs_dir, unitig_query=query)
+    with pytest.raises(BundleError, match="ciprofloxacin was trained on ffffffffffff"):
+        pipe.load()
+
+
+def test_load_rejects_a_malformed_recorded_kmer_set_sha1(tmp_path: Path, configs_dir: Path, dna: dict[str, str]) -> None:
+    models = write_real_bundle(tmp_path / "real_models", dna)
+    _set_recorded_sha1(models, "ciprofloxacin", "")
+    with pytest.raises(BundleError, match="unitig_kmer_set_sha1"):
+        PredictionPipeline(models, configs_dir).load()
+
+
+def test_load_warns_when_a_unitig_model_predates_the_recorded_sha1(
+    tmp_path: Path, configs_dir: Path, dna: dict[str, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    models = write_real_bundle(tmp_path / "real_models", dna)  # features.json without the key
+    with caplog.at_level(logging.WARNING, logger="genome2mic.predict.pipeline"):
+        PredictionPipeline(models, configs_dir).load()
+    assert any("unitig_kmer_set_sha1" in r.getMessage() and "ciprofloxacin" in r.getMessage() for r in caplog.records)

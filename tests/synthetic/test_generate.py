@@ -405,6 +405,104 @@ def test_drop_log_and_label_counts(synth: tuple[Paths, dict]) -> None:
     assert table[("ECOLI", "gentamicin")]["passes_inclusion"] is False
 
 
+@pytest.fixture(scope="module")
+def synth_ingested(synth: tuple[Paths, dict]) -> tuple[Paths, dict, pd.DataFrame, pd.DataFrame]:
+    """Run the real ingest stage on the tiny synthetic set: (paths, summary, labels, drop log)."""
+    from genome2mic import ingest
+
+    paths, summary = synth
+    run_paths = Paths(root=paths.root, configs_dir=paths.root / "configs")
+    labels = ingest.run(run_paths, load_config(paths.root / "configs"))
+    log = pd.read_csv(run_paths.drop_log("ingest"))
+    return run_paths, summary, labels, log
+
+
+def test_sir_only_rows_mix_2024_older_and_blank_years(synth: tuple[Paths, dict]) -> None:
+    """Decision 2: only rows whose (standard, standard_year) has a table convert, so the
+    generator writes mostly 2024 (the shipped tables) plus some 2016-2023 and blank years."""
+    paths, _ = synth
+    bv = pd.read_csv(paths.raw_ast("bvbrc"), dtype=str, keep_default_na=False)
+    nc = pd.read_csv(paths.raw_ast("ncbi"), dtype=str, keep_default_na=False)
+    assert "testing_standard_year" not in nc.columns  # NCBI exports carry no year
+    lab = bv[bv["evidence"] == "Laboratory Method"]
+    sir_only = lab[(lab["measurement_value"] == "") & lab["testing_standard"].isin(["EUCAST", "CLSI"])]
+    years = sir_only["testing_standard_year"]
+    assert (years == "2024").sum() > 0
+    assert years.isin([str(y) for y in range(2016, 2024)]).sum() > 0
+    ncbi_sir_only = (nc["measurement"] == "") & nc["testing_standard"].isin(["EUCAST", "CLSI"])
+    assert (years == "").sum() > 0 and int(ncbi_sir_only.sum()) > 0  # both null-year sources
+    assert set(years) <= {"", "2024", *(str(y) for y in range(2016, 2024))}
+    assert (years == "2024").mean() > 0.5  # most BV-BRC S/I/R-only rows can be converted
+
+
+def test_lab_profile_years_keep_the_random_stream(synth: tuple[Paths, dict]) -> None:
+    """The year mapping draws exactly what earlier versions drew, so genomes are unchanged."""
+
+    def old_bvbrc_draws(rng: np.random.Generator) -> None:
+        generate._choice(rng, generate.STANDARDS, (0.45, 0.55))
+        if rng.random() >= 0.15:
+            rng.integers(2016, 2024)
+        generate._choice(rng, generate.BVBRC_METHODS, generate.BVBRC_METHOD_WEIGHTS)
+        generate._choice(rng, generate.UNITS, generate.UNIT_WEIGHTS)
+        generate._choice(rng, generate.NAME_STYLES, generate.NAME_STYLE_WEIGHTS)
+        rng.random()
+
+    seen = set()
+    for seed in range(300):
+        new, old = np.random.default_rng(seed), np.random.default_rng(seed)
+        profile = generate._lab_profile(new, "BVBRC")
+        old_bvbrc_draws(old)
+        assert new.bit_generator.state == old.bit_generator.state, seed
+        seen.add("2024" if profile.standard_year == "2024" else ("" if not profile.standard_year else "old"))
+    assert seen == {"2024", "", "old"}
+
+
+def test_planted_drops_match_the_ingest_drop_log(
+    synth_ingested: tuple[Paths, dict, pd.DataFrame, pd.DataFrame],
+) -> None:
+    from genome2mic.ingest import harmonize as hz
+
+    run_paths, summary, _, log = synth_ingested
+    counts = log.set_index("reason")["n_dropped"]
+    planted = summary["planted"]
+    pairs = [
+        ("evidence == Computational Prediction", hz.Reason.EVIDENCE),
+        ("unknown antibiotic name", hz.Reason.UNKNOWN_DRUG),
+        ("unknown typing method", hz.Reason.UNKNOWN_METHOD),
+        ("S/I/R-only row with blank standard", hz.Reason.NULL_STANDARD),
+        (generate.DROP_NULL_YEAR, hz.Reason.NULL_YEAR),
+        (generate.DROP_NO_TABLE_FOR_YEAR, hz.Reason.NO_TABLE_FOR_YEAR),
+    ]
+    for planted_reason, ingest_reason in pairs:
+        assert counts[ingest_reason] == planted[planted_reason], planted_reason
+    assert counts[hz.Reason.NULL_YEAR] > 0 and counts[hz.Reason.NO_TABLE_FOR_YEAR] > 0
+    assert counts[hz.Reason.NO_BREAKPOINT] == 0  # every synthetic pair has a 2024 row
+    assert counts[hz.Reason.COMBINATION] > 0  # 'x/4' piperacillin-tazobactam values parsed
+    assert counts[hz.Reason.BAD_VALUE] == 0
+    reasons = set(pd.read_csv(run_paths.drop_log("synth"))["reason"])
+    assert f"planted expected_drop: {generate.DROP_NULL_YEAR}" in reasons
+    assert f"planted expected_drop: {generate.DROP_NO_TABLE_FOR_YEAR}" in reasons
+
+
+def test_ingested_synthetic_labels_respect_the_new_rules(
+    synth_ingested: tuple[Paths, dict, pd.DataFrame, pd.DataFrame],
+) -> None:
+    _, _, labels, _ = synth_ingested
+    sir_path = labels["raw_result"].str.match(r"^[SIR]( |$)")  # S/I/R-only rows (possibly merged)
+    assert sir_path.any()
+    # every surviving S/I/R-only label was converted with the 2024 table it names
+    single = labels[labels["raw_result"].str.fullmatch(r"[SIR]( zone=\S+)?")]
+    assert not single.empty and (single["standard_year"] == 2024).all()
+    # a disk-method label that pins one doubling step can only be a one-step I range
+    lo, hi = labels["mic_lower"].to_numpy(), labels["mic_upper"].to_numpy()
+    exact = (lo > 0) & (hi == 2 * lo)
+    disk_exact = labels[exact & (labels["method"] == "disk").to_numpy()]
+    assert (disk_exact["sir"] == "I").all(), disk_exact[["genome_id", "drug", "raw_result"]]
+    # combination values keep their original text
+    tzp = labels[labels["raw_result"].str.contains("/4", regex=False)]
+    assert not tzp.empty and (tzp["drug"] == "piperacillin-tazobactam").all()
+
+
 # --------------------------------------------------------------------------- #
 # markers.py
 # --------------------------------------------------------------------------- #

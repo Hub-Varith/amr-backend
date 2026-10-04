@@ -16,6 +16,11 @@ Style rules shared by every figure:
 * Rate columns from ``metrics.parquet`` are fractions in ``[0, 1]`` per
   ``DATA_CONTRACT.md`` stage 11 and are drawn as percentages.
 * VME is always drawn first / left-most (CLAUDE.md rule 10).
+* EA and band coverage are annotated with their own denominators (``n_exact``,
+  ``n_band``: exact lab MICs only, see :mod:`genome2mic.eval.metrics`).
+* ``synthetic=True`` (every figure function) stamps a diagonal ``SYNTHETIC DATA``
+  watermark and a note line on the figure and writes the same note into the PNG
+  ``Description`` metadata, so a PNG copied out of the report still says what it is.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ import pandas as pd  # noqa: E402
 from matplotlib.patches import Patch, Rectangle  # noqa: E402
 
 from genome2mic.droplog import DropLog  # noqa: E402
+from genome2mic.eval.metrics import exact_lab_mask  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +81,18 @@ MODEL_ORDER: tuple[str, ...] = (
     "multitask_nn",
 )
 """Display order for models; unknown models are appended alphabetically."""
+
+TOP_K_FEATURES = 20
+"""Number of gain importances drawn by :func:`feature_importance` (and labelled by the report)."""
+
+SYNTHETIC_MARK = "SYNTHETIC DATA"
+"""Watermark text stamped on every figure of a synthetic run."""
+
+SYNTHETIC_NOTE = (
+    "SYNTHETIC DATA: simulated genomes and lab results. Shows that the pipeline runs; "
+    "says nothing about real-world performance."
+)
+"""Note line and PNG ``Description`` metadata of every figure of a synthetic run."""
 
 CLUSTER_SIZE_BINS: tuple[tuple[int, float, str], ...] = (
     (1, 1, "1"),
@@ -166,12 +184,43 @@ def _fmt_n(value: float) -> str:
     return "n/a" if _isna(value) else f"{int(value)}"
 
 
-def _save(fig: plt.Figure, out_path: Path) -> Path:
+def _denominator(frame: pd.DataFrame, column: str, fallback: str = "n") -> np.ndarray:
+    """Denominator column as floats; ``fallback`` when ``column`` is absent (older metrics tables)."""
+    return _float_col(frame, column if column in frame.columns else fallback)
+
+
+def mark_synthetic(fig: plt.Figure) -> None:
+    """Stamp a diagonal :data:`SYNTHETIC_MARK` watermark and a :data:`SYNTHETIC_NOTE` line on ``fig``.
+
+    The note sits just above the figure's top edge; ``bbox_inches='tight'`` keeps it
+    in the saved PNG.
+    """
+    fig.text(
+        0.5,
+        0.5,
+        SYNTHETIC_MARK,
+        ha="center",
+        va="center",
+        rotation=25,
+        fontsize=40,
+        fontweight="bold",
+        color=PALETTE[3],
+        alpha=0.18,
+        zorder=100,
+    )
+    fig.text(0.5, 1.0, SYNTHETIC_NOTE, ha="center", va="bottom", fontsize=7, fontweight="bold", color=PALETTE[3])
+
+
+def _save(fig: plt.Figure, out_path: Path, synthetic: bool = False) -> Path:
     target = Path(out_path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(target, dpi=DPI, bbox_inches="tight")
+    metadata: dict[str, str] | None = None
+    if synthetic:
+        mark_synthetic(fig)
+        metadata = {"Description": SYNTHETIC_NOTE}
+    fig.savefig(target, dpi=DPI, bbox_inches="tight", metadata=metadata)
     plt.close(fig)
-    logger.info("wrote figure %s", target)
+    logger.info("wrote figure %s%s", target, " [SYNTHETIC DATA]" if synthetic else "")
     return target
 
 
@@ -229,6 +278,8 @@ def vme_me_by_model(
     drug: str,
     out_path: Path,
     split: str = "test",
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """VME and ME rates (%) per model with the 1.5 % / 3 % target lines.
 
@@ -265,7 +316,7 @@ def vme_me_by_model(
     ax.set_ylabel("Error rate (%; VME of lab-R rows, ME of lab-S rows)")
     ax.set_title(f"VME and ME by model, {split_label(split)}: {species} {drug}")
     _legend_below(ax)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -279,8 +330,14 @@ def ea_ca_by_model(
     drug: str,
     out_path: Path,
     split: str = "test",
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
-    """Essential and categorical agreement (%) per model with the 90 % target line."""
+    """Essential and categorical agreement (%) per model with the 90 % target line.
+
+    EA bars are annotated with ``n_exact`` (rows with an exact lab MIC: EA's
+    denominator), CA bars with ``n_cat``.
+    """
     sub = subset(metrics, species=species, drug=drug, split=split)
     if sub.empty or "model" not in sub.columns:
         logger.warning("ea_ca_by_model: no %s rows for %s %s", split, species, drug)
@@ -292,25 +349,26 @@ def ea_ca_by_model(
     ca = _pct(_float_col(sub, "categorical_agreement"))
     n_exact = _float_col(sub, "n_exact")
     n_cat = _float_col(sub, "n_cat")
+    ea_label = "EA (within +/-1 doubling step; exact lab MICs)"
 
     fig, ax = plt.subplots(figsize=(max(5.5, 1.5 * len(models) + 2.5), 4.2))
     _grouped_bars(
         ax,
         models,
-        {"EA (within +/-1 doubling step)": ea, "CA (same S/I/R)": ca},
-        {"EA (within +/-1 doubling step)": PALETTE[2], "CA (same S/I/R)": PALETTE[4]},
+        {ea_label: ea, "CA (same S/I/R)": ca},
+        {ea_label: PALETTE[2], "CA (same S/I/R)": PALETTE[4]},
         {
-            "EA (within +/-1 doubling step)": [f"n={_fmt_n(v)}" for v in n_exact],
+            ea_label: [f"n={_fmt_n(v)}" for v in n_exact],
             "CA (same S/I/R)": [f"n={_fmt_n(v)}" for v in n_cat],
         },
     )
     ax.axhline(TARGET_EA_PCT, color=GREY, ls="--", lw=1, label=f"EA / CA target {TARGET_EA_PCT:g}% ({TARGET_NOTE})")
     ax.set_ylim(0, 112)
     ax.set_xlabel("Model")
-    ax.set_ylabel("Agreement (% of evaluated rows)")
+    ax.set_ylabel("Agreement (% of evaluated rows; n above each bar)")
     ax.set_title(f"EA and CA by model, {split_label(split)}: {species} {drug}")
     _legend_below(ax)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -336,11 +394,14 @@ def mic_confusion(
     model: str = MAIN_MODEL,
     split: str = "test",
     droplog: DropLog | None = None,
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """Heatmap of lab doubling step x predicted doubling step on exact lab MICs.
 
-    Only rows with an exact lab interval (``0 < lab_lower`` and finite
-    ``lab_upper``) and a non-null ``pred_mic`` are drawn; the excluded count is
+    Only rows with an exact lab MIC (one doubling step and, when the preds carry
+    it, ``lab_exact`` true: :func:`genome2mic.eval.metrics.exact_lab_mask`) and a
+    non-null ``pred_mic`` are drawn -- the same rows as EA in ``metrics.parquet``; the excluded count is
     recorded in ``droplog`` when given. Cells within +/-1 step of the diagonal
     (the essential-agreement band) are outlined.
     """
@@ -353,15 +414,16 @@ def mic_confusion(
         return None
     if chosen != model:
         logger.warning("mic_confusion: model %r absent for %s %s; using %r", model, species, drug, chosen)
-    sub = subset(sub, model=chosen)
-    lab_lo = _float_col(sub, "lab_lower")
+    sub = subset(sub, model=chosen).reset_index(drop=True)
     lab_hi = _float_col(sub, "lab_upper")
     pred = _float_col(sub, "pred_mic")
-    exact = (lab_lo > 0) & np.isfinite(lab_hi) & (lab_hi > 0) & np.isfinite(pred) & (pred > 0)
+    with np.errstate(invalid="ignore"):
+        has_lab = {"lab_lower", "lab_upper"} <= set(sub.columns)
+        exact = (exact_lab_mask(sub) if has_lab else np.zeros(len(sub), dtype=bool)) & np.isfinite(pred) & (pred > 0)
     n_dropped = int(len(sub) - exact.sum())
     if droplog is not None:
         droplog.drop(
-            "mic_confusion: censored lab interval or null prediction",
+            "mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction",
             n_dropped,
             detail=f"{species} {drug} {chosen} {split}",
         )
@@ -403,7 +465,7 @@ def mic_confusion(
         fontsize=10,
     )
     fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04, label="Genomes (count)")
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -416,8 +478,14 @@ def band_coverage(
     species: str,
     out_path: Path,
     split: str = "test",
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
-    """Conformal band coverage (%) against the 90 % nominal level, and mean band width, per drug."""
+    """Conformal band coverage (%) against the 90 % nominal level, and mean band width, per drug.
+
+    Coverage is over exact lab MICs (the rows the conformal ``q`` is calibrated on);
+    bars are annotated with that denominator, ``n_band`` (``n`` for older tables).
+    """
     sub = subset(metrics, species=species, split=split)
     if sub.empty or "drug" not in sub.columns or "model" not in sub.columns:
         logger.warning("band_coverage: no %s rows for %s", split, species)
@@ -437,7 +505,7 @@ def band_coverage(
         rows = rows.set_index(rows["drug"].astype("str")).reindex(drugs)
         coverage[model] = _pct(_float_col(rows, "band_coverage"))
         width[model] = _float_col(rows, "band_width_steps")
-        n_labels[model] = [f"n={_fmt_n(v)}" for v in _float_col(rows, "n")]
+        n_labels[model] = [f"n={_fmt_n(v)}" for v in _denominator(rows, "n_band")]
     colors = {m: model_color(m) for m in models}
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(max(10, 2.2 * len(drugs) * max(len(models), 1) / 2 + 6), 4.2))
@@ -445,7 +513,7 @@ def band_coverage(
     ax1.axhline(TARGET_COVERAGE_PCT, color=GREY, ls="--", lw=1, label=f"nominal 90% band level ({TARGET_NOTE})")
     ax1.set_ylim(0, 112)
     ax1.set_xlabel("Drug")
-    ax1.set_ylabel("Band coverage (% of lab MICs inside the 90% band)")
+    ax1.set_ylabel("Band coverage (% of exact lab MICs inside the 90% band)")
     ax1.set_title(f"Conformal band coverage, {split_label(split)}: {species}", fontsize=10)
     _legend_below(ax1, ncol=2)
     _grouped_bars(ax2, drugs, width, colors)
@@ -455,7 +523,7 @@ def band_coverage(
     finite_width = [v for arr in width.values() for v in arr if not _isna(v)]
     ax2.set_ylim(0, (max(finite_width) if finite_width else 1.0) * 1.3 + 0.2)
     _legend_below(ax2, ncol=min(len(models), 3) or 1)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -478,6 +546,8 @@ def accuracy_vs_distance(
     species: str,
     out_path: Path,
     model: str | None = None,
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """EA and VME (%) per nearest-training-distance bin, one line per drug.
 
@@ -485,6 +555,8 @@ def accuracy_vs_distance(
     ordered by their lower edge. If the frame carries a ``split`` column only the
     ``test`` rows are used; otherwise all rows are assumed to be test rows (the
     distance to the nearest *training* genome is only meaningful off the train set).
+    EA points are annotated with ``n_exact`` and VME points with ``n_lab_r`` (their
+    denominators; ``n`` for older tables without those columns).
     """
     sub = subset(metrics_by_distance, species=species)
     if "split" in sub.columns and not sub.empty:
@@ -505,18 +577,19 @@ def accuracy_vs_distance(
         rows = rows.set_index(rows["distance_bin"].astype("str")).reindex(bins)
         ea = _pct(_float_col(rows, "essential_agreement"))
         vme = _pct(_float_col(rows, "vme_rate"))
-        n = _float_col(rows, "n")
+        n_ea = _denominator(rows, "n_exact")
+        n_vme = _denominator(rows, "n_lab_r")
         color = PALETTE[i % len(PALETTE)]
         ax1.plot(x, ea, marker="o", color=color, label=drug)
         ax2.plot(x, vme, marker="o", color=color, label=drug)
-        for xi, (e, v, count) in enumerate(zip(ea, vme, n, strict=True)):
+        for xi, (e, v, count_ea, count_vme) in enumerate(zip(ea, vme, n_ea, n_vme, strict=True)):
             if not _isna(e):
-                ax1.annotate(f"n={_fmt_n(count)}", (xi, e), xytext=(0, 4), textcoords="offset points", ha="center", fontsize=6)
+                ax1.annotate(f"n={_fmt_n(count_ea)}", (xi, e), xytext=(0, 4), textcoords="offset points", ha="center", fontsize=6)
             if not _isna(v):
-                ax2.annotate(f"n={_fmt_n(count)}", (xi, v), xytext=(0, 4), textcoords="offset points", ha="center", fontsize=6)
+                ax2.annotate(f"n={_fmt_n(count_vme)}", (xi, v), xytext=(0, 4), textcoords="offset points", ha="center", fontsize=6)
     model_note = f" ({chosen})" if chosen else ""
     for ax, ylabel, target, target_label, title in (
-        (ax1, "EA (% within +/-1 doubling step)", TARGET_EA_PCT, f"EA target {TARGET_EA_PCT:g}% ({TARGET_NOTE})", "Essential agreement"),
+        (ax1, "EA (% of exact lab MICs within +/-1 doubling step)", TARGET_EA_PCT, f"EA target {TARGET_EA_PCT:g}% ({TARGET_NOTE})", "Essential agreement"),
         (ax2, "VME (% of lab-R rows predicted S)", TARGET_VME_PCT, f"VME target {TARGET_VME_PCT:g}% ({TARGET_NOTE})", "Very major errors"),
     ):
         ax.axhline(target, color=GREY, ls="--", lw=1, label=target_label)
@@ -528,7 +601,7 @@ def accuracy_vs_distance(
     ax1.set_ylim(0, 112)
     ax2.set_ylim(bottom=0)
     fig.suptitle(f"Accuracy by distance to the nearest training genome, test set: {species}{model_note}", fontsize=11)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -604,6 +677,24 @@ _KIND_COLORS = {
 }
 
 
+def top_features(
+    importance: Sequence[Mapping[str, Any]] | pd.DataFrame | None,
+    top_k: int = TOP_K_FEATURES,
+) -> pd.DataFrame:
+    """The ``top_k`` ``{feature, gain}`` rows by gain (highest first); empty when unusable.
+
+    The single ranking used by :func:`feature_importance` and by the report when it
+    decides which unitig patterns it needs labels for.
+    """
+    if importance is None:
+        return pd.DataFrame(columns=["feature", "gain"])
+    frame = importance if isinstance(importance, pd.DataFrame) else pd.DataFrame(list(importance))
+    if frame.empty or "feature" not in frame.columns or "gain" not in frame.columns:
+        return pd.DataFrame(columns=["feature", "gain"])
+    frame = frame.assign(gain=pd.to_numeric(frame["gain"], errors="coerce")).dropna(subset=["gain"])
+    return frame.sort_values("gain", ascending=False, kind="stable").head(top_k)
+
+
 def feature_importance(
     importance: Sequence[Mapping[str, Any]] | pd.DataFrame | None,
     species: str,
@@ -611,8 +702,10 @@ def feature_importance(
     out_path: Path,
     unitig_index: pd.DataFrame | None = None,
     known_columns: pd.DataFrame | None = None,
-    top_k: int = 20,
+    top_k: int = TOP_K_FEATURES,
     model: str = MAIN_MODEL,
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """Horizontal bar chart of the top-``top_k`` gain importances of the main model.
 
@@ -622,13 +715,9 @@ def feature_importance(
     """
     if importance is None:
         return None
-    frame = importance if isinstance(importance, pd.DataFrame) else pd.DataFrame(list(importance))
-    if frame.empty or "feature" not in frame.columns or "gain" not in frame.columns:
-        logger.warning("feature_importance: no usable {feature, gain} rows for %s %s", species, drug)
-        return None
-    frame = frame.assign(gain=pd.to_numeric(frame["gain"], errors="coerce")).dropna(subset=["gain"])
-    frame = frame.sort_values("gain", ascending=False).head(top_k)
+    frame = top_features(importance, top_k)
     if frame.empty:
+        logger.warning("feature_importance: no usable {feature, gain} rows for %s %s", species, drug)
         return None
     features = [str(f) for f in frame["feature"]]
     gains = frame["gain"].to_numpy(dtype=float)
@@ -645,7 +734,7 @@ def feature_importance(
     ax.set_title(f"Top-{len(features)} gain importances, final fit on the train split: {species} {drug} ({model})", fontsize=10)
     present = [k for k in _KIND_COLORS if k in kinds]
     ax.legend(handles=[Patch(color=_KIND_COLORS[k], label=k) for k in present], fontsize=7, loc="lower right")
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -657,6 +746,8 @@ def label_counts(
     counts: pd.DataFrame | None,
     species: str,
     out_path: Path,
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """Stacked S/I/R counts and exact-vs-censored counts per drug (all labelled genomes).
 
@@ -689,8 +780,8 @@ def label_counts(
     ax1.set_ylabel("Genomes with a lab result (count)")
     ax1.set_title(f"Lab S/I/R label counts, all labelled genomes: {species}", fontsize=10)
     _legend_below(ax1, ncol=3)
-    ax2.bar(x, n_exact, color=PALETTE[2], label="exact MIC (interval)")
-    ax2.bar(x, n_cens, bottom=n_exact, color=PALETTE[5], label="censored (<=, >, S/I/R-only)")
+    ax2.bar(x, n_exact, color=PALETTE[2], label="exact MIC (one doubling step)")
+    ax2.bar(x, n_cens, bottom=n_exact, color=PALETTE[5], label="censored or multi-step (<=, >, S/I/R-only)")
     for xi, total in zip(x, n_exact + n_cens, strict=True):
         ax2.annotate(f"n={int(total)}", (xi, total), xytext=(0, 2), textcoords="offset points", ha="center", fontsize=7)
     ax2.set_xticks(x, drugs, rotation=25, ha="right")
@@ -698,7 +789,7 @@ def label_counts(
     ax2.set_ylabel("Genomes with a lab result (count)")
     ax2.set_title(f"Exact vs censored MIC labels, all labelled genomes: {species}", fontsize=10)
     _legend_below(ax2, ncol=2)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 # --------------------------------------------------------------------------- #
@@ -711,6 +802,8 @@ def lineage_clusters(
     splits: pd.DataFrame | None,
     species: str,
     out_path: Path,
+    *,
+    synthetic: bool = False,
 ) -> Path | None:
     """Distribution of lineage-cluster sizes, train vs test.
 
@@ -756,7 +849,7 @@ def lineage_clusters(
     ax.set_ylabel("Lineage clusters (count)")
     ax.set_title(f"Lineage cluster sizes, train vs test: {species}\n{summary}", fontsize=9)
     _legend_below(ax, ncol=min(len(groups), 3) or 1, pad=0.2)
-    return _save(fig, out_path)
+    return _save(fig, out_path, synthetic)
 
 
 __all__ = [
@@ -764,6 +857,9 @@ __all__ = [
     "MAIN_MODEL",
     "MODEL_ORDER",
     "PALETTE",
+    "SYNTHETIC_MARK",
+    "SYNTHETIC_NOTE",
+    "TOP_K_FEATURES",
     "TARGET_CA_PCT",
     "TARGET_COVERAGE_PCT",
     "TARGET_EA_PCT",
@@ -777,11 +873,13 @@ __all__ = [
     "fmt_mic",
     "label_counts",
     "lineage_clusters",
+    "mark_synthetic",
     "mic_confusion",
     "model_color",
     "order_models",
     "pick_model",
     "split_label",
     "subset",
+    "top_features",
     "vme_me_by_model",
 ]

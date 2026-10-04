@@ -387,6 +387,35 @@ class TestRun:
         assert log["qc_fail_any"] == 5
         assert set(pd.read_csv(paths.drop_log("qc"))["stage"]) == {"qc"}
 
+    def test_parallel_run_matches_serial(self, tmp_path: Path, rng: np.random.Generator, monkeypatch) -> None:
+        from genome2mic import parallel
+
+        paths, config, _ = self.build_dataset(tmp_path, rng)
+        serial = qc.run(paths, config, threads=1)
+        serial_log = pd.read_csv(paths.drop_log("qc"))
+        monkeypatch.setattr(parallel, "MIN_PARALLEL_ITEMS", 1)
+        assert parallel.worker_count(2, len(serial)) == 2  # the pool path really runs
+        pooled = qc.run(paths, config, threads=2)
+        pd.testing.assert_frame_equal(serial, pooled)
+        pd.testing.assert_frame_equal(serial_log, pd.read_csv(paths.drop_log("qc")))
+        assert qc._QC_STATE == {}  # no per-run state left behind in the parent
+
+    def test_empty_mash_tsv_falls_back_to_sketch_quietly(
+        self, tmp_path: Path, rng: np.random.Generator, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        paths = Paths(root=tmp_path)
+        config = make_config(keys=("KPNEU",))
+        ref = random_dna(rng, GENOME_LENGTH)
+        write_fasta([("KPNEU", ref)], paths.reference_fasta("KPNEU"))
+        fasta = write_genome(paths, "g1", [ref])
+        empty = paths.interim_dir("g1") / qc.MASH_TSV_NAME
+        empty.parent.mkdir(parents=True, exist_ok=True)
+        empty.touch()  # the Snakefile's placeholder when mash is not installed
+        caplog.set_level("WARNING", logger="genome2mic")
+        call = qc.species_from_mash(empty, fasta, config.species, lambda: qc.build_reference_sketches(paths, config))
+        assert call == qc.SpeciesCall("KPNEU", 0.0, qc.BACKEND_SKETCH)
+        assert "no row names a known species" not in caplog.text
+
     def test_unknown_label_species_raises(self, tmp_path: Path, rng: np.random.Generator) -> None:
         paths, config, _ = self.build_dataset(tmp_path, rng)
         labels = read_parquet(paths.labels)

@@ -14,8 +14,10 @@ stores ``x / 2`` so the same rule applies.
 
 This module never drops data rows itself; it either loads a config or raises
 ``ConfigError``. ``Config.normalize_drug`` returns ``None`` for an unknown drug and
-``Config.breakpoint`` returns ``None`` when no table applies. The caller (the
-ingest stage) owns the row filter and logs the dropped count through ``DropLog``.
+``Config.breakpoint`` returns ``None`` unless a table exists for exactly the row's
+``(standard, standard_year)`` and has a row for the pair (no fallback to the latest
+table). The caller (the ingest stage) owns the row filter and logs the dropped count
+through ``DropLog``.
 """
 
 from __future__ import annotations
@@ -240,6 +242,20 @@ class Config:
         versions = self.standards().get(standard)
         return versions[-1] if versions else None
 
+    def has_breakpoint_table(self, standard: str | None, year: int | None) -> bool:
+        """True when a breakpoint table is loaded for exactly ``(standard, year)``.
+
+        ``standard`` goes through :func:`normalize_standard` (``NCCLS`` -> ``CLSI``);
+        a null year, a null or unknown standard, or a year without a CSV give ``False``.
+        The ingest stage uses this to tell "no table for that year" apart from "the
+        table has no row for this species x drug" when it logs a dropped row.
+        """
+        std = normalize_standard(standard)
+        year_int = _coerce_year(year)
+        if std is None or year_int is None:
+            return False
+        return (std, str(year_int)) in self.breakpoints
+
     def breakpoint(
         self,
         species: str,
@@ -247,25 +263,23 @@ class Config:
         standard: str | None,
         year: int | None,
     ) -> Breakpoint | None:
-        """Look up the breakpoint for ``species`` x ``drug``.
+        """Look up the breakpoint for ``species`` x ``drug`` under exactly ``(standard, year)``.
 
-        ``(standard, year)`` is matched exactly; if ``year`` is null or has no
-        table, the latest table for that standard is used. A null or unknown
-        standard returns ``None`` (contract: never guess the standard). A table
-        without a row for the pair also returns ``None``.
+        DATA_CONTRACT stage 2: an S/I/R-only row needs "the breakpoint table matching
+        that row's standard and standard_year ... Do not guess." So there is no
+        fallback: a null year, a year without a loaded table, a null or unknown
+        standard, or a table without a row for the pair all return ``None``. Breakpoints
+        change between versions (EUCAST ciprofloxacin in 2017, CLSI fluoroquinolones in
+        2019, ...), and converting an old S/I/R with a newer table would fabricate a
+        tighter interval. Add ``configs/breakpoints/<std>_<year>.csv`` for the years in
+        the data instead. :meth:`call_breakpoint` passes the explicit ``call_standard``
+        version, whose table :func:`load_config` guarantees.
         """
+        if not self.has_breakpoint_table(standard, year):
+            return None
         std = normalize_standard(standard)
-        if std is None:
-            return None
-        version: str | None
-        year_int = _coerce_year(year)
-        if year_int is not None and (std, str(year_int)) in self.breakpoints:
-            version = str(year_int)
-        else:
-            version = self.latest_version(std)
-        if version is None:
-            return None
-        return self.breakpoints[(std, version)].get((species, drug))
+        version = str(_coerce_year(year))
+        return self.breakpoints[(std, version)].get((species, drug))  # type: ignore[index]
 
     def call_breakpoint(self, species: str, drug: str) -> Breakpoint | None:
         """Breakpoint under ``call_standard`` (used for ``pred_sir`` and the call)."""

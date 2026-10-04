@@ -34,7 +34,7 @@ BVBRC_CSV = """
     genome_id,genome_name,antibiotic,resistant_phenotype,measurement_sign,measurement_value,measurement_unit,laboratory_typing_method,testing_standard,testing_standard_year,evidence
     573.2002,Klebsiella pneumoniae subsp. pneumoniae KPNIH1,meropenem,Resistant,=,8,mg/L,Broth dilution,CLSI,2016,Laboratory Method
     573.2005,Klebsiella pneumoniae,meropenem,Resistant,>,32,mg/L,Broth dilution,CLSI,2019,Laboratory Method
-    573.2011,Klebsiella pneumoniae,meropenem,Susceptible,,,,Disk diffusion,EUCAST,2021,Laboratory Method
+    573.2011,Klebsiella pneumoniae,meropenem,Susceptible,,,,Disk diffusion,EUCAST,2024,Laboratory Method
     573.2002,Klebsiella pneumoniae subsp. pneumoniae KPNIH1,ciprofloxacin,Resistant,=,1,mg/L,Broth dilution,CLSI,2016,Laboratory Method
     562.1,Escherichia coli O157:H7,meropenem,Susceptible,<=,0.25,µg/mL,Broth microdilution,EUCAST,,Computational Prediction
     999.1,Klebsiella oxytoca,meropenem,Susceptible,<=,0.25,mg/L,Broth microdilution,EUCAST,2020,Laboratory Method
@@ -319,9 +319,13 @@ class TestRun:
         # 573.2005: BV-BRC >32 and NCBI (SAMN00000002, re-keyed) >32 agree -> one row
         assert tuple(labels.loc[("573.2005", "meropenem"), ["mic_lower", "mic_upper"]]) == (32.0, math.inf)
         assert "NCBI_SAMN00000002" not in labels.index.get_level_values("genome_id")
-        # 573.2011: disk S under EUCAST 2021 (-> latest table, S <= 2) from both sources -> one row
+        # 573.2011: disk S under EUCAST 2024 (S <= 2) from BV-BRC. The NCBI copy of the same
+        # disk result has no standard_year, so it is dropped (no table can be matched) and
+        # only the BV-BRC row survives.
         assert tuple(labels.loc[("573.2011", "meropenem"), ["mic_lower", "mic_upper"]]) == (0.0, 2.0)
         assert labels.loc[("573.2011", "meropenem"), "method"] == "disk"
+        assert labels.loc[("573.2011", "meropenem"), "source"] == "BVBRC"
+        assert labels.loc[("573.2011", "meropenem"), "standard_year"] == 2024
         # NCBI-only genome keeps its NCBI id
         assert tuple(labels.loc[("NCBI_SAMN00000003", "meropenem"), ["mic_lower", "mic_upper"]]) == (0.0, 0.25)
         # computational-prediction row, unknown species and unknown drug are gone
@@ -347,6 +351,9 @@ class TestRun:
         assert set(drop_log["stage"]) == {"ingest"}
         assert hz.Reason.EVIDENCE in drop_log["reason"].tolist()
         assert int(drop_log.loc[drop_log["reason"] == hz.Reason.EVIDENCE, "n_dropped"].iloc[0]) == 1
+        # the NCBI disk row (no standard_year column in NCBI exports) is dropped and counted
+        assert int(drop_log.loc[drop_log["reason"] == hz.Reason.NULL_YEAR, "n_dropped"].iloc[0]) == 1
+        assert int(drop_log.loc[drop_log["reason"] == hz.Reason.NO_TABLE_FOR_YEAR, "n_dropped"].iloc[0]) == 0
 
     def test_missing_one_raw_file_is_skipped_with_a_log_line(self, tmp_path: Path, config: Config,
                                                               caplog: pytest.LogCaptureFixture) -> None:

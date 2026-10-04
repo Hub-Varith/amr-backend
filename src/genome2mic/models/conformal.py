@@ -1,7 +1,9 @@
 """Split-conformal uncertainty bands on log2 MIC.
 
 CLAUDE.md: take ``|pred - true|`` in doubling steps on validation rows with exact
-MICs; the finite-sample-corrected 90th percentile ``q`` gives a ``+-q``-step band.
+MICs (one doubling step and not disk diffusion: the orchestrator passes its
+``lab_exact`` mask); the finite-sample-corrected 90th percentile ``q`` gives a
+``+-q``-step band.
 The *upper* end of the band is what gets compared with the S breakpoint.
 
 Residuals come from out-of-fold predictions (never the test set, CLAUDE.md rule 8);
@@ -27,11 +29,17 @@ DEFAULT_ALPHA = 0.10
 """Miscoverage level: ``1 - alpha`` = 90% nominal band coverage."""
 
 
+NOT_MEASURED_REASON = "one-step lab interval but not a measured MIC (e.g. disk diffusion): conformal residuals use exact MICs only"
+"""Drop reason for rows the caller's ``exact_rows`` mask removes from a one-step interval."""
+
+
 def residual_steps(
     pred_log2_rounded_up: np.ndarray,
     lo: np.ndarray,
     hi: np.ndarray,
     droplog: DropLog | None = None,
+    *,
+    exact_rows: np.ndarray | None = None,
 ) -> np.ndarray:
     """Absolute residuals in doubling steps on exact rows only.
 
@@ -42,18 +50,31 @@ def residual_steps(
         lo, hi: Lab interval bounds in mg/L, aligned with the predictions.
         droplog: Where to record the censored/missing rows that were skipped. A
             local ``DropLog("conformal")`` is used when omitted.
+        exact_rows: Optional boolean mask of rows whose lab result is a measured
+            MIC (training passes ``lab_exact``,
+            :func:`genome2mic.mic.lab_exact_mask`, which excludes disk diffusion). It
+            only restricts: a row must also pass the one-step interval rule. The
+            one-step rows it removes are counted separately.
 
     Returns:
-        ``|pred_step - log2(hi)|`` for rows with ``lo > 0`` and ``hi < inf`` and a
-        non-missing prediction, in input order.
+        ``|pred_step - log2(hi)|`` for exact rows (one doubling step, and in
+        ``exact_rows`` when given) with a non-missing prediction, in input order.
     """
     pred = np.asarray(pred_log2_rounded_up, dtype=np.float64).ravel()
     low, high = validate_intervals(lo, hi, len(pred))
     log = droplog if droplog is not None else DropLog("conformal")
-    exact = exact_mask(low, high)
-    log.drop("censored row (conformal residuals use exact MICs only)", int((~exact).sum()))
+    interval_exact = exact_mask(low, high)
+    exact = interval_exact
+    if exact_rows is not None:
+        measured = np.asarray(exact_rows, dtype=bool).ravel()
+        if measured.size != len(pred):
+            raise ValueError(f"exact_rows has {measured.size} entries for {len(pred)} rows")
+        exact = interval_exact & measured
+    log.drop("censored row (conformal residuals use exact MICs only)", int((~interval_exact).sum()))
     missing = np.isnan(pred)
     log.drop("missing prediction (conformal residuals)", int((missing & exact).sum()))
+    if exact_rows is not None:
+        log.drop(NOT_MEASURED_REASON, int((interval_exact & ~exact).sum()))
     keep = exact & ~missing
     return np.abs(pred[keep] - np.log2(high[keep]))
 

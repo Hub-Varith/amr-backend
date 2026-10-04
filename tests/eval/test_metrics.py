@@ -19,6 +19,7 @@ from genome2mic.droplog import DropLog
 from genome2mic.eval import metrics as m
 from genome2mic.eval.metrics import (
     DISTANCE_COLUMNS,
+    REDERIVED_COLUMNS,
     SUMMARY_COLUMNS,
     auroc,
     band_coverage,
@@ -28,10 +29,30 @@ from genome2mic.eval.metrics import (
     categorical,
     essential_agreement,
     exact_agreement,
+    is_exact_interval,
     summarize,
 )
 
 INF = math.inf
+
+
+# ---------------------------------------------------------------------------
+# is_exact_interval: one doubling step, the single "exact MIC" definition
+# ---------------------------------------------------------------------------
+class TestIsExactInterval:
+    def test_one_doubling_step_only(self) -> None:
+        lo = [4.0, 0.125, 2.0, 0.0, 32.0, 1.0, np.nan]
+        hi = [8.0, 0.25, 8.0, 0.25, INF, 4.0, 8.0]
+        # (4, 8] and (0.125, 0.25] are exact; (2, 8] and (1, 4] span two steps (I-only
+        # results); (0, X] and (X, inf) are censored; a null bound is never exact.
+        assert is_exact_interval(lo, hi).tolist() == [True, True, False, False, False, False, False]
+
+    def test_matches_the_shared_mic_definition(self) -> None:
+        from genome2mic.mic import exact_interval_mask
+
+        lo = np.array([4.0, 2.0, 0.0, 32.0, 0.5])
+        hi = np.array([8.0, 8.0, 1.0, INF, 1.0])
+        assert is_exact_interval(lo, hi).tolist() == exact_interval_mask(lo, hi).tolist()
 
 
 # ---------------------------------------------------------------------------
@@ -318,25 +339,31 @@ class TestBand:
 def _preds_frame() -> pd.DataFrame:
     """Hand-built preds table: three (species, drug, model, split) groups.
 
+    EA, exact agreement and band coverage are evaluated on **exact** rows only (lab
+    interval of one doubling step, contract section 7: ``n_exact`` is EA's
+    denominator). Censored rows are marked "--" in those columns.
+
     Group A — KPNEU / meropenem / aft_known / test, 6 rows (breakpoints S<=2, R>4):
       r1 pred 8    band [4, 16]   lab (4, 8]     R/R   EA yes  exact yes  covered yes  width 2
-      r2 pred 0.25 band [.125,.5] lab (0, 0.25]  S/S   EA yes  exact yes  covered yes  width 2
-      r3 pred 2    band [1, 4]    lab (32, inf)  S/R   EA no   exact no   covered no   width 2  <- VME
+      r2 pred 0.25 band [.125,.5] lab (0, 0.25]  S/S   --      --         --           width 2
+      r3 pred 2    band [1, 4]    lab (32, inf)  S/R   --      --         --           width 2  <- VME
       r4 pred 16   band [8, 32]   lab (0.5, 1]   R/S   EA no   exact no   covered no   width 2  <- ME
       r5 pred 4    band [2, 8]    lab (1, 2]     I/S   EA yes  exact no   covered yes  width 2  <- mIE
-      r6 pred 64   band [16, 128] lab (32, inf)  R/R   EA yes  exact yes  covered yes  width 3
+      r6 pred 64   band [16, 128] lab (32, inf)  R/R   --      --         --           width 3
       -> n 6, n_cat 6, n_lab_r 3, n_lab_s 3, vme 1/3, me 1/3, mine 1/6, ca 3/6,
-         EA 4/6, exact 3/6, coverage 4/6, width 13/6, n_exact 3 (r1, r4, r5),
+         n_exact 3 (r1, r4, r5): EA 2/3, exact 1/3; n_band 3: coverage 2/3;
+         width 13/6 (every row with a band),
          AUROC: R scores log2 {3, 1, 6} vs S scores {-2, 4, 2}: wins 2+1+3 = 6 / 9.
 
     Group B — same pair and split, model b0_resfinder (no MIC, no band), 3 rows:
       b1 S/R lab (32, inf)  <- VME ; b2 R/R lab (4, 8] ; b3 S/S lab (0, 0.25]
-      -> n 3, n_cat 3, n_lab_r 2, n_lab_s 1, vme 1/2, me 0, mine 0, ca 2/3, n_exact 1,
-         EA / exact / auroc / band metrics all null.
+      -> n 3, n_cat 3, n_lab_r 2, n_lab_s 1, vme 1/2, me 0, mine 0, ca 2/3,
+         n_exact 0 and n_band 0 (no prediction to compare), EA / exact / auroc / band
+         metrics all null.
 
     Group C — KPNEU / meropenem / aft_known / cv, 2 perfect rows:
       c1 pred 8 band [8, 8]  lab (4, 8]   R/R ; c2 pred 1 band [0.5, 2] lab (0.5, 1] S/S
-      -> everything 1.0 or 0.0, width (0 + 2) / 2 = 1, n_exact 2, auroc 1.0.
+      -> everything 1.0 or 0.0, width (0 + 2) / 2 = 1, n_exact 2, n_band 2, auroc 1.0.
     """
     a = pd.DataFrame(
         {
@@ -406,10 +433,19 @@ class TestSummarize:
             "vme_rate", "me_rate", "mine_rate", "categorical_agreement",
             "essential_agreement", "exact_agreement", "auroc",
             "band_coverage", "band_width_steps",
-            "n", "n_exact", "n_cat", "n_lab_r", "n_lab_s",
+            "n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s",
+            "vme_rate_rederived", "me_rate_rederived", "mine_rate_rederived",
+            "categorical_agreement_rederived",
+            "n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived",
         ]  # fmt: skip
         assert list(SUMMARY_COLUMNS) == expected
         assert list(summarize(_preds_frame()).columns) == expected
+
+    def test_rederived_block_starts_with_vme(self) -> None:
+        assert REDERIVED_COLUMNS[0] == "vme_rate_rederived"
+        columns = list(SUMMARY_COLUMNS)
+        block = columns[columns.index("vme_rate_rederived") :]
+        assert block == list(REDERIVED_COLUMNS)
 
     def test_one_row_per_group_sorted_by_keys(self) -> None:
         out = summarize(_preds_frame())
@@ -428,15 +464,115 @@ class TestSummarize:
         assert row["n_lab_r"] == 3
         assert row["n_lab_s"] == 3
         assert row["n_exact"] == 3
+        assert row["n_band"] == 3
         assert row["vme_rate"] == pytest.approx(1 / 3)
         assert row["me_rate"] == pytest.approx(1 / 3)
         assert row["mine_rate"] == pytest.approx(1 / 6)
         assert row["categorical_agreement"] == pytest.approx(3 / 6)
-        assert row["essential_agreement"] == pytest.approx(4 / 6)
-        assert row["exact_agreement"] == pytest.approx(3 / 6)
+        assert row["essential_agreement"] == pytest.approx(2 / 3)
+        assert row["exact_agreement"] == pytest.approx(1 / 3)
         assert row["auroc"] == pytest.approx(6 / 9)
-        assert row["band_coverage"] == pytest.approx(4 / 6)
+        assert row["band_coverage"] == pytest.approx(2 / 3)
         assert row["band_width_steps"] == pytest.approx(13 / 6)
+
+    def test_n_exact_is_the_denominator_of_ea_and_exact_agreement(self) -> None:
+        out = summarize(_preds_frame())
+        for _, row in out.dropna(subset=["essential_agreement"]).iterrows():
+            # A rate times its denominator is a whole number of rows.
+            assert row["essential_agreement"] * row["n_exact"] == pytest.approx(round(row["essential_agreement"] * row["n_exact"]))
+            assert row["exact_agreement"] * row["n_exact"] == pytest.approx(round(row["exact_agreement"] * row["n_exact"]))
+            assert row["band_coverage"] * row["n_band"] == pytest.approx(round(row["band_coverage"] * row["n_band"]))
+
+    def test_censored_and_multi_step_rows_are_left_out_of_ea_exact_and_coverage(self) -> None:
+        # Every row would "agree" under the lenient censored rules (pred >= X for
+        # (X, inf); pred <= 2X for (0, X]; overlap for a two-step I-only interval).
+        # Only the one exact row (4, 8] -- which disagrees -- may count.
+        preds = pd.DataFrame(
+            {
+                "genome_id": ["e1", "e2", "e3", "e4"],
+                "species": "KPNEU",
+                "drug": "meropenem",
+                "split": "test",
+                "model": "aft_known",
+                "pred_mic": [64.0, 0.25, 4.0, 64.0],
+                "band_low": [32.0, 0.125, 2.0, 32.0],
+                "band_high": [128.0, 0.5, 8.0, 128.0],
+                "lab_lower": [32.0, 0.0, 2.0, 4.0],
+                "lab_upper": [INF, 0.25, 8.0, 8.0],
+                "pred_sir": ["R", "S", "I", "R"],
+                "lab_sir": ["R", "S", "I", "R"],
+            }
+        )
+        log = DropLog("eval")
+        row = summarize(preds, drop_log=log).iloc[0]
+        assert row["n"] == 4
+        assert row["n_exact"] == 1 and row["n_band"] == 1
+        assert row["essential_agreement"] == pytest.approx(0.0)
+        assert row["exact_agreement"] == pytest.approx(0.0)
+        assert row["band_coverage"] == pytest.approx(0.0)
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons["lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage"] == 3
+
+    @staticmethod
+    def _disk_preds(lab_exact: object | None) -> pd.DataFrame:
+        """Two one-step lab intervals; d2 is a disk I-only row (CLSI meropenem I = (1, 2]).
+
+        d1 pred 8 lab (4, 8] dilution: EA yes, exact yes, covered yes.
+        d2 pred 16 lab (1, 2] disk:   EA no,  exact no,  covered no (band [8, 32]).
+        """
+        preds = pd.DataFrame(
+            {
+                "genome_id": ["d1", "d2"],
+                "species": "KPNEU",
+                "drug": "meropenem",
+                "split": "test",
+                "model": "aft_known",
+                "pred_mic": [8.0, 16.0],
+                "band_low": [4.0, 8.0],
+                "band_high": [16.0, 32.0],
+                "lab_lower": [4.0, 1.0],
+                "lab_upper": [8.0, 2.0],
+                "pred_sir": ["R", "R"],
+                "lab_sir": ["R", "I"],
+            }
+        )
+        if lab_exact is not None:
+            preds["lab_exact"] = lab_exact
+        return preds
+
+    def test_lab_exact_false_rows_are_not_exact_mics(self) -> None:
+        """A disk-diffusion one-step interval (lab_exact False) is not an exact lab MIC (contract method filter)."""
+        log = DropLog("eval")
+        row = summarize(self._disk_preds([True, False]), drop_log=log).iloc[0]
+        assert row["n"] == 2 and row["n_exact"] == 1 and row["n_band"] == 1
+        assert row["essential_agreement"] == pytest.approx(1.0)
+        assert row["exact_agreement"] == pytest.approx(1.0)
+        assert row["band_coverage"] == pytest.approx(1.0)
+        assert row["n_cat"] == 2  # still a categorical row
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons[m.NOT_MEASURED_REASON] == 1
+        assert reasons["lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage"] == 0
+
+    def test_lab_exact_nullable_booleans_and_missing_column(self) -> None:
+        # Nullable boolean column: NA is "not known to be exact" -> left out.
+        nullable = pd.array([True, pd.NA], dtype="boolean")
+        row = summarize(self._disk_preds(nullable)).iloc[0]
+        assert row["n_exact"] == 1 and row["essential_agreement"] == pytest.approx(1.0)
+        # Old preds without the column fall back to the interval rule: both rows exact.
+        log = DropLog("eval")
+        row = summarize(self._disk_preds(None), drop_log=log).iloc[0]
+        assert row["n_exact"] == 2 and row["essential_agreement"] == pytest.approx(0.5)
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons[m.NOT_MEASURED_REASON] == 0
+        # lab_exact can only narrow the interval rule: True on a censored row does not make it exact.
+        preds = self._disk_preds([True, True])
+        preds.loc[1, ["lab_lower", "lab_upper"]] = [32.0, INF]
+        assert summarize(preds).iloc[0]["n_exact"] == 1
+
+    def test_exact_lab_mask_is_shared_with_the_figures(self) -> None:
+        preds = self._disk_preds([True, False])
+        assert m.exact_lab_mask(preds).tolist() == [True, False]
+        assert m.exact_lab_mask(self._disk_preds(None)).tolist() == [True, True]
 
     def test_group_b_without_mic_contributes_only_categorical(self) -> None:
         out = summarize(_preds_frame()).set_index(["model", "split"])
@@ -445,7 +581,8 @@ class TestSummarize:
         assert row["n_cat"] == 3
         assert row["n_lab_r"] == 2
         assert row["n_lab_s"] == 1
-        assert row["n_exact"] == 1
+        assert row["n_exact"] == 0  # no prediction: nothing to put in an EA denominator
+        assert row["n_band"] == 0
         assert row["vme_rate"] == pytest.approx(0.5)
         assert row["me_rate"] == pytest.approx(0.0)
         assert row["mine_rate"] == pytest.approx(0.0)
@@ -456,7 +593,7 @@ class TestSummarize:
     def test_group_c_perfect(self) -> None:
         out = summarize(_preds_frame()).set_index(["model", "split"])
         row = out.loc[("aft_known", "cv")]
-        assert row["n"] == 2 and row["n_exact"] == 2
+        assert row["n"] == 2 and row["n_exact"] == 2 and row["n_band"] == 2
         assert row["vme_rate"] == pytest.approx(0.0)
         assert row["me_rate"] == pytest.approx(0.0)
         assert row["mine_rate"] == pytest.approx(0.0)
@@ -469,9 +606,12 @@ class TestSummarize:
 
     def test_dtypes(self) -> None:
         out = summarize(_preds_frame())
-        for col in ("n", "n_exact", "n_cat", "n_lab_r", "n_lab_s"):
+        for col in (
+            "n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s",
+            "n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived",
+        ):  # fmt: skip
             assert pd.api.types.is_integer_dtype(out[col]), col
-        for col in SUMMARY_COLUMNS[4:13]:
+        for col in [*SUMMARY_COLUMNS[4:13], *REDERIVED_COLUMNS[:4]]:
             assert pd.api.types.is_float_dtype(out[col]), col
 
     def test_missing_band_columns_give_null_band_metrics(self) -> None:
@@ -479,9 +619,10 @@ class TestSummarize:
         out = summarize(preds)
         assert out["band_coverage"].isna().all()
         assert out["band_width_steps"].isna().all()
+        assert (out["n_band"] == 0).all()
         # The other metrics are unaffected.
         row = out.set_index(["model", "split"]).loc[("aft_known", "test")]
-        assert row["essential_agreement"] == pytest.approx(4 / 6)
+        assert row["essential_agreement"] == pytest.approx(2 / 3)
 
     def test_null_sir_rows_excluded_from_categorical_but_counted_in_n(self) -> None:
         preds = _preds_frame()
@@ -536,8 +677,12 @@ class TestSummarize:
         assert reasons["pred_sir or lab_sir null: excluded from categorical metrics"] == 0
         assert reasons["lab_lower/lab_upper null: excluded from MIC metrics"] == 0
         assert reasons["lab interval (0, inf): excluded from MIC metrics"] == 0
+        # r2, r3, r6 have a prediction but a censored lab interval (b0 rows have no prediction).
+        assert reasons["lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage"] == 3
         # r5 is pred I / lab S: no lab I row in the fixture, so nothing leaves the R-vs-S AUROC.
         assert reasons["lab_sir I: excluded from AUROC"] == 0
+        # The fixture has no lab_sir_rederived column: every row leaves the re-derived block.
+        assert reasons["pred_sir or lab_sir_rederived null: excluded from re-derived categorical metrics"] == 11
 
     def test_drop_log_counts_lab_i_rows_left_out_of_auroc(self) -> None:
         preds = _preds_frame()
@@ -566,6 +711,72 @@ class TestSummarize:
         preds["external_set"] = None
         preds["lineage_cluster"] = "KPNEU_PP_1"  # evaluation-only column; must not break anything
         assert len(summarize(preds)) == 3
+
+
+# ---------------------------------------------------------------------------
+# Re-derived lab S/I/R (lab interval classified under the call breakpoint)
+# ---------------------------------------------------------------------------
+class TestRederived:
+    @staticmethod
+    def _with_rederived() -> pd.DataFrame:
+        """Group A of ``_preds_frame`` plus a hand-set ``lab_sir_rederived``.
+
+        pred_sir           R  S  S  R  I  R
+        lab_sir (reported) R  S  R  S  S  R
+        lab_sir_rederived  R  S  I  S  S  --   (r6 null: interval straddles a breakpoint)
+
+        Re-derived, over the 5 complete rows: lab R {r1}, lab S {r2, r4, r5}, lab I {r3}.
+          VME (pred S, lab R): none   -> 0 / 1
+          ME  (pred R, lab S): r4     -> 1 / 3
+          mIE (one side I):    r3, r5 -> 2 / 5
+          CA:                  r1, r2 -> 2 / 5
+        """
+        preds = _preds_frame()
+        group_a = preds[(preds["model"] == "aft_known") & (preds["split"] == "test")].reset_index(drop=True)
+        group_a["lab_sir_rederived"] = pd.array(["R", "S", "I", "S", "S", None], dtype="str")
+        return group_a
+
+    def test_hand_computed_rederived_rates(self) -> None:
+        row = summarize(self._with_rederived()).iloc[0]
+        assert row["n_cat_rederived"] == 5
+        assert row["n_lab_r_rederived"] == 1
+        assert row["n_lab_s_rederived"] == 3
+        assert row["vme_rate_rederived"] == pytest.approx(0.0)
+        assert row["me_rate_rederived"] == pytest.approx(1 / 3)
+        assert row["mine_rate_rederived"] == pytest.approx(2 / 5)
+        assert row["categorical_agreement_rederived"] == pytest.approx(2 / 5)
+
+    def test_as_reported_metrics_are_unchanged_by_the_rederived_column(self) -> None:
+        row = summarize(self._with_rederived()).iloc[0]
+        assert row["vme_rate"] == pytest.approx(1 / 3)
+        assert row["me_rate"] == pytest.approx(1 / 3)
+        assert row["categorical_agreement"] == pytest.approx(3 / 6)
+        assert row["n_cat"] == 6
+
+    def test_null_rederived_rows_are_logged(self) -> None:
+        log = DropLog("eval")
+        summarize(self._with_rederived(), drop_log=log)
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons["pred_sir or lab_sir_rederived null: excluded from re-derived categorical metrics"] == 1
+
+    def test_missing_column_gives_nan_rates_and_zero_counts(self) -> None:
+        out = summarize(_preds_frame())
+        for col in REDERIVED_COLUMNS[:4]:
+            assert out[col].isna().all(), col
+        for col in REDERIVED_COLUMNS[4:]:
+            assert (out[col] == 0).all(), col
+
+    def test_invalid_rederived_value_raises(self) -> None:
+        preds = self._with_rederived()
+        preds["lab_sir_rederived"] = pd.array(["R", "S", "I", "S", "S", "susceptible"], dtype="str")
+        with pytest.raises(ValueError, match="lab_sir_rederived"):
+            summarize(preds)
+
+    def test_by_distance_bin_carries_the_rederived_block(self) -> None:
+        preds = self._with_rederived()
+        out = by_distance_bin(preds, np.full(len(preds), 0.001), bins=[0.0, 0.01])
+        assert list(out.columns[-len(REDERIVED_COLUMNS) :]) == list(REDERIVED_COLUMNS)
+        assert out.iloc[0]["me_rate_rederived"] == pytest.approx(1 / 3)
 
 
 # ---------------------------------------------------------------------------

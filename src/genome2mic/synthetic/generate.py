@@ -157,6 +157,18 @@ UNIT_WEIGHTS = (0.55, 0.22, 0.10, 0.06, 0.07)
 NAME_STYLES: tuple[str, ...] = ("full", "abbrev", "messy")
 NAME_STYLE_WEIGHTS = (0.5, 0.3, 0.2)
 UNKNOWN_DRUG_NAMES: tuple[str, ...] = ("Cefiderocol", "Fosfomycin", "Ceftolozane/tazobactam", "Nitrofurantoin")
+BVBRC_YEAR_NULL_BELOW = 0.08
+BVBRC_YEAR_DRAWN = (0.15, 0.27)
+"""BV-BRC ``testing_standard_year`` from one uniform draw ``u`` per lab: ``u < 0.08`` blank;
+``0.15 <= u < 0.27`` a year in 2016-2023 (no breakpoint table: S/I/R-only rows are dropped
+by ingest); otherwise ``2024`` (the shipped tables). A year integer is drawn exactly when
+``u >= 0.15`` so the random stream (and every genome) matches earlier generator versions."""
+COMBINATION_DRUGS: dict[str, str] = {"piperacillin-tazobactam": "4"}
+"""Drug -> fixed partner concentration written as ``x/<partner>`` on BV-BRC MIC rows whose
+lab spells drug names in the ``abbrev`` or ``messy`` style (ingest keeps ``x``)."""
+DISK_METHODS: tuple[str, ...] = ("Disk diffusion", "disk diffusion")
+DROP_NULL_YEAR = "S/I/R-only row with null standard_year"
+DROP_NO_TABLE_FOR_YEAR = "S/I/R-only row with no breakpoint table for standard_year"
 
 DRUG_SPELLINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "meropenem": {"full": ("meropenem", "Meropenem"), "abbrev": ("MEM", "MERO"),
@@ -440,7 +452,14 @@ def _lab_profile(rng: np.random.Generator, source: str) -> LabProfile:
     if source == "BVBRC":
         standard = _choice(rng, STANDARDS, (0.45, 0.55))
         report_standard = standard
-        year = "" if rng.random() < 0.15 else str(int(rng.integers(2016, 2024)))
+        u = rng.random()
+        drawn = int(rng.integers(2016, 2024)) if u >= BVBRC_YEAR_DRAWN[0] else None
+        if u < BVBRC_YEAR_NULL_BELOW:
+            year = ""
+        elif drawn is not None and u < BVBRC_YEAR_DRAWN[1]:
+            year = str(drawn)
+        else:
+            year = "2024"
         method = _choice(rng, BVBRC_METHODS, BVBRC_METHOD_WEIGHTS)
     else:
         standard = _choice(rng, STANDARDS, (0.30, 0.70))
@@ -887,8 +906,6 @@ def _row_from_step(
         standard = lab.report_standard
         if source == "BVBRC" and rng.random() < 0.2:
             standard = ""
-        if standard in ("", "missing"):
-            drop = "S/I/R-only row with blank standard"
     else:
         if method == "no_value":
             method = "Broth dilution" if source == "BVBRC" else "broth microdilution"
@@ -913,8 +930,15 @@ def _row_from_step(
             mic_for_sir = math.ldexp(1.0, step)
         unit = lab.unit
         standard = lab.report_standard
+        partner = COMBINATION_DRUGS.get(drug)
+        if partner is not None and source == "BVBRC" and lab.name_style != "full":
+            value = f"{value}/{partner}"
         if method in ("Vitek 2", "automated system"):
             drop = "unknown typing method"
+    if sir_only or method in DISK_METHODS:
+        # Ingest reads these on the S/I/R path (a disk value is a zone diameter, even the
+        # forced-numeric conflict rows of a disk lab), so predict its drop reason here.
+        drop = _sir_path_drop(config, standard, lab.standard_year)
     sir = _sir(config, plan.species, drug, lab.standard, mic_for_sir)
     words = SIR_WORDS[source][sir]
     return {
@@ -931,6 +955,21 @@ def _row_from_step(
         "step": step,
         "drop": drop,
     }
+
+
+def _sir_path_drop(config: Config, standard: str, standard_year: str) -> str | None:
+    """Drop reason ingest will log for an S/I/R-path row, or ``None`` if it converts.
+
+    Mirrors ``harmonize``: a blank/``missing`` standard, then a blank year (NCBI exports
+    never have one), then a year without a breakpoint table. Only the 2024 tables ship.
+    """
+    if standard in ("", "missing"):
+        return "S/I/R-only row with blank standard"
+    if not standard_year:
+        return DROP_NULL_YEAR
+    if not config.has_breakpoint_table(standard, int(standard_year)):
+        return DROP_NO_TABLE_FOR_YEAR
+    return None
 
 
 def _conflict_step(config: Config, plan: GenomePlan, drug: str, sir: str, lab: LabProfile) -> int:
@@ -996,6 +1035,8 @@ def _build_label_rows(
     planted = {
         "evidence == Computational Prediction": 0,
         "S/I/R-only row with blank standard": 0,
+        DROP_NULL_YEAR: 0,
+        DROP_NO_TABLE_FOR_YEAR: 0,
         "unknown antibiotic name": 0,
         "unknown typing method": 0,
         "conflicting cross-source duplicate (genome x drug pairs)": 0,
@@ -1025,6 +1066,8 @@ def _build_label_rows(
                     r2 = _row_from_step(rng, plan, drug, step, dup_lab, "BVBRC", config)
                     bvbrc.append(_bvbrc_row(plan, r2, genome_name))
                     planted["within-source duplicate rows (consistent)"] += 1
+                    if r2["drop"] is not None:
+                        planted[r2["drop"]] += 1
             else:
                 ncbi.append(_ncbi_row(rng, plan, r))
         if primary == "BVBRC":
@@ -1061,6 +1104,8 @@ def _build_label_rows(
                     if rng.random() < 0.3:
                         step += int(rng.integers(0, 2)) * 2 - 1  # +-1 step: intersection rule
                     r = _row_from_step(rng, plan, drug, step, second, "NCBI", config)
+                if r["drop"] is not None:
+                    planted[r["drop"]] += 1
                 ncbi.append(_ncbi_row(rng, plan, r))
     for reason, n in planted.items():
         if reason == "biosamples present in both sources" or reason.startswith("within-source"):
@@ -1181,7 +1226,10 @@ Predictions built on it are not prescribing advice.
 - **MIC model**: `log2 MIC = base + sum(effects) + lineage N(0, {mk.LINEAGE_SD}) + N(0, {mk.NOISE_SD})`,
   rounded to the doubling grid, censored at the panel edges (`<=` lowest well, `>`
   highest well), S/I/R reported under the row's standard using the 2024 breakpoint
-  tables in `configs/breakpoints/`. `ompK36_D135DGD` adds {mk.OMPK36_SYNERGY_EXTRA:+g} extra meropenem steps
+  tables in `configs/breakpoints/`. Every lab's S/I/R is derived from the 2024 tables,
+  but only rows that *say* 2024 can be converted back: an S/I/R-only row needs the
+  table for exactly its `standard_year`, so 2016-2023 and blank years are dropped.
+  `ompK36_D135DGD` adds {mk.OMPK36_SYNERGY_EXTRA:+g} extra meropenem steps
   when a carbapenemase or ESBL is present. Gentamicin is a synthetic simplification
   (only `aac(6')-Ib-cr` drives it).
 
@@ -1208,6 +1256,10 @@ Predictions built on it are not prescribing advice.
   `0.12`/`0.125` and `8.0` spellings; `evidence == Computational Prediction` rows
   (BV-BRC) that must be filtered; disk-diffusion S/I/R-only rows under EUCAST and
   CLSI; S/I/R-only rows with a blank or `missing` standard (must be dropped);
+  BV-BRC `testing_standard_year` mostly `2024`, some 2016-2023 (no breakpoint table:
+  S/I/R-only rows must be dropped) and some blank, while NCBI exports have no year
+  column (NCBI S/I/R-only rows must be dropped: no table can be matched);
+  piperacillin-tazobactam MICs written as `x/4` by some BV-BRC labs (ingest uses `x`);
   rows with a method but no value (S/I/R path); unknown methods (`Vitek 2`,
   `automated system`) and unknown drug names that must be dropped and logged.
 - `data/processed/drop_log_synth.csv` records how many of each were planted so the

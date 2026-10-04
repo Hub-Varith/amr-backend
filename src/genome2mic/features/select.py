@@ -204,15 +204,101 @@ def select_known(
 # ---------------------------------------------------------------------------
 # Unitig selection
 # ---------------------------------------------------------------------------
+SUM_CHUNK_NNZ: int = 1 << 22
+"""Stored entries processed per step by the column sums below (bounds temporaries to ~50 MB)."""
+
+
 def _binary_training_block(U: sp.spmatrix, pos: np.ndarray) -> sp.csr_matrix:
-    """Training rows of ``U`` as a CSR matrix with every stored non-zero set to 1.0."""
+    """Training rows of ``U`` as a canonical CSR ``int8`` 0/1 matrix (one copy, ~5 B per stored entry).
+
+    Explicit zeros are dropped in the input dtype first, so e.g. a float 0.5 counts
+    as presence exactly as before; duplicates are merged and every stored entry
+    is 1. No float copy of the matrix is made (the sums below work on the int8
+    block directly).
+    """
     Ut = sp.csr_matrix(U)[pos]
-    Ut = sp.csr_matrix(Ut, dtype=np.float64)
     Ut.eliminate_zeros()
-    Ut.data[:] = 1.0
-    Ut.sum_duplicates()
-    Ut.data[:] = 1.0  # duplicates summed to >1 are presence too
+    if Ut.dtype != np.int8:
+        Ut = sp.csr_matrix((np.ones(Ut.nnz, dtype=np.int8), Ut.indices, Ut.indptr), shape=Ut.shape)
+    else:
+        Ut.data[:] = 1
+    if not Ut.has_canonical_format:  # rare (stage-8 matrices are canonical): sum in int32, no int8 overflow
+        Ut = sp.csr_matrix(Ut, dtype=np.int32)
+        Ut.sum_duplicates()
+        Ut = sp.csr_matrix((np.ones(Ut.nnz, dtype=np.int8), Ut.indices, Ut.indptr), shape=Ut.shape)
     return Ut
+
+
+def _row_chunks(indptr: np.ndarray, n_rows: int, chunk_nnz: int) -> Iterable[tuple[int, int]]:
+    """Consecutive row ranges ``[r0, r1)`` holding about ``chunk_nnz`` stored entries each."""
+    r0 = 0
+    while r0 < n_rows:
+        r1 = int(np.searchsorted(indptr, indptr[r0] + chunk_nnz, side="right")) - 1
+        r1 = min(max(r1, r0 + 1), n_rows)
+        yield r0, r1
+        r0 = r1
+
+
+def _column_counts(Ut: sp.csr_matrix, rows: np.ndarray | None = None) -> np.ndarray:
+    """Stored entries per column of a binary CSR block (``int64``), over all rows or a boolean row subset."""
+    n_rows, n_cols = Ut.shape
+    counts = np.zeros(n_cols, dtype=np.int64)
+    for r0, r1 in _row_chunks(Ut.indptr, n_rows, SUM_CHUNK_NNZ):
+        idx = Ut.indices[Ut.indptr[r0] : Ut.indptr[r1]]
+        if rows is not None:
+            idx = idx[np.repeat(rows[r0:r1], np.diff(Ut.indptr[r0 : r1 + 1]))]
+        counts += np.bincount(idx, minlength=n_cols)
+    return counts
+
+
+def _column_dot(Ut: sp.csr_matrix, w: np.ndarray, rows: np.ndarray | None = None) -> np.ndarray:
+    """``Ut.T @ w`` for a binary CSR block (``float64``), optionally over a boolean row subset.
+
+    Accumulates in row-major order with :func:`numpy.add.at` -- the same order as
+    scipy's ``csc_matvec`` -- so the result is bit-identical to ``Ut.T @ w`` on a
+    float copy, without making that copy.
+    """
+    n_rows, n_cols = Ut.shape
+    out = np.zeros(n_cols, dtype=np.float64)
+    for r0, r1 in _row_chunks(Ut.indptr, n_rows, SUM_CHUNK_NNZ):
+        lengths = np.diff(Ut.indptr[r0 : r1 + 1])
+        idx = Ut.indices[Ut.indptr[r0] : Ut.indptr[r1]]
+        weights = np.repeat(w[r0:r1], lengths)
+        if rows is not None:
+            keep = np.repeat(rows[r0:r1], lengths)
+            idx, weights = idx[keep], weights[keep]
+        np.add.at(out, idx, weights)
+    return out
+
+
+def _correlations_from_block(Ut: sp.csr_matrix, y: np.ndarray) -> np.ndarray:
+    """Pearson correlation of each column of a binary CSR block with ``y`` (rows aligned)."""
+    n_cols = Ut.shape[1]
+    finite = np.isfinite(y)
+    n_bad = int((~finite).sum())
+    rows: np.ndarray | None = None
+    if n_bad:
+        logger.warning("column_correlations: %d training rows with non-finite y_point ignored", n_bad)
+        rows = finite
+    yf = y[finite]
+    n = yf.size
+    corr = np.full(n_cols, np.nan, dtype=np.float64)
+    if n < 2:
+        return corr
+    mean = yf.mean()
+    yc_f = yf - mean
+    sy = float(np.sqrt(np.mean(yc_f * yc_f)))
+    if sy == 0.0:
+        logger.warning("column_correlations: y_point is constant on the training rows; correlations undefined")
+        return corr
+    yc = np.zeros(y.size, dtype=np.float64)
+    yc[finite] = yc_f  # non-finite rows are skipped via ``rows``; their value is never read
+    p = _column_counts(Ut, rows).astype(np.float64) / n
+    cov = _column_dot(Ut, yc, rows) / n
+    var_x = p * (1.0 - p)
+    ok = var_x > 0
+    corr[ok] = cov[ok] / (np.sqrt(var_x[ok]) * sy)
+    return corr
 
 
 def _align_y(y_point: np.ndarray, pos: np.ndarray, n_rows: int) -> np.ndarray:
@@ -244,34 +330,16 @@ def column_correlations(
     zero variance, or a constant ``y``, get ``NaN``. Rows with a non-finite ``y``
     are excluded from the correlation (not from the frequency).
 
+    The training rows are binarised once into an ``int8`` block; the sums run on
+    it in bounded chunks (no float copy of the matrix).
+
     Returns:
         ``float64`` array of length ``U.shape[1]``.
     """
-    n_rows, n_cols = U.shape
+    n_rows, _n_cols = U.shape
     pos = _as_positions(train_idx, n_rows)
     y = _align_y(y_point, pos, n_rows)
-    Ut = _binary_training_block(U, pos)
-    finite = np.isfinite(y)
-    n_bad = int((~finite).sum())
-    if n_bad:
-        logger.warning("column_correlations: %d training rows with non-finite y_point ignored", n_bad)
-        Ut = sp.csr_matrix(Ut[np.flatnonzero(finite)])
-        y = y[finite]
-    n = y.size
-    corr = np.full(n_cols, np.nan, dtype=np.float64)
-    if n < 2:
-        return corr
-    yc = y - y.mean()
-    sy = float(np.sqrt(np.mean(yc * yc)))
-    if sy == 0.0:
-        logger.warning("column_correlations: y_point is constant on the training rows; correlations undefined")
-        return corr
-    p = np.asarray(Ut.sum(axis=0)).ravel() / n
-    cov = np.asarray(Ut.T @ yc).ravel() / n
-    var_x = p * (1.0 - p)
-    ok = var_x > 0
-    corr[ok] = cov[ok] / (np.sqrt(var_x[ok]) * sy)
-    return corr
+    return _correlations_from_block(_binary_training_block(U, pos), y)
 
 
 def select_unitigs(
@@ -314,9 +382,9 @@ def select_unitigs(
             log.drop(reason, 0, detail="no unitig columns")
         return np.empty(0, dtype=np.int64)
 
-    Ut = _binary_training_block(U, pos)
+    Ut = _binary_training_block(U, pos)  # binarised once; reused for the correlations below
     n_train = pos.size
-    freq = np.asarray(Ut.sum(axis=0)).ravel() / n_train
+    freq = _column_counts(Ut).astype(np.float64) / n_train
     below = freq < min_freq
     above = freq > max_freq
     log.drop("unitig_below_min_freq", int(below.sum()),
@@ -329,7 +397,8 @@ def select_unitigs(
         logger.warning("select_unitigs: no unitig column passed the frequency window")
         return candidates
 
-    corr = column_correlations(Ut, np.arange(n_train), y)  # Ut already restricted to training rows
+    corr = _correlations_from_block(Ut, y)  # Ut is already the binary training block
+    del Ut
     score = np.abs(corr[candidates])
     if np.isnan(score).all():
         logger.warning("select_unitigs: correlations undefined; keeping the first %d columns by index", top_k)

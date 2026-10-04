@@ -275,10 +275,12 @@ def test_block_kmers_form_one_pattern_and_core_is_filtered(built, world: World) 
     assert len(b_cols) == 1 and b_cols != a_cols
 
     index = summary.index.set_index("col_index")
+    assert list(summary.index.columns) == list(ug.LOAD_INDEX_COLUMNS)  # no member sequences in memory
     assert index.loc[a_col, "n_unitigs"] == len(world.a_kmers) == 270
     assert index.loc[a_col, "train_frequency"] == pytest.approx(6 / 12)
-    assert set(index.loc[a_col, "unitig_sequences"]) == world.a_kmers
     assert index.loc[a_col, "pattern_id"] == ug.pattern_id(a_col)
+    on_disk = pd.read_parquet(summary.index_path).set_index("col_index")
+    assert set(on_disk.loc[a_col, "unitig_sequences"]) == world.a_kmers
 
     core = canonical_strings(world.core)
     assert not (core & set(decoded)), "core k-mers (100 % of training genomes) must be filtered"
@@ -466,6 +468,195 @@ def test_empty_species_raises(tmp_path: Path, world: World, config) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scale fixes: streaming patterns (#23), guard, membership direction (#27), index (#28)
+# ---------------------------------------------------------------------------
+def random_world_fastas(tmp_path: Path, seed: int, n_genomes: int = 40) -> dict[str, Path]:
+    """Genomes = core + a random subset of accessory blocks (some blocks always travel together)
+    + a few random SNPs, so the k-mer matrix has many columns and many duplicate columns."""
+    rng = np.random.default_rng(seed)
+    core = random_dna(rng, 1500)
+    blocks = [random_dna(rng, int(rng.integers(40, 250))) for _ in range(14)]
+    out: dict[str, Path] = {}
+    for g in range(n_genomes):
+        carried = rng.uniform(size=len(blocks)) < rng.uniform(0.2, 0.8)
+        carried[1] = carried[0]  # blocks 0 and 1 always co-occur -> one pattern
+        contigs = [mutate(core, sorted(rng.choice(len(core), size=int(rng.integers(0, 4)), replace=False).tolist()))]
+        contigs += [b for b, c in zip(blocks, carried) if c]
+        path = tmp_path / f"w{seed}_{g:03d}.fasta"
+        write_fasta([(f"c{j}", s) for j, s in enumerate(contigs)], path)
+        out[f"w{g:03d}"] = path
+    return out
+
+
+def explicit_matrix_build(fastas: dict[str, Path], min_freq: float = ug.MIN_FREQ, max_freq: float = ug.MAX_FREQ):
+    """The pre-#23 algorithm: explicit genomes x kept-k-mers CSR, then collapse_patterns on it."""
+    kms = [ug.genome_kmers(p, K) for p in fastas.values()]
+    n = len(kms)
+    all_k, counts = np.unique(np.concatenate(kms), return_counts=True)
+    freq = counts.astype(np.float64) / n
+    kept = all_k[~((freq < min_freq) | (freq > max_freq))]
+    rows, cols = [], []
+    for r, km in enumerate(kms):
+        c = np.flatnonzero(np.isin(kept, km))
+        rows.append(np.full(c.size, r))
+        cols.append(c)
+    r_all, c_all = np.concatenate(rows), np.concatenate(cols)
+    M = sp.csr_matrix((np.ones(r_all.size, dtype=np.int8), (r_all, c_all)), shape=(n, kept.size), dtype=np.int8)
+    pattern_col, rep = ug.collapse_patterns(M)
+    P = sp.csr_matrix(M[:, rep], dtype=np.int8)
+    P.sort_indices()
+    return kept, pattern_col, int(rep.size), P, np.asarray(P.sum(axis=0)).ravel().astype(np.float64) / n, int(all_k.size)
+
+
+@pytest.mark.parametrize("seed", [1, 2])
+@pytest.mark.parametrize("mode", ["cached", "reread", "parallel"])
+def test_streaming_build_equals_explicit_matrix_method(tmp_path: Path, seed: int, mode: str, monkeypatch) -> None:
+    from genome2mic import parallel
+
+    fastas = random_world_fastas(tmp_path, seed)
+    kept, pattern_col, n_patterns, P, freq, n_total = explicit_matrix_build(fastas)
+    assert n_patterns > 5 and n_patterns < kept.size  # the fixture really has duplicate columns
+    if mode == "cached":
+        backend = ug.KmerBackend(threads=1)
+    elif mode == "reread":
+        backend = ug.KmerBackend(threads=1, max_cached_elements=0)
+    else:
+        monkeypatch.setattr(parallel, "MIN_PARALLEL_ITEMS", 1)
+        backend = ug.KmerBackend(threads=2, max_cached_elements=0)
+    result = backend.build(fastas, DropLog("unitigs"))
+    assert np.array_equal(result.kmer_set.kmers, kept)
+    assert np.array_equal(result.kmer_set.pattern_col, pattern_col)
+    assert result.kmer_set.n_patterns == n_patterns
+    assert result.matrix.shape == P.shape and result.matrix.dtype == np.int8
+    assert np.array_equal(result.matrix.indptr, P.indptr) and np.array_equal(result.matrix.indices, P.indices)
+    assert np.array_equal(result.matrix.data, P.data)
+    assert np.array_equal(result.train_frequency, freq)
+    assert (result.n_kmers_total, result.n_kmers_kept) == (n_total, kept.size)
+
+
+def test_kmer_backend_refuses_too_many_genomes(tmp_path: Path, world: World, config, monkeypatch) -> None:
+    paths = make_root(tmp_path, world, with_extra=False)  # 12 training genomes
+    with pytest.raises(ug.TooManyGenomesForKmerBackend) as exc:
+        ug.KmerBackend(max_genomes=5).build({g: paths.genome_fasta(g) for g in world.train}, DropLog("unitigs"))
+    message = str(exc.value)
+    assert "--unitig-backend unitig-caller" in message and "--unitig-max-kmer-genomes" in message
+    assert "12 training genomes" in message
+
+    def boom(*_a, **_k):
+        raise AssertionError("a FASTA was read before the size guard fired")
+
+    monkeypatch.setattr(ug, "genome_kmers", boom)
+    with pytest.raises(ug.TooManyGenomesForKmerBackend):
+        ug.run(paths, config, max_kmer_genomes=11)
+    monkeypatch.undo()
+    assert ug.run(paths, config, max_kmer_genomes=12)["n_train"].tolist() == [12]  # at the limit is fine
+    with pytest.raises(ValueError):
+        ug.KmerBackend(max_genomes=0)
+    assert ug.KmerBackend(max_genomes=None).max_genomes is None
+
+
+def test_auto_backend_prefers_unitig_caller_and_threads_are_passed(monkeypatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda *_a, **_k: "/usr/bin/unitig-caller")
+    auto = ug.make_backend("auto", threads=3, max_kmer_genomes=7)
+    assert isinstance(auto, ug.UnitigCallerBackend) and auto.threads == 3
+    monkeypatch.setattr(shutil, "which", lambda *_a, **_k: None)
+    fallback = ug.make_backend("auto", threads=3, max_kmer_genomes=7)
+    assert isinstance(fallback, ug.KmerBackend) and fallback.max_genomes == 7 and fallback.threads == 3
+    from genome2mic import parallel
+
+    assert ug.UnitigCallerBackend().threads == parallel.resolve_threads(None)  # default: all cores, not 1
+    assert ug.make_backend("unitig-caller", threads=2).threads == 2
+
+
+def test_present_positions_match_the_old_mask_direction() -> None:
+    rng = np.random.default_rng(9)
+    for _ in range(30):
+        big = np.unique(rng.integers(0, 5000, size=int(rng.integers(0, 3000))).astype(np.uint64))
+        small = np.unique(rng.integers(0, 5000, size=int(rng.integers(0, 400))).astype(np.uint64))
+        # old: binary-search every element of the big set into the small query
+        if small.size and big.size:
+            pos = np.searchsorted(small, big)
+            old = (pos < small.size) & (small[np.minimum(pos, small.size - 1)] == big)
+        else:
+            old = np.zeros(big.size, dtype=bool)
+        got = ug._present_positions(big, small)
+        assert np.array_equal(got, np.flatnonzero(old))
+        assert np.array_equal(ug._present_mask(big, small), old)
+
+
+def test_pattern_sizes_are_cached_and_read_only() -> None:
+    ks = ug.KmerSet(np.array([3, 9, 27], dtype=np.uint64), np.array([1, 0, 1], dtype=np.int32), n_patterns=3)
+    first = ks.pattern_sizes()
+    assert first is ks.pattern_sizes()
+    assert first.tolist() == [1, 2, 0]
+    with pytest.raises(ValueError):
+        first[0] = 5
+
+
+def test_load_unitigs_skips_member_sequences_by_default(built, monkeypatch) -> None:
+    paths, summary = built
+    seen: list[object] = []
+    real_read = ug.read_parquet
+
+    def spy(path, columns=None):
+        if Path(path) == paths.unitig_index(SPECIES):
+            seen.append(columns)
+        return real_read(path, columns=columns)
+
+    monkeypatch.setattr(ug, "read_parquet", spy)
+    _matrix, _rows, index = ug.load_unitigs(paths, SPECIES)
+    assert list(index.columns) == list(ug.LOAD_INDEX_COLUMNS)
+    assert seen == [list(ug.LOAD_INDEX_COLUMNS)]
+    _matrix, _rows, full = ug.load_unitigs(paths, SPECIES, index_columns=None)
+    assert list(full.columns) == list(ug.INDEX_COLUMNS)
+    pd.testing.assert_frame_equal(full[list(ug.LOAD_INDEX_COLUMNS)], index)
+
+
+def test_index_writer_batches_give_identical_files(tmp_path: Path) -> None:
+    rng = np.random.default_rng(11)
+    kmers = np.unique(rng.integers(0, 4**K, size=200, dtype=np.uint64))
+    pattern_col = rng.integers(0, 9, size=kmers.size).astype(np.int32)
+    pattern_col[:9] = np.arange(9)  # every pattern has a member
+    ks = ug.KmerSet(kmers, pattern_col, n_patterns=9)
+    freq = rng.uniform(size=9)
+    ug._write_index(tmp_path / "big.parquet", ks, freq)
+    ug._write_index(tmp_path / "small.parquet", ks, freq, batch_kmers=7)
+    big = pd.read_parquet(tmp_path / "big.parquet")
+    small = pd.read_parquet(tmp_path / "small.parquet")
+    assert list(big.columns) == list(ug.INDEX_COLUMNS)
+    assert [list(x) for x in big["unitig_sequences"]] == ks.member_sequences()
+    assert [list(x) for x in small["unitig_sequences"]] == ks.member_sequences()
+    pd.testing.assert_frame_equal(big.drop(columns="unitig_sequences"), small.drop(columns="unitig_sequences"))
+    assert big["n_unitigs"].tolist() == ks.pattern_sizes().tolist()
+    import pyarrow.parquet as pq
+
+    assert pq.read_schema(tmp_path / "small.parquet").field("unitig_sequences").type == pq.read_schema(
+        tmp_path / "big.parquet"
+    ).field("unitig_sequences").type
+    # An empty set still writes a readable file with the contract columns.
+    empty = ug.KmerSet(np.empty(0, np.uint64), np.empty(0, np.int32), n_patterns=0)
+    ug._write_index(tmp_path / "empty.parquet", empty, np.empty(0))
+    back = pd.read_parquet(tmp_path / "empty.parquet")
+    assert list(back.columns) == list(ug.INDEX_COLUMNS) and len(back) == 0
+
+
+def test_parallel_build_and_query_match_serial(tmp_path: Path, world: World, config, monkeypatch) -> None:
+    from genome2mic import parallel
+
+    p1 = make_root(tmp_path / "serial", world, with_extra=True)
+    p2 = make_root(tmp_path / "pooled", world, with_extra=True)
+    serial = ug.run(p1, config, species=[SPECIES], threads=1)
+    monkeypatch.setattr(parallel, "MIN_PARALLEL_ITEMS", 1)
+    pooled = ug.run(p2, config, species=[SPECIES], threads=2, backend=ug.KmerBackend(threads=2, max_cached_elements=0))
+    pd.testing.assert_frame_equal(serial, pooled)
+    m1, m2 = sp.load_npz(p1.unitigs(SPECIES)), sp.load_npz(p2.unitigs(SPECIES))
+    assert (m1 != m2).nnz == 0 and m1.shape == m2.shape
+    pd.testing.assert_frame_equal(pd.read_parquet(p1.unitig_index(SPECIES)), pd.read_parquet(p2.unitig_index(SPECIES)))
+    pd.testing.assert_frame_equal(pd.read_parquet(p1.unitig_rows(SPECIES)), pd.read_parquet(p2.unitig_rows(SPECIES)))
+    assert ug._WORKER_STATE == {}
+
+
+# ---------------------------------------------------------------------------
 # KmerSet persistence and sequence decomposition
 # ---------------------------------------------------------------------------
 def test_kmer_set_roundtrip_and_validation(tmp_path: Path) -> None:
@@ -483,6 +674,19 @@ def test_kmer_set_roundtrip_and_validation(tmp_path: Path) -> None:
         ug.KmerSet(np.array([9, 3], dtype=np.uint64), np.array([0, 0], dtype=np.int32), 1)  # unsorted
     with pytest.raises(ValueError):
         ug.KmerSet(kmers, np.array([0, 0, 0, 5], dtype=np.int32), 2)  # column out of range
+
+
+def test_read_kmer_set_sha1_uses_the_stored_hash_and_falls_back_to_content(tmp_path: Path) -> None:
+    ks = ug.KmerSet(np.array([3, 9, 27], dtype=np.uint64), np.array([0, 1, 1], dtype=np.int32), n_patterns=2)
+    path = ug.save_kmer_set(tmp_path / "set.npz", ks)
+    assert ug.read_kmer_set_sha1(path) == ks.sha1()
+    # A set file without the sha1 scalar (older writer) is hashed from its content.
+    legacy = tmp_path / "legacy.npz"
+    np.savez(legacy, kmers=ks.kmers, pattern_col=ks.pattern_col, k=np.int64(ks.k), n_patterns=np.int64(2),
+             presence_fraction=np.float64(ks.presence_fraction))
+    assert ug.read_kmer_set_sha1(legacy) == ks.sha1()
+    other = ug.KmerSet(np.array([3, 9, 27], dtype=np.uint64), np.array([1, 0, 1], dtype=np.int32), n_patterns=2)
+    assert ug.read_kmer_set_sha1(ug.save_kmer_set(tmp_path / "other.npz", other)) != ks.sha1()
 
 
 def test_kmer_set_from_sequences_and_query(tmp_path: Path) -> None:
@@ -550,3 +754,31 @@ def test_unitig_caller_finish_filters_and_collapses(tmp_path: Path) -> None:
     assert result.kmer_set.n_kmers == 20  # 2 unitigs x 10 k-mers
     reasons = {r.reason: r.n_dropped for r in log.records}
     assert reasons == {"unitig_below_min_freq": 1, "unitig_above_max_freq": 1}
+
+
+# ---------------------------------------------------------------------------
+# CLI flags (#23/#27): --unitig-max-kmer-genomes and --unitig-threads reach run()
+# ---------------------------------------------------------------------------
+def test_cli_unitig_flags_reach_run(tmp_path: Path, monkeypatch) -> None:
+    from genome2mic import cli
+
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        ["unitigs", "--root", str(tmp_path), "--unitig-backend", "auto",
+         "--unitig-max-kmer-genomes", "5", "--unitig-threads", "3", "--species", "kpneu"]
+    )
+    seen: dict[str, object] = {}
+
+    def fake_run(paths, config, **kwargs):
+        seen.update(kwargs)
+        return pd.DataFrame({"species": ["KPNEU"]})
+
+    monkeypatch.setattr(ug, "run", fake_run)
+    monkeypatch.setattr(cli, "_load_config", lambda paths: None)
+    assert cli.cmd_unitigs(args) == 0
+    assert seen == {"species": ["KPNEU"], "backend": "auto", "max_kmer_genomes": 5, "threads": 3}
+
+    defaults = parser.parse_args(["unitigs", "--root", str(tmp_path)])
+    assert defaults.unitig_max_kmer_genomes == ug.DEFAULT_MAX_KMER_GENOMES and defaults.unitig_threads is None
+    run_all = parser.parse_args(["run-all", "--root", str(tmp_path), "--unitig-threads", "2"])
+    assert run_all.unitig_threads == 2 and run_all.unitig_max_kmer_genomes == ug.DEFAULT_MAX_KMER_GENOMES

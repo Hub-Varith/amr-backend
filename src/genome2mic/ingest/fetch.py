@@ -21,6 +21,11 @@ URI                                                        Command
 **Credentials are never read, written or logged here.** The provider CLI finds them in
 its own login state or environment (``gcloud auth login`` / VM service account,
 ``aws configure`` / instance role, ``azcopy login`` / ``AZCOPY_AUTO_LOGIN_TYPE``).
+For S3, ``aws_profile`` (CLI ``--aws-profile NAME``) selects a named profile from
+``~/.aws/config``: it sets ``AWS_PROFILE`` in the environment of the ``aws s3 sync``
+subprocess only (this process's environment is untouched). The profile *name* is shown
+in logs, the dry-run command and ``fetch_summary.json``; the environment's contents
+(access keys, session tokens) never are.
 Query strings (Azure SAS tokens) and ``user:password@`` parts are redacted from every
 log line, from the dry-run output and from ``data/raw/fetch_summary.json``.
 
@@ -59,6 +64,7 @@ import fnmatch
 import json
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -118,6 +124,11 @@ INSTALL_HINTS: dict[str, str] = {
 }
 
 _REDACTED = "<redacted>"
+
+AWS_PROFILE_ENV = "AWS_PROFILE"
+AWS_ENV_CREDENTIAL_VARS: tuple[str, ...] = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
+"""Environment credentials the AWS CLI uses *before* ``AWS_PROFILE`` (names only are ever logged)."""
+_AWS_PROFILE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._@+\-]*$")
 
 
 class FetchError(Genome2MicError):
@@ -291,6 +302,29 @@ def build_command(source: Source, dest: Path, include: Sequence[str] | None, too
             cmd += ["--include-pattern", names]
         return cmd
     raise ValueError("the local provider copies in-process; there is no command to build")
+
+
+def validate_aws_profile(profile: str) -> str:
+    """Return ``profile`` if it is a plausible AWS CLI profile name, else raise ``ValueError``.
+
+    Accepts letters, digits and ``. _ @ + -`` (not as the first character for ``. @ + -``),
+    so a typo such as ``--aws-profile "two words"`` or a pasted ``KEY=value`` fails early
+    instead of reaching the CLI. The value is passed through the environment, never a
+    shell, so this is a usability check, not an injection guard.
+    """
+    if not isinstance(profile, str) or not _AWS_PROFILE_RE.fullmatch(profile):
+        raise ValueError(
+            f"invalid AWS profile name {profile!r}: use the name of a profile in ~/.aws/config "
+            "(letters, digits, '.', '_', '@', '+', '-')"
+        )
+    return profile
+
+
+def subprocess_env(aws_profile: str | None) -> dict[str, str] | None:
+    """Environment for the provider CLI: ``None`` (inherit) or a copy with ``AWS_PROFILE`` set."""
+    if aws_profile is None:
+        return None
+    return {**os.environ, AWS_PROFILE_ENV: aws_profile}
 
 
 def redact_command(command: Sequence[str]) -> list[str]:
@@ -568,6 +602,8 @@ class FetchSummary:
     n_links: int = 0
     problems: list[str] = field(default_factory=list)
     elapsed_s: float = 0.0
+    aws_profile: str | None = None
+    """``AWS_PROFILE`` set for the ``aws`` subprocess (a profile name, not a credential)."""
 
     @property
     def layout_ok(self) -> bool:
@@ -577,8 +613,15 @@ class FetchSummary:
         return asdict(self)
 
     def command_line(self) -> str:
-        """Shell-quoted (redacted) command, or the local copy description."""
-        return shlex.join(self.command)
+        """Shell-quoted (redacted) command, or the local copy description.
+
+        With an AWS profile the line starts with ``AWS_PROFILE=<name>`` so the printed
+        command reproduces the run when pasted into a shell.
+        """
+        line = shlex.join(self.command)
+        if self.aws_profile:
+            line = f"{AWS_PROFILE_ENV}={shlex.quote(self.aws_profile)} {line}"
+        return line
 
 
 def run(
@@ -588,6 +631,7 @@ def run(
     dry_run: bool = False,
     *,
     link_canonical: bool = False,
+    aws_profile: str | None = None,
 ) -> FetchSummary:
     """Sync ``source_uri`` into ``paths.raw_dir`` and validate the raw layout.
 
@@ -600,6 +644,9 @@ def run(
         dry_run: Build and report the command, write nothing, run nothing.
         link_canonical: After the sync, add ``genomes/<genome_id>.fasta`` symlinks for
             uncompressed genomes that have another suffix or live in sub-folders.
+        aws_profile: Named AWS CLI profile for an ``s3://`` source. Set as
+            ``AWS_PROFILE`` for the ``aws s3 sync`` subprocess only; ``None`` inherits
+            the current environment (an exported ``AWS_PROFILE`` still applies).
 
     Returns:
         :class:`FetchSummary`. Also writes ``data/raw/fetch_summary.json`` and, when
@@ -607,12 +654,19 @@ def run(
         (neither in dry-run mode).
 
     Raises:
-        ValueError: unknown URI scheme.
+        ValueError: unknown URI scheme; ``aws_profile`` given for a non-S3 source or
+            not a valid profile name.
         ToolNotAvailable: the provider CLI is not on ``PATH`` (non-dry runs).
         FetchError: the CLI exited non-zero.
     """
     started = time.perf_counter()
     source = parse_source(source_uri)
+    if aws_profile is not None:
+        validate_aws_profile(aws_profile)
+        if source.provider != PROVIDER_S3:
+            raise ValueError(
+                f"--aws-profile only applies to s3:// sources; {source.display!r} is a {source.provider} source"
+            )
     patterns = [p for p in (include or []) if p]
     dest = paths.raw_dir
     tool = select_tool(source.provider, dry_run=dry_run)
@@ -634,12 +688,24 @@ def run(
         assert tool is not None
         command = build_command(source, dest, patterns, tool)
         shown = shlex.join(redact_command(command))
+        if aws_profile is not None:
+            # only the profile name: the environment itself is never logged
+            shown = f"{AWS_PROFILE_ENV}={shlex.quote(aws_profile)} {shown}"
+            shadowing = [name for name in AWS_ENV_CREDENTIAL_VARS if os.environ.get(name)]
+            if shadowing:
+                logger.warning(
+                    "[%s] %s set in the environment; the AWS CLI uses environment credentials before "
+                    "%s=%s. Unset them to use the profile.",
+                    STAGE, " and ".join(shadowing), AWS_PROFILE_ENV, aws_profile,
+                )
         if dry_run:
             logger.info("[%s] dry run; would execute: %s", STAGE, shown)
         else:
             dest.mkdir(parents=True, exist_ok=True)
             logger.info("[%s] executing: %s", STAGE, shown)
-            completed = subprocess.run(command, check=False)  # noqa: S603 -- argv list, no shell
+            completed = subprocess.run(  # noqa: S603 -- argv list, no shell
+                command, check=False, env=subprocess_env(aws_profile)
+            )
             if completed.returncode != 0:
                 raise FetchError(f"{tool} exited with status {completed.returncode}: {shown}")
 
@@ -650,6 +716,7 @@ def run(
         command=redact_command(command),
         dest=str(dest),
         dry_run=dry_run,
+        aws_profile=aws_profile,
     )
     if dry_run:
         summary.elapsed_s = time.perf_counter() - started
@@ -721,6 +788,7 @@ def _human(n_bytes: int) -> str:
 
 
 __all__ = [
+    "AWS_PROFILE_ENV",
     "AST_GLOB",
     "AST_READ_BY_INGEST",
     "FASTA_SUFFIXES",
@@ -750,6 +818,8 @@ __all__ = [
     "scan_genomes",
     "select_tool",
     "strip_fasta_suffix",
+    "subprocess_env",
     "sync_local",
+    "validate_aws_profile",
     "write_manifest",
 ]

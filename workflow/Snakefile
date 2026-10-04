@@ -4,19 +4,45 @@
 #
 # Usage:
 #   snakemake -s workflow/Snakefile -n --config root=runs/synthetic            # dry run
-#   snakemake -s workflow/Snakefile --config root=. synthetic=false -j 8       # real data, tools on PATH
+#   snakemake -s workflow/Snakefile --config root=. synthetic=false --cores 32  # real data, tools on PATH
+#
+# Optional --config keys: amrfinder_threads (default 4), amrfinder_mem_mb (default 4000).
+# Snakemake schedules by the declared `threads:` / `resources: mem_mb`, so `--cores N`
+# (plus `--resources mem_mb=<RAM>`) never oversubscribes the machine.
 #
 # When `synthetic` is true (default when <root>/data/raw/SYNTHETIC_DATA.md exists) or a
 # tool is not on PATH, the matching rule is a no-op: it leaves the synthetic/precomputed
 # file intact and touches it so Snakemake sees it as up to date. No real tool runs on
 # simulated genomes. All data under runs/ is SYNTHETIC.
 
+import csv
 import shutil
 from pathlib import Path
 
-configfile_defaults = {"root": "runs/synthetic", "configs_dir": None, "synthetic": None}
+import yaml
+
+configfile_defaults = {
+    "root": "runs/synthetic",
+    "configs_dir": None,
+    "synthetic": None,
+    "amrfinder_threads": 4,
+    "amrfinder_mem_mb": 4000,
+}
 for _key, _value in configfile_defaults.items():
     config.setdefault(_key, _value)
+
+
+def as_bool(value):
+    """`--config synthetic=false` arrives as the *string* "false" (snakemake only maps True/False)."""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(f"cannot read {value!r} as a boolean (use true/false)")
+
 
 ROOT = Path(config["root"])
 CONFIGS_DIR = Path(config["configs_dir"]) if config["configs_dir"] else (ROOT / "configs" if (ROOT / "configs").is_dir() else Path("configs"))
@@ -24,7 +50,9 @@ RAW = ROOT / "data" / "raw"
 INTERIM = ROOT / "data" / "interim"
 GENOMES = RAW / "genomes"
 REFERENCES = RAW / "references"
-SYNTHETIC = bool(config["synthetic"]) if config["synthetic"] is not None else (RAW / "SYNTHETIC_DATA.md").is_file()
+SYNTHETIC = as_bool(config["synthetic"]) if config["synthetic"] is not None else (RAW / "SYNTHETIC_DATA.md").is_file()
+AMRFINDER_THREADS = int(config["amrfinder_threads"])
+AMRFINDER_MEM_MB = int(config["amrfinder_mem_mb"])
 
 
 def genome_ids():
@@ -37,22 +65,31 @@ def genome_ids():
     return sorted(p.stem for p in GENOMES.glob("*.fasta"))
 
 
-def species_of(genome_id):
-    """AMRFinderPlus -O organism and ResFinder species name from genome_metadata.csv + species.yaml."""
-    import csv
-    import yaml
+def load_species_names():
+    """genome_id -> (AMRFinderPlus -O organism, ResFinder species name).
+
+    Parsed ONCE when the Snakefile loads (species.yaml + one scan of
+    genome_metadata.csv), not per job: the params lambdas below are evaluated for
+    every genome during DAG construction.
+    """
     species = yaml.safe_load((CONFIGS_DIR / "species.yaml").read_text())["species"]
     meta = RAW / "genome_metadata.csv"
-    key = None
+    out = {}
     if meta.is_file():
-        with meta.open() as handle:
+        with meta.open(newline="") as handle:
             for row in csv.DictReader(handle):
-                if row.get("genome_id") == genome_id:
-                    key = row.get("species")
-                    break
-    if key not in species:
-        return None, None
-    return species[key]["amrfinder_organism"], species[key]["name"]
+                key = row.get("species")
+                if key in species and row.get("genome_id"):
+                    out[row["genome_id"]] = (species[key]["amrfinder_organism"], species[key]["name"])
+    return out
+
+
+SPECIES_NAMES = load_species_names()
+
+
+def species_of(genome_id):
+    """(AMRFinderPlus -O organism, ResFinder species name), or (None, None) when unknown."""
+    return SPECIES_NAMES.get(genome_id, (None, None))
 
 
 def have(tool):
@@ -75,6 +112,11 @@ def keep_or_fail(path, tool):
 
 
 GENOME_IDS = genome_ids()
+REFERENCE_FASTAS = sorted(str(p) for p in REFERENCES.glob("*.fasta"))
+REFERENCE_SKETCH = INTERIM / "_references" / "references.msh"
+# mash runs only on real data with the tool and at least one reference; otherwise the
+# per-genome rule writes an empty mash.tsv and qc.py falls back to its pure-Python sketch.
+USE_MASH = (not SYNTHETIC) and have("mash") and bool(REFERENCE_FASTAS)
 
 
 rule all:
@@ -92,12 +134,15 @@ rule amrfinder:
         tsv=str(INTERIM / "{gid}" / "amrfinder.tsv"),
     params:
         organism=lambda wc: species_of(wc.gid)[0],
+    threads: AMRFINDER_THREADS
+    resources:
+        mem_mb=AMRFINDER_MEM_MB,
     run:
         if SYNTHETIC or not have("amrfinder"):
             keep_or_fail(output.tsv, "amrfinder")
         else:
             org = f"-O {params.organism}" if params.organism else ""
-            shell("amrfinder -n {input.fasta} {org} --plus -o {output.tsv}")
+            shell("amrfinder -n {input.fasta} {org} --plus --threads {threads} -o {output.tsv}")
 
 
 rule resfinder:
@@ -107,6 +152,7 @@ rule resfinder:
         pheno=str(INTERIM / "{gid}" / "resfinder" / "pheno_table.txt"),
     params:
         species=lambda wc: species_of(wc.gid)[1],
+    threads: 1
     run:
         out_dir = Path(output.pheno).parent
         if SYNTHETIC or (not have("resfinder") and not have("run_resfinder.py")):
@@ -121,6 +167,7 @@ rule mlst:
         fasta=str(GENOMES / "{gid}.fasta"),
     output:
         tsv=str(INTERIM / "{gid}" / "mlst.tsv"),
+    threads: 1
     run:
         if SYNTHETIC or not have("mlst"):
             keep_or_fail(output.tsv, "mlst")
@@ -128,21 +175,34 @@ rule mlst:
             shell("mlst {input.fasta} > {output.tsv}")
 
 
+rule mash_references:
+    """Sketch every species reference ONCE into one multi-sketch .msh (mash defaults k=21, s=1000)."""
+    input:
+        references=REFERENCE_FASTAS,
+    output:
+        msh=str(REFERENCE_SKETCH),
+    threads: 1
+    run:
+        prefix = str(output.msh)[: -len(".msh")]  # mash sketch -o appends .msh
+        Path(output.msh).parent.mkdir(parents=True, exist_ok=True)
+        shell("mash sketch -o {prefix} {input.references}")
+
+
 rule mash:
     input:
         fasta=str(GENOMES / "{gid}.fasta"),
-        references=sorted(str(p) for p in REFERENCES.glob("*.fasta")),
+        references=str(REFERENCE_SKETCH) if USE_MASH else [],
     output:
         tsv=str(INTERIM / "{gid}" / "mash.tsv"),
+    threads: 1
     run:
-        if SYNTHETIC or not have("mash") or not input.references:
-            # qc.py falls back to the pure-Python sketch backend when mash.tsv is absent,
+        if not USE_MASH:
+            # qc.py falls back to the pure-Python sketch backend when mash.tsv is empty,
             # so a missing mash output is allowed: create the directory and an empty file.
-            if Path(output.tsv).is_file():
-                Path(output.tsv).touch()
-            else:
-                Path(output.tsv).parent.mkdir(parents=True, exist_ok=True)
-                Path(output.tsv).touch()
+            Path(output.tsv).parent.mkdir(parents=True, exist_ok=True)
+            Path(output.tsv).touch()
         else:
-            refs = " ".join(input.references)
-            shell("mash dist {refs} {input.fasta} > {output.tsv}")
+            # `mash dist <reference> <query>`: the reference is the multi-sketch .msh, so
+            # every species reference is compared with the genome (one row per reference;
+            # qc.py maps the reference file name to the species and keeps the nearest).
+            shell("mash dist {input.references} {input.fasta} > {output.tsv}")

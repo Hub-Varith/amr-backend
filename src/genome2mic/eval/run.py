@@ -10,7 +10,9 @@ both.
 
 Everything here consumes the stage-10 predictions table only. The metrics describe
 agreement with in-vitro lab results on (synthetic or real) genomes; they are not
-clinical outcomes.
+clinical outcomes. EA, exact agreement and band coverage are over exact (one-step)
+lab MICs (``n_exact`` / ``n_band``); the categorical metrics come as reported and,
+when the preds carry ``lab_sir_rederived``, re-derived under the call breakpoint.
 """
 
 from __future__ import annotations
@@ -79,7 +81,8 @@ def run(paths: Paths, config: Any = None, *, bins: tuple[float, ...] = metrics.D
     write_csv(by_dist, _csv_path(paths.metrics_by_distance))
     log.write(paths.drop_log(STAGE))
 
-    headline = table.loc[table["split"] == "test", ["species", "drug", "model", "vme_rate", "me_rate", "essential_agreement", "categorical_agreement", "n"]]
+    headline_cols = ["species", "drug", "model", "vme_rate", "me_rate", "vme_rate_rederived", "essential_agreement", "n_exact", "categorical_agreement", "n"]
+    headline = table.loc[table["split"] == "test", [c for c in headline_cols if c in table.columns]]
     logger.info(
         "evaluate finished in %.1fs: %d metric rows, %d distance-bin rows. Test set (VME first):\n%s",
         time.perf_counter() - started, len(table), len(by_dist), headline.to_string(index=False),

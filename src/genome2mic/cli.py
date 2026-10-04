@@ -84,9 +84,9 @@ def cmd_synth(args: argparse.Namespace) -> int:
     paths = _resolve_paths(args, for_synth=True)
     summary = _timed(
         "synth",
-        lambda: generate.run(paths, seed=args.seed, n_kpneu=args.n_kpneu, n_ecoli=args.n_ecoli, genome_length=args.genome_length),
+        lambda: generate.run(paths, seed=args.synth_seed, n_kpneu=args.n_kpneu, n_ecoli=args.n_ecoli, genome_length=args.genome_length),
     )
-    print(f"synthetic data written under {paths.root} (seed {args.seed}; {summary.get('n_genomes', '?')} genomes). "
+    print(f"synthetic data written under {paths.root} (seed {args.synth_seed}; {summary.get('n_genomes', '?')} genomes). "
           "SYNTHETIC DATA: do not present any metric from it as real.")
     return 0
 
@@ -103,6 +103,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             include=args.include or None,
             dry_run=args.dry_run,
             link_canonical=getattr(args, "link_canonical", False),
+            aws_profile=getattr(args, "aws_profile", None),
         ),
     )
     if summary.dry_run:
@@ -172,7 +173,7 @@ def cmd_splits(args: argparse.Namespace) -> int:
     lo, hi = args.test_range
     table = _timed(
         "splits",
-        lambda: make_splits.run(paths, config, seed=args.seed, force=args.force, test_range=(lo, hi), n_folds=args.n_folds),
+        lambda: make_splits.run(paths, config, seed=args.split_seed, force=args.force, test_range=(lo, hi), n_folds=args.n_folds),
     )
     n_test = int((table["split"] == "test").sum())
     print(f"splits: {len(table)} genomes, {n_test} test ({n_test / max(len(table), 1):.1%}) -> {paths.splits} (frozen)")
@@ -184,8 +185,16 @@ def cmd_unitigs(args: argparse.Namespace) -> int:
 
     paths = _resolve_paths(args)
     config = _load_config(paths)
-    species = [s.upper() for s in args.species] if args.species else None
-    table = _timed("unitigs", lambda: unitigs.run(paths, config, species=species, backend=args.unitig_backend))
+    species = [s.upper() for s in args.species] if getattr(args, "species", None) else None
+    max_kmer_genomes = getattr(args, "unitig_max_kmer_genomes", unitigs.DEFAULT_MAX_KMER_GENOMES)
+    threads = getattr(args, "unitig_threads", None)
+    table = _timed(
+        "unitigs",
+        lambda: unitigs.run(
+            paths, config, species=species, backend=args.unitig_backend,
+            max_kmer_genomes=max_kmer_genomes, threads=threads,
+        ),
+    )
     print(table.to_string(index=False))
     return 0
 
@@ -198,7 +207,7 @@ def _train_config(args: argparse.Namespace) -> Any:
         top_k=args.top_k,
         min_count=args.min_count,
         nthread=args.nthread,
-        seed=args.seed,
+        seed=args.train_seed,
         max_rounds=args.max_rounds,
         early_stopping_rounds=args.early_stopping_rounds,
         lolo=not args.no_lolo,
@@ -207,11 +216,21 @@ def _train_config(args: argparse.Namespace) -> Any:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
+    """Train every kept pair, or with ``--species``/``--drugs`` only the matching kept pairs (a shard).
+
+    A shard merges its pairs into ``models/manifest.json`` and ``drop_log_train.csv``
+    instead of replacing them, so shards can run as separate jobs.
+    """
     from genome2mic.models import train  # noqa: PLC0415
 
     paths = _resolve_paths(args)
     config = _load_config(paths)
-    summary = _timed("train", lambda: train.run(paths, config, train_config=_train_config(args)))
+    species = getattr(args, "train_species", None)
+    drugs = getattr(args, "train_drugs", None)
+    pairs = train.select_pairs(paths, config, species=species, drugs=drugs) if (species or drugs) else None
+    if pairs is not None:
+        print(f"train: {len(pairs)} pair(s) selected: {', '.join(f'{s} x {d}' for s, d in pairs)}")
+    summary = _timed("train", lambda: train.run(paths, config, train_config=_train_config(args), pairs=pairs))
     print(summary.to_string(index=False))
     return 0
 
@@ -223,7 +242,13 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     config = _load_config(paths)
     table = _timed("evaluate", lambda: eval_run.run(paths, config))
     test = table.loc[table["split"] == "test"]
-    cols = ["species", "drug", "model", "vme_rate", "me_rate", "essential_agreement", "categorical_agreement", "n"]
+    # EA is computed on exact lab MICs only, so its denominator n_exact sits next to it;
+    # the re-derived VME (lab MIC under the call breakpoint) follows the as-reported block.
+    cols = [
+        "species", "drug", "model", "vme_rate", "me_rate", "categorical_agreement",
+        "essential_agreement", "n_exact", "vme_rate_rederived", "n",
+    ]
+    cols = [c for c in cols if c in test.columns]
     print("Test-set metrics (VME first; synthetic data if data/raw/SYNTHETIC_DATA.md exists):")
     print(test[cols].to_string(index=False))
     return 0
@@ -321,7 +346,7 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_synth_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--seed", dest="synth_seed", type=int, default=7, help="synthetic data generator seed")
     parser.add_argument("--n-kpneu", type=int, default=700)
     parser.add_argument("--n-ecoli", type=int, default=300)
     parser.add_argument("--genome-length", type=int, default=60_000)
@@ -342,6 +367,10 @@ def _add_fetch_args(parser: argparse.ArgumentParser, *, required: bool) -> None:
         "--link-canonical", action="store_true",
         help="after the sync, add genomes/<genome_id>.fasta symlinks for .fna/.fa or sub-folder genomes",
     )
+    parser.add_argument(
+        "--aws-profile", dest="aws_profile", default=None, metavar="NAME",
+        help="named AWS CLI profile for an s3:// source; set as AWS_PROFILE for the 'aws s3 sync' subprocess only",
+    )
 
 
 def _add_ingest_args(parser: argparse.ArgumentParser) -> None:
@@ -357,7 +386,7 @@ def _add_lineage_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_split_args(parser: argparse.ArgumentParser, *, with_force: bool = True) -> None:
-    parser.add_argument("--split-seed", dest="seed", type=int, default=7)
+    parser.add_argument("--split-seed", dest="split_seed", type=int, default=7, help="seed for test clusters and folds")
     parser.add_argument("--test-range", type=float, nargs=2, default=(0.15, 0.20), metavar=("LO", "HI"))
     parser.add_argument("--n-folds", type=int, default=5)
     if with_force:
@@ -365,7 +394,19 @@ def _add_split_args(parser: argparse.ArgumentParser, *, with_force: bool = True)
 
 
 def _add_unitig_args(parser: argparse.ArgumentParser, *, with_species: bool = True) -> None:
-    parser.add_argument("--unitig-backend", dest="unitig_backend", default="kmer", choices=["kmer", "unitig-caller", "auto"])
+    parser.add_argument(
+        "--unitig-backend", dest="unitig_backend", default="kmer", choices=["kmer", "unitig-caller", "auto"],
+        help="kmer: pure Python (small sets only); unitig-caller: needs the tool on PATH (use at scale); "
+             "auto: unitig-caller when installed, else kmer",
+    )
+    parser.add_argument(
+        "--unitig-max-kmer-genomes", dest="unitig_max_kmer_genomes", type=int, default=1000, metavar="N",
+        help="the kmer backend refuses species with more than N training genomes (default: 1000)",
+    )
+    parser.add_argument(
+        "--unitig-threads", dest="unitig_threads", type=int, default=None, metavar="N",
+        help="worker processes for per-genome k-mer work and unitig-caller --threads (default: all cores)",
+    )
     if with_species:
         parser.add_argument("--species", nargs="*", default=None, help="species keys to build (default: all in splits)")
 
@@ -375,11 +416,19 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--top-k", type=int, default=2000, help="unitig columns kept per fold")
     parser.add_argument("--min-count", type=int, default=5, help="known-AMR rare-feature filter (training genomes)")
     parser.add_argument("--nthread", type=int, default=4, help="xgboost threads")
-    parser.add_argument("--train-seed", dest="seed", type=int, default=7)
+    parser.add_argument("--train-seed", dest="train_seed", type=int, default=7, help="seed for in-fold holdouts and xgboost")
     parser.add_argument("--max-rounds", type=int, default=400)
     parser.add_argument("--early-stopping-rounds", type=int, default=20)
     parser.add_argument("--no-lolo", action="store_true", help="skip leave-one-lineage-out runs")
     parser.add_argument("--ablation", action="store_true", help="also run aft_unitig_only")
+    parser.add_argument(
+        "--species", dest="train_species", nargs="+", default=None, metavar="KEY",
+        help="train only the kept pairs of these species (a shard; models/manifest.json is merged, not replaced)",
+    )
+    parser.add_argument(
+        "--drugs", dest="train_drugs", nargs="+", default=None, metavar="DRUG",
+        help="train only the kept pairs of these drugs (combine with --species; merged like --species)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

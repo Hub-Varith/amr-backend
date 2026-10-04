@@ -227,14 +227,133 @@ def test_poppunk_backend_is_a_stub(root: Paths) -> None:
 def test_two_lineages_are_obvious_from_sketches(genomes: dict[str, tuple[str, str]]) -> None:
     ids = ["A1", "A2", "A3", "A4", "A1_dup", "A1_snp", "B1", "B2", "B3", "B4"]
     S = sk.stack_sketches([sk.sketch(genomes[g][1], s=SKETCH_SIZE) for g in ids])
-    numbers, D = ln.cluster_species("KPNEU", ids, S, threshold=0.005)
+    numbers, close = ln.cluster_species("KPNEU", ids, S, threshold=0.005)
     a_numbers = {int(numbers[i]) for i, g in enumerate(ids) if g.startswith("A")}
     b_numbers = {int(numbers[i]) for i, g in enumerate(ids) if g.startswith("B")}
     assert a_numbers == {1}  # six A genomes -> the largest cluster -> number 1
     assert b_numbers == {2}
-    assert D[ids.index("A1"), ids.index("A1_dup")] == 0.0
+    # The returned pairs are exactly the outbreak-radius pairs (d <= 1e-4): A1, A1_dup and the
+    # one-SNP A1_snp (a single SNP rarely moves a bottom-500 sketch).
+    D = sk.pairwise_distances(S)
+    pairs = {(ids[i], ids[j]): d for i, j, d in zip(close.rows, close.cols, close.distances)}
+    expected = {(ids[i], ids[j]): D[i, j] for i in range(len(ids)) for j in range(i + 1, len(ids)) if D[i, j] <= 1e-4}
+    assert pairs == expected
+    assert pairs[("A1", "A1_dup")] == 0.0
     assert D[ids.index("A1"), ids.index("B1")] > 0.5
     assert (D[np.ix_([0, 1, 2, 3], [0, 1, 2, 3])] <= 0.005).all()
+
+
+# --------------------------------------------------------------------------- #
+# Sparse clustering == dense single linkage (#25)
+# --------------------------------------------------------------------------- #
+def lineage_sketches(rng: np.random.Generator, n: int, s: int = 200, n_families: int = 6) -> np.ndarray:
+    """Random bottom-``s`` sketches with family structure and a spread of within-family distances."""
+    families = [np.unique(rng.integers(1, 2**63, size=3 * s, dtype=np.uint64)) for _ in range(n_families)]
+    rows = []
+    for _ in range(n):
+        base = families[int(rng.integers(0, n_families))]
+        n_swap = int(rng.integers(0, s // 4))  # 0-25 % of hashes replaced -> distances from 0 to ~0.02
+        swap = rng.choice(base.size, size=n_swap, replace=False)
+        kept = np.delete(base, swap)
+        fresh = rng.integers(1, 2**63, size=n_swap, dtype=np.uint64)
+        rows.append(np.unique(np.concatenate([kept, fresh]))[:s])
+    return sk.stack_sketches(rows)
+
+
+def edges_from_dense(D: np.ndarray, cut: float) -> list[sk.DistanceEdges]:
+    rows, cols = np.nonzero(np.triu(D <= cut, k=1))
+    return [sk.DistanceEdges(rows.astype(np.int64), cols.astype(np.int64), D[rows, cols])]
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_threshold_clusters_equal_dense_single_linkage_on_random_matrices(seed: int) -> None:
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(2, 120))
+    D = rng.uniform(0.0, 0.02, size=(n, n)) * (rng.uniform(size=(n, n)) < 0.7) + 0.02 * (rng.uniform(size=(n, n)) >= 0.7)
+    D = np.triu(D, 1)
+    D = D + D.T
+    for threshold in (0.0, 0.001, 0.004, 0.005, 0.01, 0.05):
+        expected = ln.single_linkage_clusters(D, threshold)
+        got, _ = ln.threshold_clusters(n, edges_from_dense(D, threshold), threshold)
+        assert np.array_equal(got, expected), (seed, threshold)
+        # Extra edges above the threshold in the stream are ignored; compaction does not change anything.
+        got_wide, _ = ln.threshold_clusters(n, edges_from_dense(D, 0.05), threshold, compact_every=1)
+        assert np.array_equal(got_wide, expected), (seed, threshold)
+
+
+@pytest.mark.parametrize("seed", [10, 11, 12])
+def test_cluster_species_equals_old_dense_method_on_random_sketches(seed: int) -> None:
+    rng = np.random.default_rng(seed)
+    n = 90
+    S = lineage_sketches(rng, n)
+    ids = [f"g{i:03d}" for i in range(n)]
+    D = sk.pairwise_distances(S, k=sk.K)  # the old method: dense matrix + scipy single linkage
+    off = D[np.triu_indices(n, 1)]
+    for threshold in (0.0, float(np.quantile(off, 0.02)), float(np.quantile(off, 0.2)), 0.005, 0.05):
+        expected = ln.single_linkage_clusters(D, threshold)
+        numbers, close = ln.cluster_species("KPNEU", ids, S, threshold=threshold, outbreak_distance=0.0)
+        assert np.array_equal(numbers, expected), threshold
+        assert len(set(expected.tolist())) > 1 or threshold >= 0.05
+        assert (close.distances <= 0.0).all()
+
+
+def test_threshold_clusters_numbering_and_validation() -> None:
+    blocks = [sk.DistanceEdges(np.array([3, 0]), np.array([4, 1]), np.array([0.001, 0.002]))]
+    numbers, close = ln.threshold_clusters(6, blocks, 0.005, outbreak_distance=0.0015)
+    # {0,1} and {3,4} tie on size -> the one with the smaller first member is 1; singletons 2 and 5 follow.
+    assert numbers.tolist() == [1, 1, 3, 2, 2, 4]
+    assert close.rows.tolist() == [3] and close.cols.tolist() == [4]
+    assert ln.threshold_clusters(0, [], 0.005)[0].tolist() == []
+    assert ln.threshold_clusters(3, [], 0.005)[0].tolist() == [1, 2, 3]
+    with pytest.raises(ValueError):
+        ln.threshold_clusters(2, blocks, 0.005)  # index 4 out of range
+    with pytest.raises(ValueError):
+        ln.threshold_clusters(6, blocks, -1.0)
+
+
+def test_check_outbreak_edges_uses_sparse_pairs() -> None:
+    edges = sk.DistanceEdges(np.array([0, 1]), np.array([1, 2]), np.array([0.0, 0.5]))
+    assert ln.check_outbreak_edges(edges, np.array([1, 1, 2]), ["a", "b", "c"]) == 1
+    with pytest.raises(ContractViolation, match="a vs b"):
+        ln.check_outbreak_edges(edges, np.array([1, 2, 2]), ["a", "b", "c"])
+
+
+def test_cluster_species_never_builds_a_dense_matrix(genomes: dict[str, tuple[str, str]], monkeypatch) -> None:
+    def boom(*_a, **_k):
+        raise AssertionError("dense n x n path used")
+
+    monkeypatch.setattr(sk, "pairwise_distances", boom)
+    monkeypatch.setattr(ln, "single_linkage_clusters", boom)
+    monkeypatch.setattr(ln, "check_outbreak_pairs", boom)
+    ids = ["A1", "A2", "A1_dup", "B1", "B2"]
+    S = sk.stack_sketches([sk.sketch(genomes[g][1], s=SKETCH_SIZE) for g in ids])
+    numbers, _ = ln.cluster_species("KPNEU", ids, S)
+    assert numbers.tolist() == [1, 1, 1, 2, 2]
+
+
+def test_parallel_sketching_and_distances_match_serial(root: Paths, monkeypatch) -> None:
+    from genome2mic import parallel
+
+    gids = ["A1", "A2", "A3", "A4", "A1_dup", "A1_snp", "B1", "B2", "B3", "NOFASTA"]
+    serial_log, parallel_log = ln.DropLog("lineages"), ln.DropLog("lineages")
+    ids_1, S_1 = ln.sketch_genomes(root, gids, sketch_size=SKETCH_SIZE, droplog=serial_log, threads=1)
+    monkeypatch.setattr(parallel, "MIN_PARALLEL_ITEMS", 1)
+    monkeypatch.setattr(sk, "PARALLEL_MIN_WORK", 0.0)
+    assert parallel.worker_count(2, len(gids)) == 2  # the pool path really runs below
+    ids_2, S_2 =ln.sketch_genomes(root, gids, sketch_size=SKETCH_SIZE, droplog=parallel_log, threads=2)
+    assert ids_1 == ids_2 and "NOFASTA" not in ids_1
+    assert np.array_equal(S_1, S_2)
+    assert [(r.reason, r.n_dropped) for r in serial_log.records] == [(r.reason, r.n_dropped) for r in parallel_log.records]
+
+    n_1, close_1 = ln.cluster_species("KPNEU", ids_1, S_1, threads=1)
+    edges_2 = list(sk.iter_distance_edges(S_1, max_distance=0.5, threads=2, rows_per_task=2))
+    n_2, close_2 = ln.cluster_species("KPNEU", ids_1, S_1, threads=2)
+    assert np.array_equal(n_1, n_2)
+    assert np.array_equal(close_1.rows, close_2.rows) and np.array_equal(close_1.cols, close_2.cols)
+    serial_edges = sk.distance_edges(S_1, max_distance=0.5, threads=1)
+    merged = sk.DistanceEdges.concat(edges_2)
+    assert np.array_equal(merged.rows, serial_edges.rows) and np.array_equal(merged.cols, serial_edges.cols)
+    assert np.array_equal(merged.distances, serial_edges.distances)
 
 
 # --------------------------------------------------------------------------- #

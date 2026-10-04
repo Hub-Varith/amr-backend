@@ -10,15 +10,27 @@ Splitting by lineage cluster is the defence; this module produces the clusters.
 Method (default backend ``mash_single_linkage``)
 ------------------------------------------------
 1. Every QC-passing genome is sketched with :mod:`genome2mic.sketch` (bottom-*s*
-   MinHash with a Mash-compatible distance). Sketches are saved per species to
-   ``processed/sketches_<SPECIES>.npz`` so later stages (nearest-training-genome
-   distance, QC species ID) can reuse them instead of re-reading FASTAs.
-2. Pairwise Mash distances per species.
-3. Single-linkage hierarchical clustering (``scipy.cluster.hierarchy``) cut at
-   ``distance <= threshold`` (default :data:`DEFAULT_THRESHOLD` = 0.005). Under
-   single linkage two genomes share a cluster whenever a *chain* of genomes
+   MinHash with a Mash-compatible distance), in worker processes
+   (``threads``; results in genome order, so output does not depend on it).
+   Sketches are saved per species to ``processed/sketches_<SPECIES>.npz`` so
+   later stages (nearest-training-genome distance, QC species ID) can reuse them
+   instead of re-reading FASTAs.
+2. All-pairs Mash distances per species, computed block-wise
+   (:func:`genome2mic.sketch.iter_distance_edges`) and keeping only the pairs with
+   ``d <= max(threshold, outbreak_distance)``. No ``n x n`` matrix is ever built:
+   memory is the ``(n, s)`` sketch table plus the kept edges, so tens of
+   thousands of genomes per species fit on one VM.
+3. Single-linkage clusters cut at ``distance <= threshold`` (default
+   :data:`DEFAULT_THRESHOLD` = 0.005) = connected components of the graph of
+   pairs within the threshold (:func:`scipy.sparse.csgraph.connected_components`).
+   Under single linkage two genomes share a cluster whenever a *chain* of genomes
    connects them with every link at or below the threshold -- exactly the
    behaviour wanted for outbreak chains and re-submissions of the same strain.
+   The edge stream is folded into a spanning forest as it arrives, so even a
+   large clonal group (all pairs within the threshold) never holds all its
+   edges at once. :func:`single_linkage_clusters` (scipy hierarchical linkage on a
+   dense matrix) is kept as the small-``n`` reference implementation; both give
+   identical cluster numbers.
 
 Why 0.005
 ---------
@@ -49,15 +61,18 @@ PopPUNK is the contract's preferred method but is not installed here; the
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial.distance import squareform
 
+from genome2mic import parallel
 from genome2mic import sketch as sk
 from genome2mic.droplog import DropLog
 from genome2mic.errors import ContractViolation, ToolNotAvailable
@@ -78,8 +93,10 @@ __all__ = [
     "COLUMNS",
     "read_st",
     "single_linkage_clusters",
+    "threshold_clusters",
     "cluster_label",
     "check_outbreak_pairs",
+    "check_outbreak_edges",
     "sketch_genomes",
     "cluster_species",
     "build_lineage_frame",
@@ -175,6 +192,10 @@ def single_linkage_clusters(distances: np.ndarray, threshold: float = DEFAULT_TH
     :func:`scipy.cluster.hierarchy.linkage` (``method="single"``) and
     :func:`scipy.cluster.hierarchy.fcluster` (``criterion="distance"``).
 
+    Dense reference implementation for small ``n`` (``O(n^2)`` memory). The stage
+    itself uses :func:`threshold_clusters` on sparse edges, which returns the
+    identical numbering.
+
     Args:
         distances: ``(n, n)`` symmetric matrix, zeros on the diagonal, no NaN.
         threshold: Inclusive distance cut, ``>= 0``.
@@ -210,10 +231,109 @@ def single_linkage_clusters(distances: np.ndarray, threshold: float = DEFAULT_TH
 def _relabel_by_size(raw: np.ndarray) -> np.ndarray:
     """Map arbitrary cluster labels to ``1..C`` ordered by size desc, then first index."""
     labels = np.asarray(raw)
-    uniq, first_index, counts = np.unique(labels, return_index=True, return_counts=True)
-    order = sorted(range(uniq.size), key=lambda i: (-int(counts[i]), int(first_index[i])))
-    mapping = {uniq[i]: rank + 1 for rank, i in enumerate(order)}
-    return np.array([mapping[v] for v in labels], dtype=np.int64)
+    uniq, first_index, inverse, counts = np.unique(labels, return_index=True, return_inverse=True, return_counts=True)
+    order = np.lexsort((first_index, -counts))  # primary: size desc; ties: first member index
+    rank = np.empty(uniq.size, dtype=np.int64)
+    rank[order] = np.arange(1, uniq.size + 1, dtype=np.int64)
+    return rank[np.asarray(inverse).ravel()]
+
+
+def _components(n: int, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    """Connected-component label per node of the undirected graph ``rows <-> cols``."""
+    if n == 0:
+        return np.empty(0, dtype=np.int64)
+    graph = sp.coo_matrix(
+        (np.ones(rows.size, dtype=np.int8), (np.asarray(rows, dtype=np.int64), np.asarray(cols, dtype=np.int64))),
+        shape=(n, n),
+    ).tocsr()
+    _n_comp, labels = connected_components(graph, directed=False)
+    return np.asarray(labels, dtype=np.int64)
+
+
+def _spanning_forest(n: int, rows: np.ndarray, cols: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """At most ``n - 1`` edges with the same connected components as ``rows <-> cols``.
+
+    Every node is linked to the first (smallest-index) node of its component (a
+    star per component), so connectivity is preserved exactly.
+    """
+    labels = _components(n, rows, cols)
+    _uniq, first = np.unique(labels, return_index=True)
+    root = first[np.searchsorted(_uniq, labels)]
+    nodes = np.arange(n, dtype=np.int64)
+    keep = nodes != root
+    return nodes[keep], root[keep].astype(np.int64)
+
+
+def threshold_clusters(
+    n: int,
+    edge_blocks: Iterable[sk.DistanceEdges],
+    threshold: float = DEFAULT_THRESHOLD,
+    *,
+    outbreak_distance: float | None = None,
+    compact_every: int = 20_000_000,
+) -> tuple[np.ndarray, sk.DistanceEdges]:
+    """Single-linkage clusters (cut ``<= threshold``) from a stream of sparse distance edges.
+
+    Single linkage cut at ``t`` = connected components of the graph whose edges are
+    the pairs with ``d <= t``; this is exactly what :func:`single_linkage_clusters`
+    computes from a dense matrix, with the same ``1..C`` numbering (size
+    descending, ties by smallest member index). Pairs absent from the stream are
+    taken to be farther apart than the threshold, so the stream must contain
+    every pair with ``d <= threshold`` (as :func:`genome2mic.sketch.iter_distance_edges`
+    with ``max_distance >= threshold`` does).
+
+    Edges are folded into a spanning forest whenever more than ``compact_every``
+    accumulate, bounding memory by ``O(n + compact_every)`` regardless of how many
+    pairs fall within the threshold.
+
+    Args:
+        n: Number of genomes (nodes).
+        edge_blocks: :class:`~genome2mic.sketch.DistanceEdges` blocks.
+        threshold: Inclusive single-linkage cut.
+        outbreak_distance: When given, the pairs with ``d <= outbreak_distance`` are
+            collected and returned for :func:`check_outbreak_edges`.
+        compact_every: Edge count that triggers a forest compaction (memory knob).
+
+    Returns:
+        ``(cluster_numbers, close_pairs)``: ``int64`` numbers ``1..C`` per node and
+        the outbreak-radius pairs (empty when ``outbreak_distance`` is ``None``).
+    """
+    if not np.isfinite(threshold) or threshold < 0:
+        raise ValueError(f"threshold must be a finite non-negative number; got {threshold!r}")
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    forest_r = np.empty(0, dtype=np.int64)
+    forest_c = np.empty(0, dtype=np.int64)
+    pending_r: list[np.ndarray] = []
+    pending_c: list[np.ndarray] = []
+    n_pending = n_links = 0
+    close: list[sk.DistanceEdges] = []
+    for block in edge_blocks:
+        if block.size == 0:
+            continue
+        if block.rows.max() >= n or block.cols.max() >= n or min(block.rows.min(), block.cols.min()) < 0:
+            raise ValueError("edge index out of range for n nodes")
+        link = block.distances <= threshold
+        n_link = int(np.count_nonzero(link))
+        if n_link:
+            pending_r.append(block.rows[link])
+            pending_c.append(block.cols[link])
+            n_pending += n_link
+            n_links += n_link
+        if outbreak_distance is not None:
+            near = block.distances <= outbreak_distance
+            if near.any():
+                close.append(sk.DistanceEdges(block.rows[near], block.cols[near], block.distances[near]))
+        if n_pending > compact_every:
+            forest_r, forest_c = _spanning_forest(
+                n, np.concatenate([forest_r, *pending_r]), np.concatenate([forest_c, *pending_c])
+            )
+            pending_r, pending_c, n_pending = [], [], 0
+    if n == 0:
+        return np.empty(0, dtype=np.int64), sk.DistanceEdges.concat(close)
+    labels = _components(n, np.concatenate([forest_r, *pending_r]), np.concatenate([forest_c, *pending_c]))
+    logger.debug("threshold_clusters: %d node(s), %d link(s) <= %g", n, n_links, threshold)
+    return _relabel_by_size(labels), sk.DistanceEdges.concat(close)
 
 
 def cluster_label(species: str, number: int, method_tag: str = _CLUSTER_TAG) -> str:
@@ -236,7 +356,10 @@ def check_outbreak_pairs(
     max_distance: float = OUTBREAK_DISTANCE,
     species: str | None = None,
 ) -> int:
-    """Contract spot-check: every pair with ``d <= max_distance`` shares a cluster.
+    """Contract spot-check on a dense matrix: every pair with ``d <= max_distance`` shares a cluster.
+
+    Small-``n`` convenience wrapper around :func:`check_outbreak_edges` (the stage
+    itself never builds a dense matrix).
 
     Args:
         distances: ``(n, n)`` distance matrix.
@@ -252,21 +375,56 @@ def check_outbreak_pairs(
         ContractViolation: if any near-identical pair is split across clusters.
     """
     D = np.asarray(distances, dtype=np.float64)
+    n = D.shape[0]
+    if D.ndim != 2 or D.shape[1] != n:
+        raise ValueError(f"distances must be a square matrix; got shape {D.shape}")
+    rows, cols = np.nonzero(np.triu(D <= max_distance, k=1))
+    edges = sk.DistanceEdges(rows.astype(np.int64), cols.astype(np.int64), D[rows, cols])
+    return check_outbreak_edges(edges, cluster_numbers, genome_ids, max_distance=max_distance, species=species)
+
+
+def check_outbreak_edges(
+    edges: sk.DistanceEdges,
+    cluster_numbers: np.ndarray,
+    genome_ids: Sequence[str],
+    max_distance: float = OUTBREAK_DISTANCE,
+    species: str | None = None,
+) -> int:
+    """Contract spot-check on sparse pairs: every pair with ``d <= max_distance`` shares a cluster.
+
+    Args:
+        edges: Pairs ``(i, j, d)``; must include every pair with ``d <= max_distance``
+            (pairs farther apart are ignored).
+        cluster_numbers: Cluster per genome.
+        genome_ids: Genome labels for the error message.
+        max_distance: Spot-check radius (contract: 1e-4).
+        species: For log and error messages only.
+
+    Returns:
+        Number of pairs within ``max_distance`` (all of them passed).
+
+    Raises:
+        ContractViolation: if any near-identical pair is split across clusters.
+    """
     labels = np.asarray(cluster_numbers)
     ids = list(genome_ids)
-    n = D.shape[0]
-    if labels.shape[0] != n or len(ids) != n:
-        raise ValueError("distances, cluster_numbers and genome_ids must have the same length")
+    n = labels.shape[0]
+    if len(ids) != n:
+        raise ValueError("cluster_numbers and genome_ids must have the same length")
     tag = f"{species}: " if species else ""
     if n < 2:
         logger.info("[%s] %soutbreak spot-check: fewer than two genomes, nothing to check", STAGE, tag)
         return 0
-    rows, cols = np.triu_indices(n, k=1)
-    close = D[rows, cols] <= max_distance
+    rows = np.asarray(edges.rows, dtype=np.int64)
+    cols = np.asarray(edges.cols, dtype=np.int64)
+    dist = np.asarray(edges.distances, dtype=np.float64)
+    if rows.size and (max(rows.max(), cols.max()) >= n or min(rows.min(), cols.min()) < 0):
+        raise ValueError("edge index out of range for cluster_numbers")
+    close = dist <= max_distance
     n_pairs = int(np.count_nonzero(close))
     split = close & (labels[rows] != labels[cols])
     if np.any(split):
-        bad = [(ids[i], ids[j], float(D[i, j])) for i, j in zip(rows[split], cols[split])]
+        bad = [(ids[i], ids[j], float(d)) for i, j, d in zip(rows[split], cols[split], dist[split])]
         examples = "; ".join(f"{a} vs {b} (d={d:.2e})" for a, b, d in bad[:5])
         raise ContractViolation(
             f"{tag}{len(bad)} near-identical pair(s) within Mash distance {max_distance:g} "
@@ -296,6 +454,17 @@ class _WindowCounter:
         self.n += int(n)
 
 
+def _sketch_fasta(task: tuple[str, int, int]) -> tuple[np.ndarray | None, int]:
+    """Worker task: ``(sketch, non_acgt_windows)`` of one FASTA, or ``(None, 0)`` if it is missing."""
+    path, k, sketch_size = task
+    fasta = Path(path)
+    if not fasta.is_file():
+        return None, 0
+    windows = _WindowCounter()
+    seqs = [seq for _, seq in read_fasta(fasta)]
+    return sk.sketch(seqs, k=k, s=sketch_size, droplog=windows), windows.n
+
+
 def sketch_genomes(
     paths: Paths,
     genome_ids: Sequence[str],
@@ -304,6 +473,7 @@ def sketch_genomes(
     sketch_size: int = sk.SKETCH_SIZE,
     droplog: DropLog | None = None,
     species: str | None = None,
+    threads: int | None = None,
 ) -> tuple[list[str], np.ndarray]:
     """Sketch each genome's FASTA (``paths.genome_fasta``) with :func:`genome2mic.sketch.sketch`.
 
@@ -313,6 +483,10 @@ def sketch_genomes(
     ``sketch_too_small``. The number of k-mer windows skipped for non-ACGT bases
     is recorded once under ``non_acgt_window`` (a window count, not a row count).
 
+    Genomes are sketched in ``threads`` worker processes (``None`` = all cores;
+    small inputs stay in-process). Results come back in ``genome_ids`` order, so
+    the output is identical for any ``threads``.
+
     Returns:
         ``(kept_ids, sketches)`` with ``sketches`` of shape ``(len(kept_ids), sketch_size)``.
     """
@@ -321,18 +495,22 @@ def sketch_genomes(
     missing: list[str] = []
     too_small: list[str] = []
     windows = _WindowCounter()
-    for gid in genome_ids:
-        fasta = paths.genome_fasta(gid)
-        if not fasta.is_file():
+    ids = [str(g) for g in genome_ids]
+    tasks = [(str(paths.genome_fasta(gid)), int(k), int(sketch_size)) for gid in ids]
+    workers = parallel.worker_count(threads, len(tasks))
+    results = parallel.ordered_map(_sketch_fasta, tasks, workers=workers, chunksize=8 if workers > 1 else 1)
+    for i, (gid, (arr, n_skipped)) in enumerate(zip(ids, results, strict=True), start=1):
+        if arr is None:
             missing.append(gid)
             continue
-        seqs = [seq for _, seq in read_fasta(fasta)]
-        arr = sk.sketch(seqs, k=k, s=sketch_size, droplog=windows)
+        windows.drop("non_acgt_window", n_skipped)
         if arr.size < sketch_size:
             too_small.append(gid)
-            continue
-        kept_ids.append(gid)
-        kept.append(arr)
+        else:
+            kept_ids.append(gid)
+            kept.append(arr)
+        if i % 5000 == 0:
+            logger.info("[%s] %ssketched %d/%d genome(s)", STAGE, f"{species}: " if species else "", i, len(ids))
 
     tag = f"{species}: " if species else ""
     if droplog is not None:
@@ -381,25 +559,36 @@ def cluster_species(
     k: int = sk.K,
     threshold: float = DEFAULT_THRESHOLD,
     outbreak_distance: float = OUTBREAK_DISTANCE,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Pairwise Mash distances, single-linkage clusters and the outbreak spot-check.
+    threads: int | None = None,
+) -> tuple[np.ndarray, sk.DistanceEdges]:
+    """Sparse all-pairs Mash distances, single-linkage clusters and the outbreak spot-check.
 
-    Logs one line with the number of clusters and the largest cluster.
+    Distances are computed block-wise (:func:`genome2mic.sketch.iter_distance_edges`,
+    ``threads`` worker processes) keeping only pairs with
+    ``d <= max(threshold, outbreak_distance)``; clusters are the connected
+    components of the ``d <= threshold`` graph (:func:`threshold_clusters`),
+    identical to :func:`single_linkage_clusters` on the dense matrix. No ``n x n``
+    array is allocated. Logs one line with the number of clusters and the
+    largest cluster.
 
     Returns:
-        ``(cluster_numbers, distances)`` -- ``int64`` numbers ``1..C`` aligned
-        with ``genome_ids`` and the ``(n, n)`` distance matrix.
+        ``(cluster_numbers, close_pairs)`` -- ``int64`` numbers ``1..C`` aligned
+        with ``genome_ids`` and the pairs within ``outbreak_distance`` (the
+        spot-checked pairs; positions index ``genome_ids``).
     """
     ids = list(genome_ids)
     S = np.asarray(sketches, dtype=np.uint64)
     if S.ndim != 2 or S.shape[0] != len(ids):
         raise ValueError(f"sketches must be (n, s) with n == len(genome_ids); got {S.shape} for {len(ids)} ids")
+    if not np.isfinite(threshold) or threshold < 0:
+        raise ValueError(f"threshold must be a finite non-negative number; got {threshold!r}")
     if not ids:
-        return np.empty(0, dtype=np.int64), np.zeros((0, 0), dtype=np.float64)
+        return np.empty(0, dtype=np.int64), sk.DistanceEdges.empty()
 
-    D = sk.pairwise_distances(S, k=k)
-    numbers = single_linkage_clusters(D, threshold)
-    check_outbreak_pairs(D, numbers, ids, max_distance=outbreak_distance, species=species)
+    cut = max(float(threshold), float(outbreak_distance))
+    blocks = sk.iter_distance_edges(S, k=k, max_distance=cut, threads=threads)
+    numbers, close = threshold_clusters(len(ids), blocks, threshold, outbreak_distance=outbreak_distance)
+    check_outbreak_edges(close, numbers, ids, max_distance=outbreak_distance, species=species)
 
     sizes = np.bincount(numbers)[1:]
     largest_number = int(np.argmax(sizes)) + 1
@@ -416,7 +605,7 @@ def cluster_species(
         int(sizes.max()),
         int(np.count_nonzero(sizes == 1)),
     )
-    return numbers, D
+    return numbers, close
 
 
 def build_lineage_frame(
@@ -559,6 +748,7 @@ def run(
     backend: str = CLUSTER_METHOD_MASH,
     k: int = sk.K,
     sketch_size: int = sk.SKETCH_SIZE,
+    threads: int | None = None,
 ) -> pd.DataFrame:
     """Build ``lineages.parquet`` and ``sketches_<SPECIES>.npz`` for every species.
 
@@ -574,6 +764,8 @@ def run(
             raises :class:`ToolNotAvailable`).
         k: k-mer length for sketching.
         sketch_size: Hashes per sketch.
+        threads: Worker processes for sketching and distances (``None`` = all
+            cores). Results do not depend on it.
 
     Returns:
         The lineages table, one row per QC-passing genome that could be sketched.
@@ -592,13 +784,13 @@ def run(
         species_key = str(species)
         gids = sorted(group["genome_id"].astype(str).tolist())
         ids, sketches = sketch_genomes(
-            paths, gids, k=k, sketch_size=sketch_size, droplog=droplog, species=species_key
+            paths, gids, k=k, sketch_size=sketch_size, droplog=droplog, species=species_key, threads=threads
         )
         if not ids:
             logger.warning("[%s] %s: no genome could be sketched; species skipped", STAGE, species_key)
             continue
         sk.save_sketches(paths.sketches(species_key), ids, sketches, k=k)
-        numbers, _ = cluster_species(species_key, ids, sketches, k=k, threshold=threshold)
+        numbers, _ = cluster_species(species_key, ids, sketches, k=k, threshold=threshold, threads=threads)
         sts = [read_st(paths.interim_dir(gid) / MLST_FILE) for gid in ids]
         n_with_st = sum(1 for s in sts if s != ST_MISSING)
         logger.info("[%s] %s: MLST sequence type known for %d of %d genome(s)", STAGE, species_key, n_with_st, len(ids))
@@ -632,9 +824,10 @@ def _validate_frame(frame: pd.DataFrame) -> None:
     for col in COLUMNS:
         if frame[col].isna().any():
             raise ContractViolation(f"null values in lineages column {col!r}", stage=STAGE)
-    bad_prefix = frame.loc[
-        ~frame.apply(lambda r: str(r["lineage_cluster"]).startswith(f"{r['species']}_"), axis=1), "genome_id"
-    ].tolist() if len(frame) else []
+    prefixed = np.array(
+        [str(c).startswith(f"{s}_") for c, s in zip(frame["lineage_cluster"], frame["species"])], dtype=bool
+    )
+    bad_prefix = frame.loc[~prefixed, "genome_id"].tolist() if len(frame) else []
     if bad_prefix:
         raise ContractViolation(
             f"lineage_cluster not species-prefixed for {_examples(bad_prefix)}", stage=STAGE

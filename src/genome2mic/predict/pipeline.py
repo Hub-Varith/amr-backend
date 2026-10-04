@@ -18,26 +18,31 @@ Steps of :meth:`PredictionPipeline.run` (``.context/DESIGN.md`` predict section)
 2. ``nearest_training_distance`` = min Mash distance to ``models/<SPECIES>/train_sketches.npz``;
    ``in_range`` = that distance is within ``qc.max_mash_distance`` and the species has models.
 3. Known AMR via :mod:`genome2mic.predict.amr_detect` (AMRFinderPlus CLI, a sidecar
-   TSV, or the bundle's ``markers.fasta``), named with the training column rules.
-4. Unitig pattern vector via ``genome2mic.features.unitigs.query_genome`` against the
-   bundle's fixed k-mer set (only when a drug model uses unitig features).
+   TSV, or -- for synthetic bundles only -- the bundle's ``markers.fasta``), with the
+   training row filter and column rules.
+4. Unitig pattern vector via ``genome2mic.features.unitigs.query_kmer_set`` against the
+   bundle's fixed k-mer set, loaded once by :meth:`PredictionPipeline.load` (only
+   when a drug model uses unitig features).
 5. Per drug: ``pred_mic`` (rounded **up** to the doubling grid), conformal band,
    call, ``margin_steps``, reasons.
 6. Overrides: natural resistance (model skipped, MIC fields null) and strong
-   markers (``drugs.yaml``; MIC fields kept).
+   markers (``drugs.yaml`` ``strong_markers`` prefixes and ``strong_subclasses`` of
+   acquired genes; MIC fields kept).
 7. ``ranked_active`` from :func:`genome2mic.predict.rank.rank_active`. When
    ``in_range`` is False the calls are kept and the flag tells the UI to show them
    as low confidence (override 3).
 
 Bundle layout (written by ``models/train.py``)::
 
-    models/manifest.json                 {model_version, run_id, created, species: {KPNEU: [drugs]}}
+    models/manifest.json                 {model_version, run_id, created, species: {KPNEU: [drugs]}, synthetic}
     models/reference_sketches.npz        sketch.save_sketches format, ids = species keys
-    models/markers.fasta                 optional; MarkerScan fallback
+    models/markers.fasta                 optional; MarkerScan fallback, used only when
+                                         manifest.json has ``synthetic: true``
     models/<SPECIES>/train_sketches.npz
     models/<SPECIES>/unitig_kmers.npz    optional; absent -> no unitig features
     models/<SPECIES>/unitig_index.parquet  optional; pattern_id -> col_index
-    models/<SPECIES>/<drug>/features.json  {model_class, known_columns, unitig_cols, class_by_column}
+    models/<SPECIES>/<drug>/features.json  {model_class, known_columns, unitig_cols, class_by_column,
+                                            feature_names, unitig_kmer_set_sha1}
     models/<SPECIES>/<drug>/conformal.json {q}
     models/<SPECIES>/<drug>/meta.json      free-form
     models/<SPECIES>/<drug>/...            whatever MODEL_CLASSES[model_class].load(dir) reads
@@ -45,7 +50,17 @@ Bundle layout (written by ``models/train.py``)::
 Nothing in a feature matrix may come from ``lineage_cluster``, ``st``, ``country``,
 ``year``, ``source``, ``isolation_source``, ``biosample``, ``split`` or ``fold`` (or the
 label / key columns); ``load`` rejects a bundle whose ``known_columns`` contain any
-name in :data:`genome2mic.models.base.FORBIDDEN_FEATURES`.
+name in :data:`genome2mic.models.base.FORBIDDEN_FEATURES`, and one whose
+``known_columns + unitig_cols`` differ (order included) from ``features.json``
+``feature_names`` or from the saved model's ``feature_names_``: a same-length
+reordering would otherwise feed every feature into the wrong model input.
+
+``unitig_kmers.npz`` is shared by every drug of a species. Each unitig model's
+``features.json`` records the set it was trained on (``unitig_kmer_set_sha1``, the
+:meth:`genome2mic.features.unitigs.KmerSet.sha1` content hash); ``load`` raises
+:class:`BundleError` when that differs from the species' set, because the model's
+unitig column indices would then point into a different pattern list. Bundles
+written before the key existed load with a warning (the pairing cannot be checked).
 """
 
 from __future__ import annotations
@@ -102,12 +117,17 @@ QC_WRONG_GENOME_SIZE = "wrong_genome_size"
 UnitigQuery = Callable[[Path, Path], np.ndarray]
 """``(unitig_kmers.npz, fasta) -> int8 pattern-presence vector`` (one entry per pattern column)."""
 
+UNITIG_PATTERN_PREFIX = "u_"
+"""Training names unitig pattern column ``c`` ``u_{c:06d}`` (``models/train.py``)."""
+
 
 class BundleError(Genome2MicError):
     """A model bundle under ``models/`` exists but is malformed or inconsistent.
 
-    Missing files raise :class:`FileNotFoundError` instead, which the API registry
-    turns into "not ready"; this error means the bundle cannot be trusted.
+    Missing files raise :class:`FileNotFoundError` instead. Unreadable sketch, k-mer
+    and model files are re-raised as this error with the path. The API registry
+    turns any load failure into "not ready"; this error means the bundle cannot be
+    trusted.
     """
 
 
@@ -129,6 +149,9 @@ class DrugBundle:
     class_by_column: dict[str, tuple[str | None, str | None]]
     q: float
     meta: dict[str, Any]
+    unitig_kmer_set_sha1: str | None = None
+    """sha1 of the k-mer set the model was trained on (``features.json``); ``None`` when
+    the model has no unitig features or the bundle predates the key."""
 
     @property
     def n_features(self) -> int:
@@ -137,7 +160,12 @@ class DrugBundle:
 
 @dataclass(frozen=True)
 class SpeciesBundle:
-    """Everything under ``models/<SPECIES>/``."""
+    """Everything under ``models/<SPECIES>/``.
+
+    ``kmer_set`` is the frozen unitig k-mer set (``features.unitigs.KmerSet``), read
+    once at load when a drug model uses unitig features and the default query is in
+    use; ``None`` otherwise (no unitig model, or an injected ``unitig_query``).
+    """
 
     species: str
     directory: Path
@@ -146,6 +174,7 @@ class SpeciesBundle:
     train_k: int
     unitig_kmers: Path | None
     drugs: dict[str, DrugBundle]
+    kmer_set: Any | None = None
 
     @property
     def needs_unitigs(self) -> bool:
@@ -205,6 +234,35 @@ class GenomeQc:
         return not self.fail_reasons
 
 
+def _load_sketch_file(path: Path) -> tuple[list[str], np.ndarray, int]:
+    """``sk.load_sketches`` with unreadable content re-raised as :class:`BundleError`."""
+    if not path.is_file():
+        raise FileNotFoundError(f"Sketch file not found: {path}")
+    try:
+        return sk.load_sketches(path)
+    except Exception as error:  # np.load: ValueError, OSError, BadZipFile, EOFError, ...
+        raise BundleError(f"{path}: unreadable sketch file ({type(error).__name__}: {error})") from error
+
+
+def _unitig_feature_names(raw: Sequence[Any]) -> list[str]:
+    """``unitig_cols`` entries as training feature names (ints -> ``u_000017``; ids unchanged)."""
+    return [item if isinstance(item, str) else f"{UNITIG_PATTERN_PREFIX}{int(item):06d}" for item in raw]
+
+
+def _feature_order_problem(expected: Sequence[str], found: Sequence[str]) -> str | None:
+    """``None`` if the two name lists are identical, else a short description of the first difference."""
+    expected, found = list(expected), list(found)
+    if expected == found:
+        return None
+    if len(expected) != len(found):
+        expected_set, found_set = set(expected), set(found)
+        missing = [name for name in expected if name not in found_set]
+        extra = [name for name in found if name not in expected_set]
+        return f"{len(found)} names for {len(expected)} columns; missing {missing[:5]}, extra {extra[:5]}"
+    index = next(i for i, (a, b) in enumerate(zip(expected, found, strict=True)) if a != b)
+    return f"position {index}: the bundle layout has {expected[index]!r} where the names list {found[index]!r}"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     """Load a JSON object; missing file -> ``FileNotFoundError``, bad content -> ``BundleError``."""
     if not path.is_file():
@@ -232,8 +290,9 @@ class PredictionPipeline:
         model_classes: Optional ``{model_class: class with .load(dir)}`` registry.
             Defaults to ``genome2mic.models.MODEL_CLASSES`` (imported lazily).
         unitig_query: Optional ``(kmers_npz, fasta) -> pattern vector`` callable.
-            Defaults to ``genome2mic.features.unitigs.query_genome`` on the bundle's
-            ``models/<SPECIES>/unitig_kmers.npz``.
+            By default the bundle's ``models/<SPECIES>/unitig_kmers.npz`` is read once
+            by :meth:`load` and each genome is queried with
+            ``genome2mic.features.unitigs.query_kmer_set``.
         amr_detectors: Optional detector chain replacing the default
             (AMRFinderPlus CLI -> sidecar TSV -> ``markers.fasta``).
         amrfinder_tsv: Optional precomputed AMRFinderPlus TSV used for every run
@@ -277,7 +336,8 @@ class PredictionPipeline:
         Raises:
             FileNotFoundError: ``manifest.json``, the configs dir, the reference
                 sketches or a required bundle file is missing.
-            BundleError: a bundle file is malformed or inconsistent.
+            BundleError: a bundle file is malformed, unreadable or inconsistent
+                (including a feature order that differs from the saved model's).
             ConfigError: the configs are malformed.
         """
         manifest_path = self.models_dir / MANIFEST_FILE
@@ -294,13 +354,16 @@ class PredictionPipeline:
         for key in ("model_version", "run_id"):
             if not isinstance(manifest[key], str) or not manifest[key].strip():
                 raise BundleError(f"{manifest_path}: {key!r} must be a non-empty string")
+        synthetic = manifest.get("synthetic", False)
+        if not isinstance(synthetic, bool):
+            raise BundleError(f"{manifest_path}: 'synthetic' must be true or false, got {synthetic!r}")
 
         config = load_config(self.configs_dir)
 
         reference_path = self.models_dir / REFERENCE_SKETCHES_FILE
         if not reference_path.is_file():
             raise FileNotFoundError(f"Reference sketches not found: {reference_path}")
-        reference_ids, reference_sketches, reference_k = sk.load_sketches(reference_path)
+        reference_ids, reference_sketches, reference_k = _load_sketch_file(reference_path)
         unknown_refs = [key for key in reference_ids if key not in config.species]
         if unknown_refs:
             logger.warning("Reference sketches for species not in species.yaml are ignored: %s", unknown_refs)
@@ -315,9 +378,26 @@ class PredictionPipeline:
                 logger.warning("Species %s has models but no reference sketch; it can never be identified", species)
             bundles[species] = self._load_species(species, drugs, config)
 
+        # MarkerScan is an exact full-length substring match: it misses markers split
+        # across contigs or carrying one SNP. Only a synthetic bundle may fall back to it.
         markers = self.models_dir / MARKERS_FILE
-        self.markers_fasta = markers if markers.is_file() else None
+        markers_fasta: Path | None = None
+        if markers.is_file() and synthetic:
+            markers_fasta = markers
+            logger.log(
+                logging.INFO if self._amrfinder_tsv is not None else logging.WARNING,
+                "Synthetic bundle: known-AMR detection falls back to the exact-match MarkerScan on %s "
+                "when AMRFinderPlus and a precomputed TSV are both unavailable",
+                markers,
+            )
+        elif markers.is_file():
+            logger.warning(
+                "%s is ignored: the MarkerScan fallback is only for synthetic bundles (manifest.json "
+                "synthetic: true); this bundle needs AMRFinderPlus or a precomputed AMRFinderPlus TSV",
+                markers,
+            )
 
+        self.markers_fasta = markers_fasta
         self.config = config
         self.manifest = manifest
         self.reference_ids = tuple(reference_ids)
@@ -326,12 +406,14 @@ class PredictionPipeline:
         self.species_bundles = bundles
         self._loaded = True
         logger.info(
-            "Loaded model bundle %s (run %s): %d species, %d drug model(s), %d reference sketch(es), markers.fasta=%s",
+            "Loaded model bundle %s (run %s): %d species, %d drug model(s), %d reference sketch(es), "
+            "synthetic=%s, MarkerScan fallback=%s",
             manifest["model_version"],
             manifest["run_id"],
             len(bundles),
             sum(len(b.drugs) for b in bundles.values()),
             len(reference_ids),
+            synthetic,
             self.markers_fasta is not None,
         )
 
@@ -340,7 +422,7 @@ class PredictionPipeline:
         train_path = directory / TRAIN_SKETCHES_FILE
         if not train_path.is_file():
             raise FileNotFoundError(f"Training sketches not found: {train_path}")
-        train_ids, train_sketches, train_k = sk.load_sketches(train_path)
+        train_ids, train_sketches, train_k = _load_sketch_file(train_path)
         kmers = directory / UNITIG_KMERS_FILE
         unitig_kmers = kmers if kmers.is_file() else None
 
@@ -354,6 +436,11 @@ class PredictionPipeline:
             if drug in loaded:
                 raise BundleError(f"manifest: species.{species}: duplicate drug {drug!r}")
             loaded[drug] = self._load_drug(species, drug, directory / raw_drug, unitig_kmers is not None)
+
+        kmer_set = None
+        if unitig_kmers is not None and self._unitig_query is None and any(b.unitig_cols for b in loaded.values()):
+            kmer_set = self._load_kmer_set(species, unitig_kmers, loaded)
+        self._check_kmer_set_pairing(species, unitig_kmers, kmer_set, loaded)
         logger.info(
             "Loaded %s: %d drug model(s), %d training sketches, unitig k-mers=%s",
             species,
@@ -369,10 +456,82 @@ class PredictionPipeline:
             train_k=train_k,
             unitig_kmers=unitig_kmers,
             drugs=loaded,
+            kmer_set=kmer_set,
         )
 
+    @staticmethod
+    def _load_kmer_set(species: str, path: Path, drugs: Mapping[str, DrugBundle]) -> Any:
+        """Read the frozen k-mer set once and check it against the drug models that use it."""
+        try:
+            from genome2mic.features import unitigs  # noqa: PLC0415
+        except ImportError as error:
+            raise BundleError(
+                "A model uses unitig features but genome2mic.features.unitigs is not importable"
+            ) from error
+        try:
+            kmer_set = unitigs.load_kmer_set(path)
+        except Exception as error:  # np.load / validation: ValueError, OSError, BadZipFile, ...
+            raise BundleError(f"{path}: unreadable unitig k-mer set ({type(error).__name__}: {error})") from error
+        if kmer_set.species and kmer_set.species != species:
+            raise BundleError(f"{path}: k-mer set was built for {kmer_set.species!r}, not {species!r}")
+        for drug, bundle in drugs.items():
+            if bundle.unitig_cols and max(bundle.unitig_cols) >= kmer_set.n_patterns:
+                raise BundleError(
+                    f"{species} x {drug}: unitig column {max(bundle.unitig_cols)} is outside the "
+                    f"{kmer_set.n_patterns}-pattern k-mer set {path}; bundle and k-mer set do not match"
+                )
+        logger.info(
+            "Loaded %s unitig k-mer set once: %d k-mers in %d patterns (k=%d)",
+            species,
+            kmer_set.n_kmers,
+            kmer_set.n_patterns,
+            kmer_set.k,
+        )
+        return kmer_set
+
+    @staticmethod
+    def _check_kmer_set_pairing(
+        species: str, path: Path | None, kmer_set: Any | None, drugs: Mapping[str, DrugBundle]
+    ) -> None:
+        """Every drug's recorded ``unitig_kmer_set_sha1`` must equal the species' set.
+
+        The species' hash is the loaded set's content hash when it was read (default
+        query), else the ``sha1`` stored in ``unitig_kmers.npz``. A drug without a
+        recorded hash but with unitig columns predates the key: warning only. A
+        recorded hash with no species set is not checked here (a drug that actually
+        uses unitig columns already failed in :meth:`_load_drug`).
+        """
+        recorded = {drug: b.unitig_kmer_set_sha1 for drug, b in drugs.items() if b.unitig_kmer_set_sha1}
+        unverified = sorted(drug for drug, b in drugs.items() if b.unitig_cols and not b.unitig_kmer_set_sha1)
+        if unverified:
+            logger.warning(
+                "%s: %s record no unitig_kmer_set_sha1 (bundle written before it existed); cannot verify "
+                "that their unitig columns index %s", species, unverified, path,
+            )
+        if not recorded or path is None:
+            return
+        if kmer_set is not None:
+            species_sha1 = str(kmer_set.sha1())
+        else:
+            try:
+                from genome2mic.features import unitigs  # noqa: PLC0415
+
+                species_sha1 = unitigs.read_kmer_set_sha1(path)
+            except Exception as error:  # np.load / zip / validation errors
+                raise BundleError(f"{path}: unreadable unitig k-mer set ({type(error).__name__}: {error})") from error
+        mismatched = {drug: sha for drug, sha in sorted(recorded.items()) if sha != species_sha1}
+        if mismatched:
+            detail = ", ".join(f"{drug} was trained on {sha[:12]}" for drug, sha in mismatched.items())
+            raise BundleError(
+                f"{species}: {path} is k-mer set {species_sha1[:12]}, but {detail}; their unitig columns would "
+                "index a different pattern list (a partial retrain replaced the shared set). Retrain every drug "
+                "of the species together."
+            )
+        logger.info("%s: %d drug model(s) match unitig k-mer set %s", species, len(recorded), species_sha1[:12])
+
     def _load_drug(self, species: str, drug: str, drug_dir: Path, has_unitig_kmers: bool) -> DrugBundle:
-        features = _read_json(drug_dir / FEATURES_FILE)
+        features_path = drug_dir / FEATURES_FILE
+        features = _read_json(features_path)
         conformal = _read_json(drug_dir / CONFORMAL_FILE)
         meta_path = drug_dir / META_FILE
         meta = _read_json(meta_path) if meta_path.is_file() else {}
@@ -393,12 +552,27 @@ class PredictionPipeline:
         if len(set(raw_columns)) != len(raw_columns):
             raise BundleError(f"{drug_dir / FEATURES_FILE}: duplicate known_columns")
 
-        unitig_cols = self._resolve_unitig_cols(features.get("unitig_cols", []), drug_dir)
+        raw_unitigs = features.get("unitig_cols", [])
+        unitig_cols = self._resolve_unitig_cols(raw_unitigs, drug_dir)
+        expected_names = [*raw_columns, *_unitig_feature_names(raw_unitigs or [])]
+        declared_names = features.get("feature_names")
+        if declared_names is not None:
+            if not isinstance(declared_names, list) or not all(isinstance(n, str) for n in declared_names):
+                raise BundleError(f"{features_path}: 'feature_names' must be a list of strings")
+            problem = _feature_order_problem(expected_names, declared_names)
+            if problem is not None:
+                raise BundleError(
+                    f"{features_path}: known_columns + unitig_cols do not match feature_names ({problem}); "
+                    "the model would read features in the wrong order"
+                )
         if unitig_cols and not has_unitig_kmers:
             raise BundleError(
                 f"{drug_dir}: model uses {len(unitig_cols)} unitig column(s) but "
                 f"{drug_dir.parent / UNITIG_KMERS_FILE} is missing"
             )
+        kmer_set_sha1 = features.get("unitig_kmer_set_sha1")
+        if kmer_set_sha1 is not None and (not isinstance(kmer_set_sha1, str) or not kmer_set_sha1.strip()):
+            raise BundleError(f"{features_path}: 'unitig_kmer_set_sha1' must be a non-empty string or null")
 
         class_by_column: dict[str, tuple[str | None, str | None]] = {}
         raw_classes = features.get("class_by_column", {}) or {}
@@ -417,9 +591,32 @@ class PredictionPipeline:
             raise BundleError(f"{drug_dir / CONFORMAL_FILE}: 'q' must be a finite non-negative number of steps")
 
         model_cls = self._resolve_model_class(model_class)
-        model = model_cls.load(drug_dir)
+        try:
+            model = model_cls.load(drug_dir)
+        except (FileNotFoundError, BundleError):
+            raise
+        except Exception as error:  # XGBoostError, KeyError, JSONDecodeError, ValueError, ...
+            raise BundleError(
+                f"{drug_dir}: cannot load the {model_class!r} model ({type(error).__name__}: {error})"
+            ) from error
         if not hasattr(model, "predict_log2"):
             raise BundleError(f"{drug_dir}: model class {model_class!r} has no predict_log2 method")
+        model_names = getattr(model, "feature_names_", None)
+        if model_names is not None:
+            problem = _feature_order_problem(expected_names, [str(name) for name in model_names])
+            if problem is not None:
+                raise BundleError(
+                    f"{drug_dir}: features.json known_columns + unitig_cols do not match the saved "
+                    f"{model_class!r} model's feature_names_ ({problem}); the model would read features "
+                    "in the wrong order"
+                )
+        elif declared_names is None:
+            logger.warning(
+                "%s: neither features.json nor the %s model records feature names; the feature order "
+                "cannot be verified",
+                drug_dir,
+                model_class,
+            )
         logger.info(
             "Loaded %s x %s: %s with %d known-AMR + %d unitig feature(s), q=%.3g",
             species,
@@ -439,6 +636,7 @@ class PredictionPipeline:
             class_by_column=class_by_column,
             q=float(q_raw),
             meta=meta,
+            unitig_kmer_set_sha1=kmer_set_sha1.strip() if isinstance(kmer_set_sha1, str) else None,
         )
 
     def _resolve_unitig_cols(self, raw: Any, drug_dir: Path) -> tuple[int, ...]:
@@ -644,25 +842,26 @@ class PredictionPipeline:
     def _unitig_vector(self, bundle: SpeciesBundle, fasta: Path) -> np.ndarray:
         if bundle.unitig_kmers is None:
             raise BundleError(f"{bundle.species}: a drug model needs unitig features but {UNITIG_KMERS_FILE} is missing")
-        query = self._unitig_query or self._default_unitig_query
-        vector = np.asarray(query(bundle.unitig_kmers, fasta)).ravel()
+        if self._unitig_query is not None:
+            raw = self._unitig_query(bundle.unitig_kmers, fasta)
+        else:
+            if bundle.kmer_set is None:
+                raise BundleError(f"{bundle.species}: the unitig k-mer set was not loaded; call load() first")
+            raw = self._query_kmer_set(bundle.kmer_set, fasta)
+        vector = np.asarray(raw).ravel()
         logger.info("Unitig query for %s: %d pattern(s), %d present", bundle.species, vector.size, int(np.count_nonzero(vector)))
         return vector
 
     @staticmethod
-    def _default_unitig_query(kmers_path: Path, fasta: Path) -> np.ndarray:
-        """``features.unitigs.query_genome(kmers_npz, fasta)`` against the bundle's frozen k-mer set.
+    def _query_kmer_set(kmer_set: Any, fasta: Path) -> np.ndarray:
+        """``features.unitigs.query_kmer_set`` against the bundle's frozen k-mer set.
 
-        Only the bundle copy under ``models/<SPECIES>/`` is read; prediction never
-        touches ``data/processed``.
+        The set was read once from ``models/<SPECIES>/unitig_kmers.npz`` at load (never
+        per request); prediction never touches ``data/processed``.
         """
-        try:
-            from genome2mic.features import unitigs  # noqa: PLC0415
-        except ImportError as error:
-            raise BundleError(
-                "A model uses unitig features but genome2mic.features.unitigs is not importable"
-            ) from error
-        return np.asarray(unitigs.query_genome(kmers_path, fasta))
+        from genome2mic.features import unitigs  # noqa: PLC0415  (import checked at load)
+
+        return np.asarray(unitigs.query_kmer_set(kmer_set, fasta))
 
     def _natural_resistance_prediction(self, species: str, drug: str) -> dict[str, Any]:
         """Override 1: intrinsic resistance; the model is skipped and MIC fields are null."""
@@ -723,7 +922,7 @@ class PredictionPipeline:
         call, margin = rank.call_from_band(band_low, band_high, bp)
 
         override: str | None = None
-        hits = rank.strong_marker_hits(row.symbols_by_column, config.drugs.get(bundle.drug))
+        hits = rank.strong_marker_hits(row.symbols_by_column, config.drugs.get(bundle.drug), row.markers)
         if hits:
             call, margin, override = rank.CALL_LIKELY_INACTIVE, None, rank.OVERRIDE_STRONG_MARKER
             reasons = hits

@@ -151,6 +151,9 @@ genome2mic/
 - Every stage writes a file; no stage reaches back past its declared input.
 - Pandas/pyarrow for tables; scipy.sparse for unitigs. Do not densify a unitig
   matrix — it will not fit in memory.
+- Per-genome Python work that must scale goes through `genome2mic.parallel.ordered_map`
+  (results in input order, so outputs never depend on the core count). External tools
+  still go in the Snakefile.
 
 ---
 
@@ -200,8 +203,10 @@ Use the band's **upper** end when comparing to the breakpoint.
 Overrides applied after the model:
 
 1. Natural resistance for the species → inactive.
-2. Strong known marker (any carbapenemase for meropenem, etc.) → inactive,
-   regardless of model output.
+2. Strong known marker → inactive, regardless of model output: a `strong_markers`
+   column (any carbapenemase family/variant column for the carbapenems, etc.) or, for
+   drugs with `strong_subclasses`, any acquired gene whose AMRFinderPlus Subclass is
+   listed (CARBAPENEM for the carbapenems). Point mutations never trigger it.
 3. Species not covered, or far from all training genomes → all calls flagged low
    confidence.
 
@@ -249,27 +254,81 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 All stages below run end to end on the seeded synthetic data
 (`python -m genome2mic run-all --root runs/synthetic`, ~2.5 min; `make demo` copies the
 report to `reports/synthetic_demo/`). Every number produced so far is from SYNTHETIC
-genomes and says nothing about real isolates.
+genomes and says nothing about real isolates. `runs/synthetic` and
+`reports/synthetic_demo/` were regenerated on 2026-10-03 after the review fixes
+(DATA_CONTRACT v0.3); regenerate with `make clean-synth demo` after later changes.
 
-- [x] Stage 1 — ingest + harmonize → `labels.parquet`, `label_counts.csv`, `pairs_kept.csv`
+- [x] Stage 1 — ingest + harmonize → `labels.parquet`, `label_counts.csv`, `pairs_kept.csv`. S/I/R-only rows need a breakpoint table for exactly their `(standard, standard_year)`. Only `eucast_2024.csv` and `clsi_2024.csv` ship, so real BV-BRC rows from other years and NCBI S/I/R-only rows without a year (the usual NCBI export has no year column) are dropped and counted. **Add per-year tables before ingesting real data.** `fetch --aws-profile NAME` selects an AWS CLI profile for `s3://` sources
 - [x] Stage 2 — genomes + QC (`qc.parquet`; Mash species ID via `mash.tsv` or the pure-Python sketch fallback)
-- [x] Stage 3 — lineages (Mash single-linkage, 0.005) + splits (frozen; PopPUNK backend is a stub)
+- [x] Stage 3 — lineages (Mash single-linkage, 0.005, computed as connected components of the sparse `d <= 0.005` pair graph; no `n x n` matrix) + splits (frozen; PopPUNK backend is a stub). The `n_lolo` (2) largest clusters per species are reserved for LOLO before test selection and always stay train; the R/S repair is NA-safe for `string` columns. A `splits.parquet` built before this change has LOLO lineages on test clusters and must be rebuilt (`--force-splits` or a fresh root), and every result from it is invalid. That rebuild follows from the owner's LOLO decision (a split-logic change); it is not a regeneration to fix a downstream problem, and rule 7 still holds
 - [x] Stage 4 — AMRFinderPlus TSV → `known_amr.parquet` (parser only; the `amrfinder` CLI wrapper is untested because the tool is not installed)
 - [x] Stage 5 — metrics module + unit tests
 - [x] Stage 6 — baselines B0 (ResFinder pheno tables) – B2
 - [x] Stage 7 — AFT on known AMR only
-- [x] Stage 8 — unitigs: implemented with the pure-Python **k-mer backend** (canonical 31-mers, frequency window, pattern collapse, fixed-set query). The `unitig-caller` wrapper exists but is untested (tool not installed); pyseer selection is replaced by in-fold |correlation| ranking
+- [x] Stage 8 — unitigs: implemented with the pure-Python **k-mer backend** (canonical 31-mers, frequency window, pattern collapse streamed genome by genome, fixed-set query); it refuses > 1,000 training genomes per species (`--unitig-max-kmer-genomes`). The `unitig-caller` wrapper exists but is untested (tool not installed); pyseer selection is replaced by in-fold |correlation| ranking
 - [x] Stage 9 — AFT on known AMR + unitigs (`aft_known_unitig`, main model); `aft_unitig_only` ablation behind `--ablation`
 - [x] Stage 10 — conformal bands + ranking + report (`results/report.md`, 8 figure types, leakage checklist) + prediction CLI/API bundle
 - [x] Stage 11 — external sets (country/time hold-out), LOLO runs and accuracy-by-distance tables/plots on the synthetic data; **not yet run on any real external data**
 
+Since the review fixes (DATA_CONTRACT v0.3):
+
+- `train`: nearest-training distances are computed exactly, block-wise, once per
+  species (no `n x n` matrix); species are trained one at a time and released.
+  `train --species K... --drugs D...` (also on `run-all`) trains a shard and merges
+  `models/manifest.json` / `drop_log_train.csv`. Every test scoring is appended to
+  `results/test_ledger.csv`. Preds carry `lab_sir_rederived`.
+- Report: EA, exact agreement and band coverage are computed on exact (one-step) lab
+  MICs only and printed with that denominator (`n_exact` / `n_band`). Categorical
+  metrics are shown as reported and re-derived under the call breakpoint. The leakage
+  checklist checks rule 8 against `results/test_ledger.csv` and validates LOLO preds
+  rows against `splits.lolo_lineage`. Figures from a synthetic run carry a SYNTHETIC
+  DATA watermark and PNG metadata. `make demo-copy` writes
+  `reports/synthetic_demo/README.md` and a `synthetic` column in the demo CSVs, and
+  refuses non-synthetic roots.
+- Workers: `qc`, `lineages` and `unitigs` run per-genome work in worker processes
+  (`genome2mic.parallel`; output identical for any core count; `unitigs
+  --unitig-threads N`). Scripts calling them from Python need the
+  `if __name__ == "__main__":` guard (otherwise they warn and run on one core).
+- CLI seeds are independent: `--seed` (synth), `--split-seed`, `--train-seed`
+  (argparse dests `synth_seed`, `split_seed`, `train_seed`). `fetch`/`run-all` accept
+  `--aws-profile NAME`.
+- Prediction: the `markers.fasta` MarkerScan fallback runs only for bundles whose
+  `manifest.json` says `synthetic: true`. Real bundles need `amrfinder` on PATH or a
+  precomputed AMRFinderPlus TSV per genome; otherwise prediction raises
+  `ToolNotAvailable`. The API stays up and reports `/ready` 503 on any bundle load error.
+- The carbapenem strong-marker override also fires on any acquired gene with
+  AMRFinderPlus Subclass CARBAPENEM (`strong_subclasses` in drugs.yaml). **Before an
+  ABAU carbapenem model ships:** A. baumannii's intrinsic chromosomal OXA-51-like genes
+  (blaOXA-51, -66, -69, ...) are reported with Subclass CARBAPENEM and would make every
+  ABAU isolate carbapenem-inactive; add an exclusion (OXA-51 family, or require ISAba1
+  upstream) first.
+- Test ledger rows carry `inputs_sha1` (data, unitig set, configs and model code), so a
+  re-train on the same root after any code or data change makes the leakage check fail
+  by design; iterate on a fresh root (`make clean-synth demo`). Preds carry `lab_exact`:
+  disk-diffusion results are never exact MICs. Drug bundles record
+  `unitig_kmer_set_sha1`; a subset train that would swap a species' k-mer set under
+  other drugs refuses to start. CV band coverage is in-sample (cross-conformal is still
+  to do).
+- Breakpoints: the project follows the US standard (CLSI M100) for calls and scoring.
+  Every table was entered from memory; `docs/BREAKPOINT_VERIFICATION.md` and
+  `docs/breakpoint_verification_checklist.csv` list what to verify, in priority order.
+
 Tool wrappers untested because the tools are not on PATH: `amrfinder`, `resfinder`,
 `mlst`, `mash`, `unitig-caller`, `pyseer`, `poppunk` (the Snakefile skips them on
-synthetic data). Update this list as real data lands.
+synthetic data). Update this list as real data lands. The Snakefile's `mash`/`amrfinder`
+command lines are checked with stand-in executables (`tests/qc/test_snakefile.py`), not
+the real tools.
 
 ## Open questions
 
 - PopPUNK or Mash single-linkage for lineage clusters? Test both on KPNEU.
-- Which breakpoint version to standardize on for the final call?
+- Which breakpoint version to standardize on for the final call? Decided 2026-10-03:
+  CLSI (US standard), current M100 edition once verified. (Label conversion uses the
+  row's own year only; per-year tables are needed.)
 - Re-derive all S/I/R from MIC under one standard, or use labels as reported?
+  (Interim: labels stay as reported; metrics show both, as-reported first.)
 - Is 50 resistant / 50 susceptible the right inclusion bar after seeing real counts?
+- Should the cephalosporins also list `strong_subclasses: [CARBAPENEM]`? Today a GES-5
+  or OXA-23 isolate is overridden for meropenem but not for ceftriaxone.
+- Should `PredictionReport` say which known-AMR backend ran? It would change the
+  stage-12 report schema (`extra='forbid'`); contract owner's call.

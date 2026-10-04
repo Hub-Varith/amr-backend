@@ -12,13 +12,22 @@ each of which records its drop count in a :class:`~genome2mic.droplog.DropLog`:
 5. convert every result to one interval ``(mic_lower, mic_upper]``:
    the numeric path for dilution / gradient rows with a value, the S/I/R path for disk
    rows and for rows without a value. A disk value is a zone diameter, never an MIC.
-   The S/I/R path needs a breakpoint for (species, drug, standard, year); a null or
-   unknown standard, or a missing breakpoint, drops the row (never guess);
+   Numeric path: a combination MIC (``16/4`` for piperacillin/tazobactam) uses its
+   first, primary-agent component; a decimal rendering of a power of two (``0.016``,
+   ``0.008``, ``0.12``) is snapped to that power (:func:`genome2mic.mic.snap_reported_mic`)
+   before the interval rule; both are counted in the drop log (counts, not drops) and
+   the reported text stays in ``raw_result``.
+   S/I/R path: needs the breakpoint table for exactly the row's (standard,
+   standard_year) and a row for (species, drug) in it. A null or unknown standard, a
+   null year, a year without a table, or a missing pair drops the row (never guess;
+   there is no fallback to the latest table);
 6. de-duplicate by ``biosample`` across sources: rows of the same biosample are
    re-keyed to the BV-BRC ``genome_id``;
 7. resolve duplicate (``genome_id``, ``drug``) results: overlapping intervals ->
    intersection; adjacent steps -> the higher (safer) one; S vs R or more than one
-   step apart -> the pair is dropped;
+   step apart -> the pair is dropped. The merged row's ``method``, ``standard``,
+   ``standard_year`` and ``source`` come as one block from a row that supports the
+   merged bounds (see :func:`_merge_group`);
 8. acceptance checks (:func:`check_labels`) raise :class:`ContractViolation`.
 
 Nothing here imputes a label: a row that cannot be converted is dropped and counted.
@@ -30,6 +39,7 @@ import logging
 import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -166,8 +176,17 @@ class Reason:
     NO_RESULT = "no MIC value and no S/I/R"
     UNKNOWN_SIR = "unknown S/I/R value on S/I/R-only row"
     NULL_STANDARD = "null or unknown standard on S/I/R-only row"
+    NULL_YEAR = "S/I/R-only row with null standard_year"
+    NO_TABLE_FOR_YEAR = "no breakpoint table for standard_year"
     NO_BREAKPOINT = "no breakpoint for species x drug x standard on S/I/R-only row"
     INVALID_I = "'I' reported but the standard has no I category (S == R)"
+    COMBINATION = (
+        "combination MIC 'x/y': primary-agent value x used, full text kept in raw_result (count, not a drop)"
+    )
+    SNAPPED = (
+        "decimal rendering of a power of two snapped to the doubling grid, e.g. 0.016 -> 2^-6 "
+        "(count, not a drop)"
+    )
     REKEYED = "biosample de-dup: rows re-keyed to the BV-BRC genome_id (count, not a drop)"
     DUP_MERGED = "duplicate (genome_id, drug): extra rows merged into one interval"
     DUP_SR = "duplicate (genome_id, drug): S vs R conflict, pair dropped"
@@ -182,6 +201,8 @@ _ROW_REASONS: tuple[str, ...] = (
     Reason.NO_RESULT,
     Reason.UNKNOWN_SIR,
     Reason.NULL_STANDARD,
+    Reason.NULL_YEAR,
+    Reason.NO_TABLE_FOR_YEAR,
     Reason.NO_BREAKPOINT,
     Reason.INVALID_I,
 )
@@ -345,9 +366,12 @@ def parse_measurement(sign: Any, value: Any) -> tuple[str, float | None]:
     """Canonical ``(sign, value)`` for a raw measurement.
 
     The sign may be blank (meaning ``=``) or embedded in the value (``">32"``,
-    ``"<= 0.25"``). Returns ``(sign, None)`` when the value is missing. Raises
-    ``ValueError`` for an unknown or conflicting sign and for a value that is not
-    a finite positive number.
+    ``"<= 0.25"``). A combination-drug MIC ``"x/y"`` (``"16/4"``, ``"<=8/4"``,
+    ``"8 / 4"``: piperacillin/tazobactam, amoxicillin/clavulanate, ...) gives the first,
+    primary-agent component ``x``; both components must be positive numbers. The
+    number is returned as reported (no snapping to the grid). Returns ``(sign, None)``
+    when the value is missing. Raises ``ValueError`` for an unknown or conflicting sign
+    and for a value that is not a finite positive number.
     """
     op, number, _ = _parse_measurement(sign, value)
     return op, number
@@ -367,10 +391,7 @@ def _parse_measurement(sign: Any, value: Any) -> tuple[str, float | None, str | 
                 raise ValueError(f"conflicting signs {sign!r} and {match.group(1)!r}")
             op = embedded
             text = match.group(2).strip()
-        try:
-            number = float(text)
-        except ValueError:
-            raise ValueError(f"MIC value {value!r} is not a number") from None
+        number = _primary_component(text, value)
     else:
         try:
             number = float(value)
@@ -380,6 +401,26 @@ def _parse_measurement(sign: Any, value: Any) -> tuple[str, float | None, str | 
     if not math.isfinite(number) or number <= 0:
         raise ValueError(f"MIC value must be a finite positive number, got {value!r}")
     return op, number, text
+
+
+def _primary_component(text: str, value: Any) -> float:
+    """``float(text)``, or the first component of a combination MIC ``"x/y"``.
+
+    The partner agent's fixed concentration (``/4`` tazobactam, ``/2`` clavulanate,
+    ``/76`` sulfamethoxazole) must be a positive number too, so ``"N/A"``, ``"8/"`` and
+    ``"8/4/2"`` are rejected. Raises ``ValueError`` with "is not a number".
+    """
+    message = f"MIC value {value!r} is not a number"
+    parts = [part.strip() for part in text.split("/")]
+    if len(parts) > 2 or not all(parts):
+        raise ValueError(message)
+    try:
+        numbers = [float(part) for part in parts]
+    except ValueError:
+        raise ValueError(message) from None
+    if len(numbers) == 2 and not (math.isfinite(numbers[1]) and numbers[1] > 0):
+        raise ValueError(message)
+    return numbers[0]
 
 
 def _normalize_evidence(value: Any) -> str | None:
@@ -649,9 +690,13 @@ def harmonize(raw: pd.DataFrame, config: Config, droplog: DropLog) -> pd.DataFra
     frame = droplog.keep_where(frame, frame["method"].notna(), Reason.UNKNOWN_METHOD, detail=_top_detail(unknown_methods))
 
     # 4 + 5. unit check and interval conversion, row by row
-    converted, reasons = _convert_rows(frame, config)
+    converted, reasons, notes = _convert_rows(frame, config)
     for reason in _ROW_REASONS:
-        droplog.drop(reason, int(sum(1 for r in reasons if r == reason)))
+        detail = _top_detail(notes.missing_tables) if reason == Reason.NO_TABLE_FOR_YEAR else None
+        droplog.drop(reason, int(sum(1 for r in reasons if r == reason)), detail=detail)
+    # counts, not drops: kept numeric rows whose reported text was reinterpreted
+    droplog.drop(Reason.COMBINATION, len(notes.combination), detail=_top_detail(notes.combination))
+    droplog.drop(Reason.SNAPPED, len(notes.snapped), detail=_top_detail(notes.snapped))
     keep = np.array([r is None for r in reasons], dtype=bool)
     labels = pd.DataFrame(
         {column: [row[column] for row, ok in zip(converted, keep) if ok] for column in (*LABEL_COLUMNS, "evidence")},
@@ -682,27 +727,61 @@ def harmonize(raw: pd.DataFrame, config: Config, droplog: DropLog) -> pd.DataFra
     return labels
 
 
-def _convert_rows(frame: pd.DataFrame, config: Config) -> tuple[list[dict[str, Any]], list[str | None]]:
-    """Steps 4-5 for every row: ``(label dicts, per-row drop reason or None)``."""
+@dataclass
+class _ConversionNotes:
+    """What :func:`_convert_rows` saw besides the per-row drop reasons (for the drop log)."""
+
+    n_unknown_sir_numeric: int = 0
+    combination: list[str] = field(default_factory=list)
+    """Reported text of kept combination MICs (``16/4``)."""
+    snapped: list[str] = field(default_factory=list)
+    """Reported text of kept values that :func:`genome2mic.mic.snap_reported_mic` moved."""
+    missing_tables: list[str] = field(default_factory=list)
+    """``"<standard> <year>"`` of S/I/R-only rows dropped for :attr:`Reason.NO_TABLE_FOR_YEAR`."""
+
+
+@dataclass(frozen=True)
+class _RowOutcome:
+    """Result of converting one raw row."""
+
+    reason: str | None
+    label: dict[str, Any] | None = None
+    sir_ignored: bool = False
+    combination: str | None = None
+    snapped: str | None = None
+    missing_table: str | None = None
+
+
+def _convert_rows(
+    frame: pd.DataFrame, config: Config
+) -> tuple[list[dict[str, Any]], list[str | None], _ConversionNotes]:
+    """Steps 4-5 for every row: ``(label dicts, per-row drop reason or None, notes)``."""
     converted: list[dict[str, Any]] = []
     reasons: list[str | None] = []
-    n_unknown_sir_numeric = 0
-    records = frame.to_dict("records")
-    for row in records:
-        reason, label, sir_ignored = _convert_row(row, config)
-        n_unknown_sir_numeric += int(sir_ignored)
-        reasons.append(reason)
-        converted.append(label if label is not None else {})
-    if n_unknown_sir_numeric:
+    notes = _ConversionNotes()
+    for row in frame.to_dict("records"):
+        outcome = _convert_row(row, config)
+        reasons.append(outcome.reason)
+        converted.append(outcome.label if outcome.label is not None else {})
+        if outcome.missing_table is not None:
+            notes.missing_tables.append(outcome.missing_table)
+        if outcome.reason is not None:
+            continue
+        notes.n_unknown_sir_numeric += int(outcome.sir_ignored)
+        if outcome.combination is not None:
+            notes.combination.append(outcome.combination)
+        if outcome.snapped is not None:
+            notes.snapped.append(outcome.snapped)
+    if notes.n_unknown_sir_numeric:
         logger.info(
             "%d numeric rows carried an unrecognized S/I/R value; the MIC was kept and sir set to null",
-            n_unknown_sir_numeric,
+            notes.n_unknown_sir_numeric,
         )
-    return converted, reasons
+    return converted, reasons, notes
 
 
-def _convert_row(row: Mapping[str, Any], config: Config) -> tuple[str | None, dict[str, Any] | None, bool]:
-    """Convert one raw row. Returns ``(drop reason, label, unknown_sir_on_numeric_row)``."""
+def _convert_row(row: Mapping[str, Any], config: Config) -> _RowOutcome:
+    """Convert one raw row (steps 4-5) into a label dict or a drop reason."""
     method = row["method"]
     sir_raw = row["sir_raw"]
     standard = normalize_standard(row["standard"])
@@ -726,7 +805,7 @@ def _convert_row(row: Mapping[str, Any], config: Config) -> tuple[str | None, di
         except ValueError as error:
             message = str(error)
             reason = Reason.BAD_SIGN if "sign" in message else Reason.BAD_VALUE
-            return reason, None, False
+            return _RowOutcome(reason)
 
     base = {
         "genome_id": row["genome_id"],
@@ -746,8 +825,9 @@ def _convert_row(row: Mapping[str, Any], config: Config) -> tuple[str | None, di
     if method != METHOD_DISK and number is not None:
         # numeric path
         if normalize_unit(row["unit"]) is None:
-            return Reason.UNKNOWN_UNIT, None, False
-        lo, hi, censor = micmod.interval_from_result(op, number)
+            return _RowOutcome(Reason.UNKNOWN_UNIT)
+        on_grid = micmod.snap_reported_mic(number)
+        lo, hi, censor = micmod.interval_from_result(op, on_grid)
         label = {
             **base,
             "mic_lower": lo,
@@ -756,22 +836,33 @@ def _convert_row(row: Mapping[str, Any], config: Config) -> tuple[str | None, di
             "sir": sir_code,
             "raw_result": f"{op}{text}",
         }
-        return None, label, sir_unknown
+        return _RowOutcome(
+            None,
+            label,
+            sir_ignored=sir_unknown,
+            combination=text if text is not None and "/" in text else None,
+            snapped=text if on_grid != number else None,
+        )
 
-    # S/I/R path (disk rows, and rows without a value)
+    # S/I/R path (disk rows, and rows without a value): the breakpoint table must match
+    # the row's standard and standard_year exactly (DATA_CONTRACT stage 2; no fallback).
     if is_missing(sir_raw):
-        return Reason.NO_RESULT, None, False
+        return _RowOutcome(Reason.NO_RESULT)
     if sir_code is None:
-        return Reason.UNKNOWN_SIR, None, False
+        return _RowOutcome(Reason.UNKNOWN_SIR)
     if standard is None:
-        return Reason.NULL_STANDARD, None, False
+        return _RowOutcome(Reason.NULL_STANDARD)
+    if year_int is None:
+        return _RowOutcome(Reason.NULL_YEAR)
+    if not config.has_breakpoint_table(standard, year_int):
+        return _RowOutcome(Reason.NO_TABLE_FOR_YEAR, missing_table=f"{standard} {year_int}")
     breakpoint = config.breakpoint(row["species"], row["drug"], standard, year_int)
     if breakpoint is None:
-        return Reason.NO_BREAKPOINT, None, False
+        return _RowOutcome(Reason.NO_BREAKPOINT)
     try:
         lo, hi, censor = micmod.interval_from_sir(sir_code, breakpoint)
     except ValueError:
-        return Reason.INVALID_I, None, False
+        return _RowOutcome(Reason.INVALID_I)
     raw_result = sir_code if text is None else f"{sir_code} zone={text}"
     label = {
         **base,
@@ -781,7 +872,7 @@ def _convert_row(row: Mapping[str, Any], config: Config) -> tuple[str | None, di
         "sir": sir_code,
         "raw_result": raw_result,
     }
-    return None, label, False
+    return _RowOutcome(None, label)
 
 
 def _finalize_labels(frame: pd.DataFrame, *, keep_evidence: bool = False) -> pd.DataFrame:
@@ -866,6 +957,35 @@ _MERGE_FAR = "far"
 _MERGE_OK = "ok"
 
 
+_PROVENANCE_COLUMNS: tuple[str, ...] = ("method", "standard", "standard_year", "source")
+"""Columns that describe *how* a result was measured. A merged row takes all of them,
+as one block, from its representative and never fills them from another row."""
+
+
+def _representative_index(rows: list[dict[str, Any]], lows: np.ndarray, highs: np.ndarray,
+                          new_lo: float, new_hi: float) -> int:
+    """Row whose metadata describes the merged interval ``(new_lo, new_hi]``.
+
+    1. Prefer rows whose own interval *equals* the merged interval (they support the
+       bounds on their own); if none does (a partial-overlap intersection), all rows
+       are candidates.
+    2. Among the candidates prefer an MIC method (``dilution`` / ``gradient``) over
+       ``disk``.
+    3. Then the highest reported step (:func:`genome2mic.mic.label_point_log2`); ties
+       keep the first row.
+
+    Consequence: a merged one-step interval is never labelled ``disk`` when an MIC row
+    reported that cell or contributed one of its bounds. It stays ``disk`` only when
+    the disk row alone produced it -- a one-step ``I`` range such as CLSI meropenem
+    ``(1, 2]`` that the other rows did not tighten -- because no dilution or gradient
+    row measured it.
+    """
+    points = [micmod.label_point_log2(lo, hi) for lo, hi in zip(lows, highs)]
+    equal = [i for i in range(len(rows)) if lows[i] == new_lo and highs[i] == new_hi]
+    candidates = equal or list(range(len(rows)))
+    return max(candidates, key=lambda i: (rows[i]["method"] != METHOD_DISK, points[i]))
+
+
 def _merge_group(rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None]:
     """Fold several results for one (genome_id, drug) into one label.
 
@@ -874,8 +994,14 @@ def _merge_group(rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None
     * disjoint but adjacent steps (``(4,8]`` and ``(8,16]``) -> the higher one;
     * further apart -> ``("far", None)``.
 
-    The merged row takes its remaining columns from the highest reported step and
-    fills nulls from the other rows; ``raw_result`` joins every distinct original.
+    ``method``, ``standard``, ``standard_year`` and ``source`` are copied as one block
+    from the representative row chosen by :func:`_representative_index` (a row that
+    supports the merged bounds, MIC methods before disk), so an exact MIC merged with a
+    disk ``S`` keeps the dilution row's provenance. Genome-level columns (biosample,
+    isolation source, country, year) are filled from the other rows when the
+    representative has a null. ``sir`` is the single reported category when the rows
+    agree, else the representative's (or, if it reported none, that of the highest-step
+    row that did). ``raw_result`` joins every distinct original.
     """
     sirs = {row["sir"] for row in rows if row["sir"] is not None}
     if "S" in sirs and "R" in sirs:
@@ -891,10 +1017,11 @@ def _merge_group(rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None
             return _MERGE_FAR, None
         highest = max(range(len(rows)), key=lambda i: (lows[i], highs[i]))
         new_lo, new_hi = float(lows[highest]), float(highs[highest])
-    points = [micmod.label_point_log2(lo, hi) for lo, hi in zip(lows, highs)]
-    representative = rows[max(range(len(rows)), key=lambda i: points[i])]
+    representative = rows[_representative_index(rows, lows, highs, new_lo, new_hi)]
     merged = dict(representative)
     for column in merged:
+        if column in _PROVENANCE_COLUMNS:
+            continue
         if merged[column] is None or (isinstance(merged[column], float) and math.isnan(merged[column])):
             for row in rows:
                 if row[column] is not None and not (isinstance(row[column], float) and math.isnan(row[column])):
@@ -902,7 +1029,17 @@ def _merge_group(rows: list[dict[str, Any]]) -> tuple[str, dict[str, Any] | None
                     break
     merged["mic_lower"], merged["mic_upper"] = new_lo, new_hi
     merged["censor"] = micmod.censor_of(new_lo, new_hi)
-    merged["sir"] = next(iter(sirs)) if len(sirs) == 1 else representative["sir"]
+    if len(sirs) == 1:
+        merged["sir"] = next(iter(sirs))
+    elif representative["sir"] is not None:
+        merged["sir"] = representative["sir"]
+    else:
+        reported = [row for row in rows if row["sir"] is not None]
+        if reported:
+            top = max(reported, key=lambda r: micmod.label_point_log2(r["mic_lower"], r["mic_upper"]))
+            merged["sir"] = top["sir"]
+        else:
+            merged["sir"] = None
     seen: list[str] = []
     for row in rows:
         if row["raw_result"] not in seen:
@@ -1085,10 +1222,16 @@ PAIRS_KEPT_COLUMNS: tuple[str, ...] = (
 def count_table(labels: pd.DataFrame) -> pd.DataFrame:
     """Per species x drug: ``n, n_R, n_S, n_I, n_exact, n_censored, n_distinct_mic``.
 
-    ``n_R`` / ``n_S`` / ``n_I`` count the *reported* ``sir``. ``n_exact`` is
-    ``censor == 'interval'``; ``n_censored`` the rest. ``n_distinct_mic`` is the number
+    ``n_R`` / ``n_S`` / ``n_I`` count the *reported* ``sir``. ``n_exact`` counts rows
+    with an exact measured MIC: the interval pins the MIC to one doubling step
+    (``mic_upper == 2 * mic_lower``) and the method is not disk diffusion
+    (:func:`genome2mic.mic.lab_exact_mask`; a disk ``I``-only row whose ``I`` range is
+    one step, e.g. CLSI meropenem ``(1, 2]``, is not an MIC). ``n_censored = n -
+    n_exact``: left- and right-censored rows, multi-step intervals such as an
+    ``I``-only ``(2, 8]`` (EUCAST meropenem), which have ``censor == 'interval'`` but do
+    not pin the MIC, and those one-step disk rows. ``n_distinct_mic`` is the number
     of distinct reported steps (:func:`genome2mic.mic.label_point_log2`: the upper
-    bound for exact and left-censored rows, the step above the edge for
+    bound for interval and left-censored rows, the step above the edge for
     right-censored rows), so panel-edge readings count as levels.
     """
     int_columns = [column for column in COUNT_COLUMNS if column not in ("species", "drug")]
@@ -1113,7 +1256,7 @@ def count_table(labels: pd.DataFrame) -> pd.DataFrame:
             "is_R": (sir == "R").to_numpy(),
             "is_S": (sir == "S").to_numpy(),
             "is_I": (sir == "I").to_numpy(),
-            "is_exact": (labels["censor"].astype(object) == micmod.CENSOR_INTERVAL).to_numpy(),
+            "is_exact": micmod.lab_exact_mask(lo, hi, labels["method"].to_numpy(dtype=object) if "method" in labels.columns else None),
             "point": np.round(point, 6),
         }
     )

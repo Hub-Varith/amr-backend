@@ -3,15 +3,35 @@
 Inputs follow the stage-10 predictions schema in ``DATA_CONTRACT.md``: a point
 prediction ``pred_mic`` (mg/L, rounded **up** to the doubling grid), a 90% band
 ``band_low``/``band_high``, the lab interval ``(lab_lower, lab_upper]`` copied from
-stage 2, and the S/I/R calls ``pred_sir``/``lab_sir``.
+stage 2, the S/I/R calls ``pred_sir``/``lab_sir`` and, optionally,
+``lab_sir_rederived`` (see *Re-derived lab S/I/R* below).
 
-Censored lab rows
------------------
+Exact and censored lab rows
+---------------------------
 A lab result is never a point; it is an interval ``(lo, hi]`` on the doubling grid.
 ``(4, 8]`` is an exact reading of 8, ``(0, 0.25]`` is ``<= 0.25`` (left-censored),
 ``(32, inf)`` is ``> 32`` (right-censored), and an ``I``-only label can be a
-multi-step interval such as ``(2, 8]``. The rules below are stated for a general
-interval and reduce to the DESIGN.md wording on the three common cases:
+multi-step interval such as ``(2, 8]``.
+
+An **exact** row is one whose lab result is a measured MIC of one doubling step:
+the lab interval pins the MIC to one step (:func:`genome2mic.mic.exact_interval_mask`:
+``lo > 0``, ``hi < inf``, ``hi == 2 * lo``) **and**, when the preds carry the
+boolean ``lab_exact`` column written by training, ``lab_exact`` is true. Training
+sets ``lab_exact`` false for disk-diffusion results (:func:`genome2mic.mic.lab_exact_mask`):
+a disk ``I``-only row whose ``I`` range is one step (CLSI meropenem ``(1, 2]``) has an
+exact-looking interval but no MIC was measured (contract stage 2, method filter).
+Older preds without the column fall back to the interval rule; a null ``lab_exact``
+counts as not exact. See :func:`exact_lab_mask`.
+
+:func:`summarize` evaluates **essential agreement, exact agreement and band
+coverage on exact rows only**, so ``n_exact`` is the denominator of EA and exact
+agreement (contract section 7) and ``n_band`` the denominator of band coverage.
+Censored rows would make EA degenerate (``(X, inf)`` agrees with any ``pred >= X``)
+and band coverage would no longer be the quantity the conformal ``q`` calibrates
+(``q`` comes from the same exact rows' residuals).
+
+The per-row functions below still accept any informative interval, with these
+rules (they reduce to the DESIGN.md wording on the three common cases):
 
 * **Essential agreement** -- the prediction is within one doubling step of the
   interval: ``lo <= pred <= 2 * hi``.
@@ -23,10 +43,18 @@ interval and reduce to the DESIGN.md wording on the three common cases:
 * **Band coverage** -- the band overlaps the interval: ``band_low <= hi`` and
   ``band_high > lo``. For an exact row this is ``band_low <= hi <= band_high``
   (the reported step is inside the band); for a censored row it is overlap.
-* **n_exact** -- rows whose lab interval is finite on both sides (``censor ==
-  'interval'``), i.e. the rows a classical EA would use.
 
 A ``(0, inf)`` interval carries no information and is never evaluated.
+
+Re-derived lab S/I/R
+--------------------
+``lab_sir`` is the lab's own call under the lab's standard and year, while
+``pred_sir`` is the prediction classified under the call breakpoint. The training
+stage also writes ``lab_sir_rederived``: the lab interval classified under the
+same call breakpoint (null where the interval straddles a breakpoint or there is
+no call breakpoint). :func:`summarize` reports the categorical metrics against both:
+the as-reported block (``vme_rate`` ...) and the ``*_rederived`` block, computed the
+same way. Without the column the re-derived rates are NaN and their counts 0.
 
 Predictions are snapped **up** to the grid and bands are widened to it (low down,
 high up) before comparing; this is a no-op for contract-compliant inputs and only
@@ -45,7 +73,8 @@ masking for a whole predictions table and records every exclusion in a
 ``b0_resfinder``) contribute only to the categorical metrics.
 
 Column order of :func:`summarize` puts ``vme_rate`` first after the keys: it is the
-error that harms a patient (CLAUDE.md rule 10).
+error that harms a patient (CLAUDE.md rule 10). The re-derived block follows the
+counts and starts with ``vme_rate_rederived``.
 """
 
 from __future__ import annotations
@@ -61,7 +90,7 @@ from scipy.stats import rankdata
 from sklearn.metrics import roc_auc_score
 
 from genome2mic.droplog import DropLog
-from genome2mic.mic import round_down_to_step_array, round_up_to_step_array
+from genome2mic.mic import exact_interval_mask, round_down_to_step_array, round_up_to_step_array
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +110,25 @@ METRIC_COLUMNS: tuple[str, ...] = (
     "band_coverage",
     "band_width_steps",
 )
-COUNT_COLUMNS: tuple[str, ...] = ("n", "n_exact", "n_cat", "n_lab_r", "n_lab_s")
+COUNT_COLUMNS: tuple[str, ...] = ("n", "n_exact", "n_band", "n_cat", "n_lab_r", "n_lab_s")
+"""``n`` rows in the group; ``n_exact`` = EA / exact-agreement denominator; ``n_band`` =
+band-coverage denominator; ``n_cat`` / ``n_lab_r`` / ``n_lab_s`` = CA / VME / ME denominators."""
 
-SUMMARY_COLUMNS: tuple[str, ...] = KEY_COLUMNS + METRIC_COLUMNS + COUNT_COLUMNS
+REDERIVED_RATE_COLUMNS: tuple[str, ...] = (
+    "vme_rate_rederived",
+    "me_rate_rederived",
+    "mine_rate_rederived",
+    "categorical_agreement_rederived",
+)
+REDERIVED_COUNT_COLUMNS: tuple[str, ...] = ("n_cat_rederived", "n_lab_r_rederived", "n_lab_s_rederived")
+REDERIVED_COLUMNS: tuple[str, ...] = REDERIVED_RATE_COLUMNS + REDERIVED_COUNT_COLUMNS
+"""Categorical metrics against ``lab_sir_rederived``; ``vme_rate_rederived`` first."""
+
+SUMMARY_COLUMNS: tuple[str, ...] = KEY_COLUMNS + METRIC_COLUMNS + COUNT_COLUMNS + REDERIVED_COLUMNS
 """Column order of :func:`summarize`. ``vme_rate`` is the first metric."""
 
 BIN_COLUMNS: tuple[str, ...] = ("distance_bin", "bin_low", "bin_high")
-DISTANCE_COLUMNS: tuple[str, ...] = KEY_COLUMNS + BIN_COLUMNS + METRIC_COLUMNS + COUNT_COLUMNS
+DISTANCE_COLUMNS: tuple[str, ...] = KEY_COLUMNS + BIN_COLUMNS + METRIC_COLUMNS + COUNT_COLUMNS + REDERIVED_COLUMNS
 """Column order of :func:`by_distance_bin`."""
 
 REQUIRED_PRED_COLUMNS: tuple[str, ...] = KEY_COLUMNS + (
@@ -98,6 +139,23 @@ REQUIRED_PRED_COLUMNS: tuple[str, ...] = KEY_COLUMNS + (
     "lab_sir",
 )
 BAND_COLUMNS: tuple[str, ...] = ("band_low", "band_high")
+REDERIVED_SIR_COLUMN = "lab_sir_rederived"
+"""Optional preds column: the lab interval classified under the call breakpoint."""
+LAB_EXACT_COLUMN = "lab_exact"
+"""Optional boolean preds column: the lab result is an exact measured MIC (one step, not disk)."""
+
+INTERVAL_NOT_EXACT_REASON = (
+    "lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage"
+)
+NOT_MEASURED_REASON = (
+    "lab_exact false (one-step interval but not a measured MIC, e.g. disk diffusion): "
+    "excluded from EA, exact agreement and band coverage"
+)
+"""Drop reason for one-step lab intervals that ``lab_exact`` marks as not an MIC."""
+LAB_EXACT_NULL_REASON = "lab_exact null: treated as not an exact MIC"
+
+_FLOAT_COLUMNS: frozenset[str] = frozenset(METRIC_COLUMNS + REDERIVED_RATE_COLUMNS + ("bin_low", "bin_high"))
+_INT_COLUMNS: frozenset[str] = frozenset(COUNT_COLUMNS + REDERIVED_COUNT_COLUMNS)
 
 DEFAULT_DISTANCE_BINS: tuple[float, ...] = (0.0, 0.001, 0.005, 0.01, 0.02, 0.05, math.inf)
 """Mash-distance edges for :func:`by_distance_bin`: 0.001 ~ same clone, 0.05 ~ species edge."""
@@ -209,18 +267,45 @@ def _mean_or_none(values: np.ndarray) -> float | None:
     return None if values.size == 0 else float(np.mean(values))
 
 
+def _lab_exact_values(preds: pd.DataFrame) -> tuple[np.ndarray | None, int]:
+    """``(lab_exact as bool with nulls -> False, number of nulls)``; ``(None, 0)`` without the column."""
+    if LAB_EXACT_COLUMN not in preds.columns:
+        return None, 0
+    try:
+        values = pd.array(preds[LAB_EXACT_COLUMN].to_numpy(dtype=object), dtype="boolean")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{LAB_EXACT_COLUMN} must be boolean (true / false / null)") from exc
+    nulls = values.isna()
+    return np.asarray(values.fillna(False), dtype=bool), int(nulls.sum())
+
+
+def exact_lab_mask(preds: pd.DataFrame) -> np.ndarray:
+    """Rows of a preds table with an exact lab MIC: the rows EA, exact agreement and band coverage use.
+
+    One-step lab interval (:func:`genome2mic.mic.exact_interval_mask`) and, when the
+    ``lab_exact`` column is present, ``lab_exact`` true (null -> not exact). The
+    column can only narrow the interval rule. Shared with the MIC confusion figure.
+    """
+    lo = _as_float_array(preds["lab_lower"], "lab_lower")
+    hi = _as_float_array(preds["lab_upper"], "lab_upper")
+    mask = exact_interval_mask(lo, hi)
+    lab_exact, _ = _lab_exact_values(preds)
+    return mask if lab_exact is None else mask & lab_exact
+
+
 # ------------------------------------------------------------------- per-row metrics
 def is_exact_interval(lab_lower: ArrayLike, lab_upper: ArrayLike) -> np.ndarray:
-    """True where the lab interval is finite on both sides (``censor == 'interval'``).
+    """True where the lab interval pins the MIC to one doubling step (``hi == 2 * lo``).
 
-    Null bounds give False. These are the rows a classical essential-agreement
-    computation would use and the rows counted in ``n_exact``.
+    Delegates to :func:`genome2mic.mic.exact_interval_mask`, the project's single
+    definition of an exact MIC. Censored intervals, multi-step ``I``-only intervals
+    such as ``(2, 8]`` and null bounds give False. Only these rows enter EA, exact
+    agreement and band coverage in :func:`summarize`.
     """
     lo = _as_float_array(lab_lower, "lab_lower")
     hi = _as_float_array(lab_upper, "lab_upper")
     _check_same_length(lab_lower=lo, lab_upper=hi)
-    with np.errstate(invalid="ignore"):
-        return (lo > 0) & np.isfinite(hi) & ~np.isnan(lo)
+    return exact_interval_mask(lo, hi)
 
 
 def essential_agreement(pred_mic: ArrayLike, lab_lower: ArrayLike, lab_upper: ArrayLike) -> np.ndarray:
@@ -378,7 +463,9 @@ def band_coverage(
 ) -> float | None:
     """Share of rows whose band covers the lab interval (mean of :func:`band_covers`).
 
-    Should be about 0.90 for a 90% conformal band. ``None`` on empty input.
+    Should be about 0.90 for a 90% conformal band when given exact rows (the rows
+    the conformal ``q`` is calibrated on); :func:`summarize` passes exact rows only.
+    ``None`` on empty input.
     """
     return _mean_or_none(band_covers(band_low, band_high, lab_lower, lab_upper))
 
@@ -434,6 +521,12 @@ def _summarize_groups(
     hi = _as_float_array(preds["lab_upper"], "lab_upper")
     pred_sir = _as_sir_array(preds["pred_sir"], "pred_sir")
     lab_sir = _as_sir_array(preds["lab_sir"], "lab_sir")
+    has_rederived_column = REDERIVED_SIR_COLUMN in preds.columns
+    if has_rederived_column:
+        lab_sir_rederived = _as_sir_array(preds[REDERIVED_SIR_COLUMN], REDERIVED_SIR_COLUMN)
+    else:
+        logger.info("preds has no %s column; re-derived categorical metrics will be null", REDERIVED_SIR_COLUMN)
+        lab_sir_rederived = np.full(n_rows, None, dtype=object)
     if all(c in preds.columns for c in BAND_COLUMNS):
         band_lo = _as_float_array(preds["band_low"], "band_low")
         band_hi = _as_float_array(preds["band_high"], "band_high")
@@ -457,10 +550,16 @@ def _summarize_groups(
 
     with np.errstate(invalid="ignore"):
         informative = has_lab & ~((lo == 0) & np.isinf(hi))
-        exact_lab = has_lab & (lo > 0) & np.isfinite(hi)
-    mic_ok = has_pred & informative
-    band_ok = has_band & informative
+    interval_exact = has_lab & exact_interval_mask(lo, hi)
+    lab_exact, n_lab_exact_null = _lab_exact_values(preds)
+    exact_lab = interval_exact if lab_exact is None else interval_exact & lab_exact
+    # EA, exact agreement and band coverage: exact (one-step, measured) lab MICs only.
+    mic_ok = has_pred & exact_lab
+    band_ok = has_band & exact_lab
+    not_exact = has_pred & informative & ~interval_exact
+    not_measured = has_pred & interval_exact & ~exact_lab
     has_sir = np.array([p is not None and l is not None for p, l in zip(pred_sir, lab_sir)], dtype=bool)
+    has_sir_rederived = np.array([p is not None and l is not None for p, l in zip(pred_sir, lab_sir_rederived)], dtype=bool)
     lab_is_i = lab_sir == "I"
     auroc_ok = has_pred & ((lab_sir == "R") | (lab_sir == "S"))
 
@@ -468,7 +567,20 @@ def _summarize_groups(
     log.drop("pred_mic null: categorical metrics only", int((~has_pred).sum()), _models_detail(models, ~has_pred))
     log.drop("lab_lower/lab_upper null: excluded from MIC metrics", int((~has_lab).sum()), _models_detail(models, ~has_lab))
     log.drop("lab interval (0, inf): excluded from MIC metrics", int((has_lab & ~informative).sum()))
+    log.drop(INTERVAL_NOT_EXACT_REASON, int(not_exact.sum()), _models_detail(models, not_exact))
+    log.drop(
+        NOT_MEASURED_REASON,
+        int(not_measured.sum()),
+        _models_detail(models, not_measured) if lab_exact is not None else f"column {LAB_EXACT_COLUMN} absent: interval rule only",
+    )
+    if n_lab_exact_null:
+        log.drop(LAB_EXACT_NULL_REASON, n_lab_exact_null)
     log.drop("pred_sir or lab_sir null: excluded from categorical metrics", int((~has_sir).sum()), _models_detail(models, ~has_sir))
+    log.drop(
+        f"pred_sir or {REDERIVED_SIR_COLUMN} null: excluded from re-derived categorical metrics",
+        int((~has_sir_rederived).sum()),
+        None if has_rederived_column else f"column {REDERIVED_SIR_COLUMN} absent",
+    )
     log.drop("lab_sir I: excluded from AUROC", int((has_pred & lab_is_i).sum()))
     log.drop("band_low/band_high null: excluded from band metrics", int((~has_band).sum()), _models_detail(models, ~has_band))
 
@@ -482,6 +594,7 @@ def _summarize_groups(
         idx = np.asarray(idx, dtype=np.intp)
 
         cat = categorical(pred_sir[idx], lab_sir[idx])
+        cat_rederived = categorical(pred_sir[idx], lab_sir_rederived[idx])
 
         mic_idx = idx[mic_ok[idx]]
         ea = _mean_or_none(essential_agreement(pred[mic_idx], lo[mic_idx], hi[mic_idx]))
@@ -508,10 +621,18 @@ def _summarize_groups(
                 "band_coverage": coverage,
                 "band_width_steps": width,
                 "n": int(len(idx)),
-                "n_exact": int(exact_lab[idx].sum()),
+                "n_exact": int(mic_idx.size),
+                "n_band": int(cov_idx.size),
                 "n_cat": cat["n_cat"],
                 "n_lab_r": cat["n_lab_r"],
                 "n_lab_s": cat["n_lab_s"],
+                "vme_rate_rederived": cat_rederived["vme_rate"],
+                "me_rate_rederived": cat_rederived["me_rate"],
+                "mine_rate_rederived": cat_rederived["mine_rate"],
+                "categorical_agreement_rederived": cat_rederived["ca"],
+                "n_cat_rederived": cat_rederived["n_cat"],
+                "n_lab_r_rederived": cat_rederived["n_lab_r"],
+                "n_lab_s_rederived": cat_rederived["n_lab_s"],
             }
         )
         rows.append(row)
@@ -523,9 +644,9 @@ def _rows_to_frame(rows: list[dict[str, Any]], columns: Sequence[str]) -> pd.Dat
     data: dict[str, Any] = {}
     for col in columns:
         values = [row.get(col) for row in rows]
-        if col in METRIC_COLUMNS or col in ("bin_low", "bin_high"):
+        if col in _FLOAT_COLUMNS:
             data[col] = np.array([np.nan if v is None else v for v in values], dtype=np.float64)
-        elif col in COUNT_COLUMNS:
+        elif col in _INT_COLUMNS:
             data[col] = np.array(values, dtype=np.int64)
         else:
             data[col] = pd.array(values, dtype="str")
@@ -540,15 +661,22 @@ def summarize(preds: pd.DataFrame, drop_log: DropLog | None = None) -> pd.DataFr
         species, drug, model, split,
         vme_rate, me_rate, mine_rate, categorical_agreement,
         essential_agreement, exact_agreement, auroc, band_coverage, band_width_steps,
-        n, n_exact, n_cat, n_lab_r, n_lab_s
+        n, n_exact, n_band, n_cat, n_lab_r, n_lab_s,
+        vme_rate_rederived, me_rate_rederived, mine_rate_rederived,
+        categorical_agreement_rederived, n_cat_rederived, n_lab_r_rederived, n_lab_s_rederived
 
     * ``n`` counts every row of the group. ``n_cat``, ``n_lab_r``, ``n_lab_s`` are the
       categorical denominators (rows with both S/I/R calls; lab R; lab S).
-    * ``n_exact`` counts rows whose lab interval is finite on both sides.
-    * EA / exact agreement use every row with a prediction and an informative lab
-      interval, censored rows included (see the module docstring for the rule).
+    * EA and exact agreement use rows with a prediction and an **exact** lab MIC (one
+      doubling step and, when the column exists, ``lab_exact`` true -- see
+      :func:`exact_lab_mask`); ``n_exact`` counts exactly those rows, so it is their
+      denominator (0 for ``b0_resfinder``, which has no MIC).
+    * ``band_coverage`` uses rows with a band and an exact lab MIC (``n_band``), the
+      rows the conformal ``q`` is calibrated on; ``band_width_steps`` uses every row
+      with a band.
     * ``auroc`` scores ``log2(pred_mic)`` for lab R versus lab S.
-    * Band metrics use rows with a band; coverage additionally needs a lab interval.
+    * The ``*_rederived`` block repeats VME / ME / minor error / CA against the optional
+      ``lab_sir_rederived`` column (NaN rates and 0 counts when it is absent).
     * Rows with a null ``pred_mic`` (e.g. ``b0_resfinder``) contribute only to the
       categorical metrics; EA / exact / AUROC / band metrics are null for such groups.
       ``band_low``/``band_high`` may be absent entirely.
@@ -619,7 +747,8 @@ def by_distance_bin(
     Returns one row per ``species x drug x model x split x distance_bin`` with columns::
 
         species, drug, model, split, distance_bin, bin_low, bin_high,
-        <metrics as in summarize, VME first>, n, n_exact, n_cat, n_lab_r, n_lab_s
+        <metrics as in summarize, VME first>, n, n_exact, n_band, n_cat, n_lab_r, n_lab_s,
+        <re-derived block as in summarize, vme_rate_rederived first>
 
     sorted by the keys and then by bin position (``distance_bin`` is a string label).
     """

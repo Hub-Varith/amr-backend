@@ -17,12 +17,14 @@ of the bioinformatics tools installed. Treat every item in the second column as
 | Step | Status |
 | ---- | ------ |
 | `fetch` from a local directory / `file://` (copy, `--include`, manifest, symlinks, dry run) | Tested (`tests/ingest/test_fetch.py`) |
-| `fetch` command construction for `gcloud`, `gsutil`, `aws`, `azcopy`, SAS-token redaction | Tested at the argv level only; **never run against a real bucket** |
+| `fetch` command construction for `gcloud`, `gsutil`, `aws` (incl. `--aws-profile`), `azcopy`, SAS-token redaction | Tested at the argv level only; **never run against a real bucket** |
 | `gcloud storage rsync --exclude` regex semantics (relative-path match) | **Unverified assumption** - check with `--dry-run` on a tiny prefix |
 | `azcopy sync --include-pattern` (matches file names, not paths) | **Unverified** |
 | `Dockerfile.pipeline` (base tag, bioconda package names, `amrfinder -u` layer) | **Never built** |
-| `workflow/Snakefile` with real `amrfinder`, `mlst`, `mash`, `resfinder` | **Never run with the tools present**; only the synthetic no-op path has run |
+| `workflow/Snakefile` command lines (`mash sketch`/`mash dist` against one reference `.msh`, `amrfinder -O ... --threads`, `synthetic=false`) | Checked with stand-in `mash`/`amrfinder` scripts (`tests/qc/test_snakefile.py`); **never run with the real tools** |
 | `ingest`, `qc`, `known-amr`, `lineages`, `splits`, `unitigs`, `train`, `evaluate`, `report` | Run end to end on synthetic data only (`make demo`) |
+| Worker-process pools in `qc`, `lineages`, `unitigs` (output identical for any thread count) | Tested on macOS (`spawn`); the Linux default (`fork`) path has not run here |
+| `unitigs --unitig-backend unitig-caller` | **Never run** (tool not installed); output parsing tested on small hand-written tables only |
 | Wall times and RAM figures below | Estimates from the code's complexity, not measurements |
 
 ## 1. Sizing the VM
@@ -57,27 +59,40 @@ The unitig stage (stage 8) is the only memory-heavy step; everything else fits i
 
 | Stage | Memory model | Rule of thumb |
 | ----- | ------------ | ------------- |
-| `unitigs --unitig-backend kmer` (default, pure numpy) | distinct 31-mers of the species pan-genome x 12 B, plus a `genomes x kept-kmers` int8 CSR matrix before pattern collapse | `10 + 25 x n_train/1000` GB. **Use it only below ~1,000 training genomes per species.** |
-| `unitigs --unitig-backend unitig-caller` | Bifrost graph build, then one unitig vector per genome | `8 + 5 x n_train/1000` GB; 64 GB covers ~5,000 training genomes |
-| `lineages` | `n x n` float64 distance matrix + condensed copy | `16 x n^2` B: 10k genomes = 1.6 GB, 30k = 15 GB |
+| `unitigs --unitig-backend kmer` (default, pure numpy) | distinct 31-mers of the species x 12 B (count table) + kept 31-mers x ~40-80 B (pattern keys and their sort) + the `genomes x patterns` int8 CSR. No `genomes x k-mers` matrix is built. | **Refuses more than `--unitig-max-kmer-genomes` (default 1,000) training genomes per species**: it re-encodes every FASTA up to three times. Raise the limit only knowingly. |
+| `unitigs --unitig-backend unitig-caller` | Bifrost graph build, then one unitig vector per genome; the `.rtab` it writes is a dense text table (unitigs x genomes), so budget disk and parse time for it | `8 + 5 x n_train/1000` GB (unmeasured); 64 GB covers ~5,000 training genomes |
+| `unitigs` query of non-training genomes (both backends) | the frozen k-mer set (8 B per kept k-mer + 4 B pattern id) memory-mapped once and shared by all worker processes | k-mer set size + ~0.2 GB per worker |
+| `lineages` | `(n, 1000)` sketch table (8 B per hash, plus int32 ranks) + only the pairs with `d <= 0.005`; the pair stream is folded into a spanning forest every 20M pairs. No `n x n` matrix. | 50k genomes: ~2-3 GB peak (sketches + the one-off hash ranking) + up to ~0.5 GB of pairs; measured on 8k random synthetic sketches (laptop, 18 cores): 13 s, +0.4 GB |
 | `train` | sparse `genomes x selected unitigs` (top-k 2000 per fold) + known-AMR | a few GB |
 
-Run the unitig stage one species at a time on big sets (`--species KPNEU`), and
-prefer `unitig-caller` once `n_train` passes ~1,000.
+Worker processes receive large read-only arrays (k-mer sets, sketch ranks) as
+memory-mapped files under `$TMPDIR`; on a VM with a small root disk point it at the
+data disk first: `export TMPDIR=/data/tmp && mkdir -p "$TMPDIR"`.
+
+Run the unitig stage one species at a time on big sets (`--species KPNEU`) with
+`--unitig-backend unitig-caller`; the default `kmer` backend stops with a clear
+error once `n_train` passes `--unitig-max-kmer-genomes`.
 
 ### CPU
 
-The per-genome tools dominate: AMRFinderPlus (`--plus`, 4 threads by default) and
-ResFinder take 1-4 min each per genome; `mlst` 5-20 s; `mash dist` ~1 s. Budget
-about **5 CPU-minutes per genome**:
+The per-genome tools dominate: AMRFinderPlus (`--plus`, run with `--threads 4`) and
+ResFinder take 1-4 min each per genome; `mlst` 5-20 s; `mash dist` ~1 s (the species
+references are sketched once, not per genome). Budget about **5 CPU-minutes per
+genome**:
 
 ```
 snakemake_wall_h ~= N x 5 min / (60 x cores)        10k genomes on 32 cores ~= 26 h
                                                     10k genomes on 64 cores ~= 13 h
 ```
 
-Because `amrfinder` already runs 4 threads, start Snakemake with `-j $(( $(nproc) / 4 ))`
-and raise it if `top` shows idle cores (mlst/mash jobs are single-threaded).
+Every Snakefile rule declares `threads:` (amrfinder 4, the rest 1) and amrfinder
+declares `mem_mb` (4000), so give Snakemake the whole machine and let it schedule:
+`--cores $(nproc) --resources mem_mb=<RAM in MB minus ~8000>`. Override with
+`--config amrfinder_threads=N amrfinder_mem_mb=M`.
+
+The Python stages `qc`, `lineages` and `unitigs` use every core through worker
+processes (results are identical for any core count); `unitigs --unitig-threads N`
+caps them for that stage. `train` uses `--nthread` xgboost threads.
 
 Suggested shapes (any provider): 1k genomes -> 8 vCPU / 32 GB; 10k -> 32-64 vCPU /
 128 GB; 50k -> 64+ vCPU / 256 GB, or shard the Snakemake run across several VMs
@@ -118,7 +133,9 @@ alias g2m-snakemake='docker run --rm -it --user "$(id -u):$(id -g)" -v /data/g2m
 
 (Drop the gcloud mount on GCE: `gcloud` inside the container finds the VM service
 account through the metadata server with no files at all. For AWS mount `~/.aws`
-or pass `-e AWS_*`; for Azure pass `-e AZCOPY_AUTO_LOGIN_TYPE=MSI`.)
+read-only (e.g. `-v "$HOME/.aws:/tmp/aws:ro" -e AWS_CONFIG_FILE=/tmp/aws/config
+-e AWS_SHARED_CREDENTIALS_FILE=/tmp/aws/credentials`) and pass `--aws-profile NAME`
+to `fetch`, or pass `-e AWS_*`; for Azure pass `-e AZCOPY_AUTO_LOGIN_TYPE=MSI`.)
 
 ### Option B - micromamba on the host
 
@@ -165,16 +182,24 @@ config file.
 | Provider | Preferred (no secret on disk) | Fallback | Env-var only |
 | -------- | ------------------------------ | -------- | ------------ |
 | GCS | VM service account with `roles/storage.objectViewer` on the bucket; `gcloud` picks it up automatically | `gcloud auth login` (device flow, state in `~/.config/gcloud`) | `GOOGLE_APPLICATION_CREDENTIALS=/etc/g2m/sa.json` (mode 600, outside the repo) |
-| S3 | EC2 instance role with `s3:GetObject`, `s3:ListBucket` | `aws configure` (`~/.aws/credentials`) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_DEFAULT_REGION` |
+| S3 | EC2 instance role with `s3:GetObject`, `s3:ListBucket` | a named profile: `aws configure --profile g2m` (or `aws configure sso --profile g2m`), then `fetch --aws-profile g2m` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_DEFAULT_REGION` |
 | Azure Blob | Managed identity: `export AZCOPY_AUTO_LOGIN_TYPE=MSI` | `azcopy login` (device flow) | SAS token appended to the URL (see below) |
 
 Verify before fetching:
 
 ```bash
 gcloud storage ls gs://BUCKET/PREFIX/ | head          # GCS
-aws s3 ls s3://BUCKET/PREFIX/ | head                  # S3
+aws s3 ls s3://BUCKET/PREFIX/ --profile g2m | head    # S3 (drop --profile with an instance role)
 azcopy list "https://ACCOUNT.blob.core.windows.net/CONTAINER/PREFIX" | head   # Azure
 ```
+
+S3 profiles: `--aws-profile NAME` sets `AWS_PROFILE=NAME` for the `aws s3 sync`
+subprocess only (your shell is untouched); `export AWS_PROFILE=NAME` before running
+`fetch` does the same for the whole shell. Only the profile *name* appears in logs,
+the dry run and `fetch_summary.json`; key material never does. The AWS CLI prefers
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` from the environment
+over any profile; `fetch --aws-profile` warns when they are set (naming the variables
+only), so `unset` them if a profile is meant to win.
 
 SAS tokens: `fetch` redacts the query string from its logs, from
 `data/raw/fetch_summary.json` and from `--dry-run` output, but your **shell
@@ -205,6 +230,7 @@ Always dry-run first; it prints the exact provider command and touches nothing:
 ```bash
 g2m fetch --root /data/g2m --source-uri gs://BUCKET/PREFIX --dry-run
 g2m fetch --root /data/g2m --source-uri gs://BUCKET/PREFIX --include 'ast_*.csv' --dry-run   # AST only
+g2m fetch --root /data/g2m --source-uri s3://BUCKET/PREFIX --aws-profile g2m --dry-run       # S3, named profile
 ```
 
 Then the real sync. On a 10k-genome / 50 GB prefix expect 10-60 min depending on
@@ -212,7 +238,8 @@ bandwidth; the provider CLIs are incremental, so re-running after an interruptio
 only transfers what is missing:
 
 ```bash
-g2m fetch --root /data/g2m --source-uri gs://BUCKET/PREFIX        # or s3://..., az://ACCOUNT/CONTAINER/PREFIX
+g2m fetch --root /data/g2m --source-uri gs://BUCKET/PREFIX        # or az://ACCOUNT/CONTAINER/PREFIX
+g2m fetch --root /data/g2m --source-uri s3://BUCKET/PREFIX --aws-profile g2m   # S3 (omit the profile with an instance role)
 # equivalent: make fetch SOURCE_URI=gs://BUCKET/PREFIX ROOT=/data/g2m
 ```
 
@@ -277,15 +304,24 @@ most expensive step substantially.
 ```bash
 cd /opt/genome2mic
 g2m-snakemake -s workflow/Snakefile -n --config root=/data/g2m synthetic=false | tail -20   # dry run: job counts
-g2m-snakemake -s workflow/Snakefile -j $(( $(nproc) / 4 )) --keep-going --rerun-incomplete \
+g2m-snakemake -s workflow/Snakefile --cores $(nproc) --resources mem_mb=$(( $(free -m | awk '/^Mem:/{print $2}') - 8000 )) \
+    --keep-going --rerun-incomplete \
     --config root=/data/g2m synthetic=false configs_dir=/opt/genome2mic/configs
 ```
 
 Inside the container use `-s /app/workflow/Snakefile` and `configs_dir=/app/configs`.
-`synthetic=false` is required: the Snakefile otherwise looks for
-`data/raw/SYNTHETIC_DATA.md`, and a tool missing from `PATH` turns its rule into a
-no-op that fails loudly only when no precomputed output exists. Confirm all four
-tools resolve first (`which amrfinder mlst mash resfinder`).
+`synthetic=false` is required (the Snakefile accepts `false/true/0/1/no/yes`): it
+otherwise looks for `data/raw/SYNTHETIC_DATA.md`, and a tool missing from `PATH`
+turns its rule into a no-op that fails loudly only when no precomputed output
+exists. Confirm all four tools resolve first (`which amrfinder mlst mash resfinder`).
+Targets on the command line go **before** `--config` (everything after `--config` is
+read as `key=value`).
+
+Species ID: one job sketches every `data/raw/references/<SPECIES>.fasta` into
+`data/interim/_references/references.msh` (`mash sketch`); each genome then runs
+`mash dist references.msh <genome>`, so `mash.tsv` has one row per species reference
+and `qc` keeps the nearest. Without `mash` (or references) the rule writes an empty
+`mash.tsv` and `qc` falls back to its pure-Python sketch, quietly.
 
 `genome_metadata.csv` is what gives AMRFinderPlus its `-O <organism>` (point
 mutations are only called with it). Without that file `amrfinder` still runs but
@@ -304,11 +340,12 @@ Each stage writes its files and a `data/processed/drop_log_<stage>.csv`; run the
 order and read each drop log.
 
 ```bash
-g2m qc        --root /data/g2m                                   # ~1-3 s per genome (assembly stats + sketch when mash.tsv is empty)
+export TMPDIR=/data/tmp && mkdir -p "$TMPDIR"                    # worker processes share memory-mapped arrays here
+g2m qc        --root /data/g2m                                   # ~1-3 CPU-s per genome, all cores (assembly stats + sketch when mash.tsv is empty)
 g2m known-amr --root /data/g2m                                   # minutes
-g2m lineages  --root /data/g2m                                   # ~2 s per genome + n^2 distances (10k genomes: ~1 h)
+g2m lineages  --root /data/g2m                                   # sketches + all-pairs distances on all cores; sparse, no n x n matrix
 g2m splits    --root /data/g2m                                   # seconds; FREEZES data/processed/splits.parquet
-g2m unitigs   --root /data/g2m --species KPNEU --unitig-backend unitig-caller   # hours; one species at a time on large sets
+g2m unitigs   --root /data/g2m --species KPNEU --unitig-backend unitig-caller --unitig-threads $(nproc)   # one species at a time
 g2m train     --root /data/g2m --nthread $(nproc)                # 5-fold CV x models x pairs: tens of minutes to hours per pair
 g2m evaluate  --root /data/g2m                                   # minutes; VME first
 g2m report    --root /data/g2m                                   # minutes; results/report.md + figures
@@ -318,7 +355,8 @@ Or, once you trust the layout, everything after fetch in one go (synth is skippe
 automatically when `--source-uri` is given):
 
 ```bash
-g2m run-all --root /data/g2m --source-uri gs://BUCKET/PREFIX --link-canonical --nthread $(nproc)
+g2m run-all --root /data/g2m --source-uri s3://BUCKET/PREFIX --aws-profile g2m --link-canonical \
+    --unitig-backend unitig-caller --nthread $(nproc)
 ```
 
 Notes:
@@ -326,19 +364,30 @@ Notes:
 - `splits` refuses to overwrite `splits.parquet`. That is the point (contract rule 7).
   Do **not** pass `--force` to "fix" a downstream problem; fix the problem. Commit
   `splits.parquet` once it exists.
-- `unitigs` with the default `kmer` backend on thousands of genomes will exhaust
-  RAM (section 1); use `--unitig-backend unitig-caller` (or `auto`).
+- `unitigs`: the default `kmer` backend is pure Python and stops with an error
+  naming `--unitig-backend unitig-caller` / `--unitig-max-kmer-genomes` when a
+  species has more than 1,000 training genomes (section 1). Use
+  `--unitig-backend unitig-caller` on real data (`auto` picks it when installed).
+  Querying the test genomes runs on all cores for either backend.
 - `train --models b1_lookup aft_known` is a cheap first pass before the unitig
-  model; `--no-lolo` skips leave-one-lineage-out runs.
-- Set `--nthread` for xgboost; nothing else is multi-threaded in Python, so a very
-  large core count helps Snakemake far more than the Python stages.
+  model; `--no-lolo` skips leave-one-lineage-out runs; `--species` / `--drugs`
+  train a shard of the kept pairs (separate jobs merge into `models/manifest.json`).
+- Cores: `qc`, `lineages` and `unitigs` use worker processes on every core (output
+  does not depend on the count); `train` uses `--nthread` xgboost threads. A script
+  that calls these stages from Python (rather than `python -m genome2mic`) must
+  guard its entry point with `if __name__ == "__main__":`; otherwise the stage warns
+  and runs on one core.
 
 ### Resuming
 
 Every stage is a pure function of the files before it. If stage *k* fails, fix the
 input and re-run stage *k* only; later stages are re-run from there. `fetch` is
 incremental; Snakemake is incremental; `train` rewrites `results/preds_*.parquet`
-and `models/` completely on each run.
+for the pairs it trains (a `--species`/`--drugs` shard leaves the other pairs and
+merges `models/manifest.json`). Every test-set scoring is appended to
+`results/test_ledger.csv`; re-running the identical configuration is fine, but a
+pair scored on the test set by two different configurations fails the
+"test set touched once" leakage check -- tune on CV folds, not by re-running.
 
 ## 9. Copy results back to the bucket
 
@@ -363,7 +412,11 @@ From `DATA_CONTRACT.md` section 4, with the file to look at for each:
 
 - [ ] **Unitig set built on training genomes only.**
       `data/processed/unitigs_<SP>_rows.parquet`: every row with `role == 'built'` has
-      `split == 'train'`; `report` repeats this check and prints pass/fail.
+      `split == 'train'`; `report` repeats this check and prints pass/fail. The build
+      set is every `split == 'train'` genome, so CV validation folds and LOLO
+      held-out lineages helped define the k-mer universe and patterns (no labels are
+      read); only test rows are `queried`. CV/LOLO numbers therefore carry slight
+      transductive optimism; the test split does not.
 - [ ] **Frequency filter and pyseer/correlation selection redone inside every fold.**
       `train` does this per fold (`features/select.py`); no selection step runs on
       the full table.
@@ -378,7 +431,8 @@ From `DATA_CONTRACT.md` section 4, with the file to look at for each:
       `models/<SP>/<drug>/conformal.json` is computed from `split == 'cv'` rows.
 - [ ] **Test set touched once, at the end.** One `train` run produces the test
       predictions; do not iterate on hyper-parameters after looking at
-      `split == 'test'` metrics.
+      `split == 'test'` metrics. `results/test_ledger.csv` must show one `run_id`
+      per species x drug; `report` checks it and prints pass/fail.
 - [ ] **No lineage cluster spans two splits or two folds.** `splits` raises
       `ContractViolation` otherwise; `splits.parquet` is committed and unchanged
       (`git status data/processed/splits.parquet`).

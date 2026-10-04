@@ -305,14 +305,163 @@ def test_external_sets_null_without_metadata() -> None:
     assert ext.isna().all()
 
 
+LOLO_CLUSTERS = ("KPNEU_ML_001", "KPNEU_ML_002", "ECOLI_ML_001", "ECOLI_ML_002")
+
+
 def test_lolo_marks_the_two_largest_clusters(splits: pd.DataFrame, lineages: pd.DataFrame) -> None:
     merged = splits.merge(lineages[["genome_id", "lineage_cluster"]], on="genome_id")
     lolo = merged[merged["lolo_lineage"].notna().to_numpy()]
     assert (lolo["lolo_lineage"] == lolo["lineage_cluster"]).all()
-    assert set(lolo["lolo_lineage"]) == {"KPNEU_ML_001", "KPNEU_ML_002", "ECOLI_ML_001", "ECOLI_ML_002"}
-    for cluster in ("KPNEU_ML_001", "KPNEU_ML_002", "ECOLI_ML_001", "ECOLI_ML_002"):
+    assert set(lolo["lolo_lineage"]) == set(LOLO_CLUSTERS)
+    for cluster in LOLO_CLUSTERS:
         members = merged[(merged["lineage_cluster"] == cluster).to_numpy()]
-        assert (members["lolo_lineage"] == cluster).all()  # every row of the cluster, train or test
+        assert (members["lolo_lineage"] == cluster).all()  # every row of the cluster
+        assert (members["split"] == ms.SPLIT_TRAIN).all()  # reserved before test selection: always train
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_lolo_clusters_are_reserved_before_test_selection(
+    lineages: pd.DataFrame, labels: pd.DataFrame, pairs_kept: pd.DataFrame, seed: int
+) -> None:
+    """Decision 1: the n_lolo largest clusters are never test candidates, so LOLO is a real refit."""
+    out = ms.build_splits(lineages, labels, pairs_kept, seed=seed)
+    merged = out.merge(lineages[["genome_id", "lineage_cluster"]], on="genome_id")
+    in_lolo = merged["lineage_cluster"].isin(LOLO_CLUSTERS).to_numpy()
+    assert (merged.loc[in_lolo, "split"] == ms.SPLIT_TRAIN).all(), seed
+    assert merged.loc[merged["lolo_lineage"].notna().to_numpy(), "split"].eq(ms.SPLIT_TRAIN).all()
+    # The test fraction is still measured against every genome of the species.
+    for species in ("KPNEU", "ECOLI"):
+        sub = out[(out["species"] == species).to_numpy()]
+        assert 0.15 <= (sub["split"] == ms.SPLIT_TEST).mean() <= 0.20, (seed, species)
+
+
+def test_n_lolo_zero_marks_nothing_and_reserves_nothing(
+    lineages: pd.DataFrame, labels: pd.DataFrame, pairs_kept: pd.DataFrame
+) -> None:
+    out = ms.build_splits(lineages, labels, pairs_kept, seed=7, n_lolo=0)
+    assert out["lolo_lineage"].isna().all()
+    ms.check_invariants(out, lineages)
+
+
+def test_greedy_never_picks_reserved_clusters() -> None:
+    sizes = {"c1": 12, "c2": 10, "c3": 8, "c4": 5, "c5": 3, "c6": 2}  # 40 genomes -> 6..8 in test
+    for seed in range(20):
+        chosen = ms.greedy_test_clusters(sizes, np.random.default_rng(seed), 0.15, 0.20, reserved={"c3", "c4"})
+        assert not chosen & {"c3", "c4"}, seed
+        assert sum(sizes[c] for c in chosen) <= 8
+
+
+def test_greedy_without_reserved_is_unchanged() -> None:
+    sizes = {"c1": 12, "c2": 10, "c3": 8, "c4": 5, "c5": 3, "c6": 2}
+    for seed in range(20):
+        a = ms.greedy_test_clusters(sizes, np.random.default_rng(seed), 0.15, 0.20)
+        b = ms.greedy_test_clusters(sizes, np.random.default_rng(seed), 0.15, 0.20, reserved=())
+        assert a == b
+
+
+def test_repair_never_adds_reserved_clusters(
+    lineages: pd.DataFrame, labels: pd.DataFrame, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING, logger="genome2mic")
+    lin = lineages[(lineages["species"] == "KPNEU").to_numpy()]
+    cluster_of = dict(zip(lin["genome_id"], lin["lineage_cluster"]))
+    labels_sp = labels[(labels["species"] == "KPNEU").to_numpy()]
+    # The only meropenem-R cluster is reserved: the check is unfixable and must not pull it into test.
+    test, failing = ms.repair_test_clusters(
+        {"KPNEU_ML_009", "KPNEU_ML_010", "KPNEU_ML_012"}, cluster_of, labels_sp, ["meropenem"],
+        np.random.default_rng(0), reserved={RARE_R_CLUSTER}, species="KPNEU",
+    )
+    assert RARE_R_CLUSTER not in test
+    assert ("meropenem", "R") in failing
+    assert "no cluster outside the test set carries meropenem=R" in caplog.text
+
+
+def test_check_invariants_rejects_lolo_on_a_test_row(splits: pd.DataFrame, lineages: pd.DataFrame) -> None:
+    bad = splits.merge(lineages[["genome_id", "lineage_cluster"]], on="genome_id")
+    is_test = (bad["split"] == ms.SPLIT_TEST).to_numpy()
+    test_cluster = bad.loc[is_test, "lineage_cluster"].iloc[0]
+    rows = (bad["lineage_cluster"] == test_cluster).to_numpy()
+    bad.loc[rows, "lolo_lineage"] = test_cluster
+    bad = bad.drop(columns=["lineage_cluster"])
+    with pytest.raises(ContractViolation, match="lolo_lineage must be null on test rows"):
+        ms.check_invariants(bad, lineages)
+
+
+# --------------------------------------------------------------------------- #
+# Nullable (pd.NA) string columns, as ingest writes them
+# --------------------------------------------------------------------------- #
+@pytest.fixture(params=["string", "string[python]"])
+def na_labels(request: pytest.FixtureRequest, labels: pd.DataFrame) -> pd.DataFrame:
+    """``labels`` with every text column as a pd.NA-based string dtype and some null ``sir``/``country``."""
+    out = labels.copy()
+    for col in ("genome_id", "biosample", "species", "drug", "sir", "raw_result", "method", "standard", "source",
+                "isolation_source", "country"):
+        out[col] = out[col].astype(object).where(out[col].notna(), None).astype(request.param)
+    null_rows = np.arange(len(out)) % 7 == 3  # 7 is coprime with the 3 KPNEU drugs: nulls hit every drug
+    out.loc[null_rows, "sir"] = pd.NA
+    out.loc[np.arange(len(out)) % 5 == 1, "country"] = pd.NA
+    assert out["sir"].isna().sum() > 0
+    return out
+
+
+def test_repair_handles_pd_na_in_sir(lineages: pd.DataFrame, na_labels: pd.DataFrame) -> None:
+    lin = lineages[(lineages["species"] == "KPNEU").to_numpy()]
+    cluster_of = dict(zip(lin["genome_id"], lin["lineage_cluster"]))
+    labels_sp = na_labels[(na_labels["species"] == "KPNEU").fillna(False).to_numpy(dtype=bool)]
+    repaired, failing = ms.repair_test_clusters(
+        {"KPNEU_ML_009", "KPNEU_ML_010", "KPNEU_ML_012"}, cluster_of, labels_sp, ["meropenem", "ciprofloxacin"],
+        np.random.default_rng(0), species="KPNEU",
+    )
+    assert failing == []
+    assert RARE_R_CLUSTER in repaired
+
+
+def test_build_splits_with_pd_na_string_labels(
+    lineages: pd.DataFrame, na_labels: pd.DataFrame, labels: pd.DataFrame, pairs_kept: pd.DataFrame
+) -> None:
+    lin = lineages.copy()
+    for col in ("genome_id", "species", "lineage_cluster"):
+        lin[col] = lin[col].astype("string")
+    pairs = pairs_kept.astype({"species": "string", "drug": "string"})
+    out = ms.build_splits(lin, na_labels, pairs, seed=7)
+    ms.check_invariants(out, lineages)
+    test_ids = set(out.loc[(out["split"] == ms.SPLIT_TEST).to_numpy(), "genome_id"])
+    for species, drug in (("KPNEU", "meropenem"), ("KPNEU", "ciprofloxacin"), ("ECOLI", "meropenem")):
+        mask = ((na_labels["species"] == species) & (na_labels["drug"] == drug)).fillna(False).to_numpy(dtype=bool)
+        sub = na_labels[mask]
+        sirs = set(sub.loc[sub["genome_id"].isin(test_ids).to_numpy(), "sir"].dropna())
+        assert {"R", "S"} <= sirs, (species, drug, sirs)
+    assert out["external_set"].notna().any()
+
+
+def test_mark_external_sets_with_pd_na_country() -> None:
+    meta = pd.DataFrame(
+        {
+            "genome_id": pd.array(["a", "b", "c", "d"], dtype="string"),
+            "country": pd.array(["UK", pd.NA, "UK", "USA"], dtype="string"),
+            "year": pd.array([2019, 2020, pd.NA, 2021], dtype="Int64"),
+        }
+    )
+    ext = ms.mark_external_sets(meta)
+    got = {g: (None if pd.isna(v) else v) for g, v in ext.items()}
+    assert got == {"a": ms.EXTERNAL_COUNTRY, "b": None, "c": ms.EXTERNAL_COUNTRY, "d": ms.EXTERNAL_TIME}
+
+
+# --------------------------------------------------------------------------- #
+# Repair bookkeeping (#34): per-cluster class presence == missing_classes
+# --------------------------------------------------------------------------- #
+def test_cluster_class_presence_matches_missing_classes(lineages: pd.DataFrame, labels: pd.DataFrame) -> None:
+    lin = lineages[(lineages["species"] == "KPNEU").to_numpy()]
+    cluster_of = dict(zip(lin["genome_id"], lin["lineage_cluster"]))
+    labels_sp = labels[(labels["species"] == "KPNEU").to_numpy()]
+    drugs = ["meropenem", "ciprofloxacin", "colistin", "absent-drug"]
+    presence = ms.cluster_class_presence(labels_sp, cluster_of)
+    clusters = sorted(set(cluster_of.values()))
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        subset = {c for c in clusters if rng.random() < 0.3}
+        genomes = {g for g, c in cluster_of.items() if c in subset}
+        assert ms.missing_from_presence(presence, subset, drugs) == ms.missing_classes(labels_sp, genomes, drugs)
 
 
 # --------------------------------------------------------------------------- #

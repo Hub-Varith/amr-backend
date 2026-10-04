@@ -238,3 +238,123 @@ def test_select_unitigs_edge_cases(unitig_world) -> None:
         fs.select_unitigs(U, np.array([0, 99]), y)
     with pytest.raises(ValueError):
         fs.select_unitigs(U, np.array([0.5, 1.5]), y)
+
+
+# ---------------------------------------------------------------------------
+# #29: binarise once, no float copy -- results identical to the previous implementation
+# ---------------------------------------------------------------------------
+def _old_binary_block(U: sp.spmatrix, pos: np.ndarray) -> sp.csr_matrix:
+    """Verbatim pre-#29 ``_binary_training_block`` (float64 copy)."""
+    Ut = sp.csr_matrix(U)[pos]
+    Ut = sp.csr_matrix(Ut, dtype=np.float64)
+    Ut.eliminate_zeros()
+    Ut.data[:] = 1.0
+    Ut.sum_duplicates()
+    Ut.data[:] = 1.0
+    return Ut
+
+
+def _old_correlations(U: sp.spmatrix, pos: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Verbatim pre-#29 ``column_correlations`` body (y already aligned with ``pos``)."""
+    Ut = _old_binary_block(U, pos)
+    finite = np.isfinite(y)
+    if (~finite).any():
+        Ut = sp.csr_matrix(Ut[np.flatnonzero(finite)])
+        y = y[finite]
+    n = y.size
+    corr = np.full(U.shape[1], np.nan)
+    if n < 2:
+        return corr
+    yc = y - y.mean()
+    sy = float(np.sqrt(np.mean(yc * yc)))
+    if sy == 0.0:
+        return corr
+    p = np.asarray(Ut.sum(axis=0)).ravel() / n
+    cov = np.asarray(Ut.T @ yc).ravel() / n
+    var_x = p * (1.0 - p)
+    ok = var_x > 0
+    corr[ok] = cov[ok] / (np.sqrt(var_x[ok]) * sy)
+    return corr
+
+
+def _messy_matrix(rng: np.random.Generator, n_rows: int, n_cols: int, dtype) -> sp.csr_matrix:
+    """Random sparse 0/1-ish matrix with explicit zeros, duplicates and non-unit values."""
+    nnz = int(n_rows * n_cols * 0.3)
+    r = rng.integers(0, n_rows, size=nnz)
+    c = rng.integers(0, n_cols, size=nnz)
+    v = rng.choice(np.array([0, 1, 1, 1, 2], dtype=np.float64), size=nnz)
+    if np.dtype(dtype).kind == "f":
+        v = v * 0.5  # 0.5 and 1.0 are presence, 0.0 an explicit zero
+    m = sp.csr_matrix((v.astype(dtype), (r, c)), shape=(n_rows, n_cols))  # COO -> CSR sums duplicates
+    m.data[: min(3, m.nnz)] = 0  # explicit stored zeros
+    # Re-introduce duplicate entries (non-canonical CSR): row 0's entries stored twice.
+    k = int(m.indptr[1])
+    indices = np.concatenate([m.indices[:k], m.indices[:k], m.indices[k:]])
+    data = np.concatenate([m.data[:k], m.data[:k], m.data[k:]])
+    indptr = m.indptr.copy()
+    indptr[1:] += k
+    dup = sp.csr_matrix((data, indices, indptr), shape=m.shape)
+    assert not dup.has_canonical_format or k == 0
+    return dup
+
+
+@pytest.mark.parametrize("seed", range(6))
+@pytest.mark.parametrize("dtype", [np.int8, np.float64])
+def test_column_correlations_and_selection_identical_to_previous_implementation(seed: int, dtype, monkeypatch) -> None:
+    rng = np.random.default_rng(seed)
+    n_rows, n_cols = 120, 60
+    U = _messy_matrix(rng, n_rows, n_cols, dtype)
+    y = np.round(rng.normal(1.0, 2.0, size=n_rows))
+    if seed % 2:
+        y[rng.choice(n_rows, size=7, replace=False)] = np.nan  # non-finite rows are skipped
+    pos = np.sort(rng.choice(n_rows, size=90, replace=False))
+    monkeypatch.setattr(fs, "SUM_CHUNK_NNZ", 17)  # many chunks: accumulation order must still match
+    new = fs.column_correlations(U, pos, y)
+    old = _old_correlations(U, pos, y[pos])
+    assert np.array_equal(np.isnan(new), np.isnan(old))
+    assert np.array_equal(new[~np.isnan(new)], old[~np.isnan(old)])  # bit-identical, not approx
+
+    # select_unitigs: same frequency window and the same chosen columns as the old pipeline
+    Ut_old = _old_binary_block(U, pos)
+    freq_old = np.asarray(Ut_old.sum(axis=0)).ravel() / pos.size
+    cand = np.flatnonzero((freq_old >= 0.05) & (freq_old <= 0.95))
+    score = np.where(np.isnan(old[cand]), -np.inf, np.abs(old[cand]))
+    expected = np.sort(cand[np.lexsort((cand, -score))][:10])
+    got = fs.select_unitigs(U, pos, y, min_freq=0.05, max_freq=0.95, top_k=10)
+    assert np.array_equal(got, expected)
+
+
+def test_binary_training_block_is_one_int8_copy() -> None:
+    U = sp.csr_matrix(np.array([[0, 2, 0], [1, 0, 1], [0, 0, 1]], dtype=np.int8))
+    U.data[0] = 0  # stored zero
+    Ut = fs._binary_training_block(U, np.array([0, 1]))
+    assert Ut.dtype == np.int8 and Ut.has_canonical_format
+    assert Ut.toarray().tolist() == [[0, 0, 0], [1, 0, 1]]
+    assert (U.data == 0).sum() == 1  # the caller's matrix is untouched
+    F = sp.csr_matrix(np.array([[0.5, 0.0], [0.0, 3.0]]))
+    assert fs._binary_training_block(F, np.array([0, 1])).toarray().tolist() == [[1, 0], [0, 1]]
+    # 256 duplicate int8 ones would wrap to 0 if summed in int8; they are presence.
+    dup = sp.csr_matrix((np.ones(256, dtype=np.int8), np.zeros(256, dtype=np.int32), np.array([0, 256, 256])), shape=(2, 3))
+    assert fs._binary_training_block(dup, np.array([0, 1])).toarray().tolist() == [[1, 0, 0], [0, 0, 0]]
+
+
+def test_select_unitigs_peak_memory_is_below_one_float_copy(monkeypatch) -> None:
+    import tracemalloc
+
+    rng = np.random.default_rng(3)
+    n_rows, n_cols = 4000, 2000
+    U = sp.random(n_rows, n_cols, density=0.25, format="csr", random_state=4, dtype=np.float64)
+    U = sp.csr_matrix(U, dtype=np.int8)
+    U.data[:] = 1
+    y = rng.normal(size=n_rows)
+    pos = np.arange(n_rows)
+    monkeypatch.setattr(fs, "SUM_CHUNK_NNZ", 1 << 18)  # chunk temporaries small relative to this matrix
+    tracemalloc.start()
+    try:
+        fs.select_unitigs(U, pos, y, top_k=50)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    # The old code held two float64 copies (12 B per stored entry each) plus the int8 slice at
+    # once (~29 B per entry); now: one int8 block (5 B per entry) plus bounded chunk temporaries.
+    assert peak < 9 * U.nnz, (peak, U.nnz)

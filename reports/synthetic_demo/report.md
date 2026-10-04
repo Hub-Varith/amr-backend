@@ -4,31 +4,33 @@
 
 > **Scope note.** These are predictions of in-vitro susceptibility, not prescribing advice. Dose, route, and final drug choice depend on PK/PD, infection site, renal function, allergies, and other patient factors, and remain with the clinician. Confirm with standard AST.
 
-Generated 2026-10-03 22:15 UTC from `/Users/bensonzhang/conductor/workspaces/amr-backend/taipei/runs/synthetic`. Predictions of in-vitro MIC (mg/L) per species x drug; the system ranks, a clinician decides.
+Generated 2026-10-04 01:15 UTC from `/Users/bensonzhang/conductor/workspaces/amr-backend/taipei/runs/synthetic`. Predictions of in-vitro MIC (mg/L) per species x drug; the system ranks, a clinician decides.
 
 ## How to read this report
 
 - **VME** (very major error: predicted S, lab R) is listed first in every table and figure; it is the error that would harm a patient. Its denominator is the number of lab-R rows.
 - **ME** (major error: predicted R, lab S) uses the lab-S rows as denominator; **minor error** has exactly one side I; **CA** is same S/I/R; **EA** is within +/-1 doubling step of an exact lab MIC; **exact agreement** is the same doubling step.
-- Rates are shown as percentages with their denominator `n`. Band coverage is the share of lab MICs inside the 90 % conformal band; band width is in doubling steps.
+- **EA**, **exact agreement** and **band coverage** are computed only on rows whose lab result is one exact doubling step (e.g. `8` = (4, 8] mg/L); censored results (`<=`, `>`), multi-step S/I/R-only intervals and disk-diffusion results (a zone diameter, never an MIC, even when the I range is one step such as CLSI meropenem (1, 2]) are left out, and the `n` shown next to each of these rates is that number of exact rows. Band coverage is therefore measured on the same kind of rows the conformal band is calibrated on.
+- VME, ME, minor error and CA are shown twice: **as reported** compares the predicted category with the lab's own S/I/R, assigned under the lab's standard and year (which may differ from the call breakpoint); **re-derived** compares it with the lab MIC re-classified under the same call breakpoint as the prediction (rows whose lab interval straddles a breakpoint are left out).
+- Rates are shown as percentages with their denominator `n`. Band coverage is the share of exact lab MICs inside the 90 % conformal band; band width is in doubling steps over every row with a band. CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation.
 - Targets quoted on the figures and below -- EA >= 90 %, CA >= 90 %, VME <= 1.5 %, ME <= 3 % -- are figures commonly used in AST device evaluation. They are listed as reference points only; this report does not claim they were met, and they are not regulatory thresholds.
-- `test set` = lineage-held-out genomes scored once at the end; `CV` = out-of-fold predictions on the train split; external and leave-one-lineage-out (LOLO) sets are listed separately.
+- `test set` = lineage-held-out genomes scored once at the end; `CV` = out-of-fold predictions on the train split; external and leave-one-lineage-out (LOLO) sets are listed separately. A LOLO lineage is a train cluster refitted without that lineage, so its rows never overlap the test set.
 
 _All numbers below come from synthetic data (see the banner above)._
 
 ## Headline: main model on the test set (VME first)
 
-| Species | Drug | Model | VME % (of lab R) | ME % (of lab S) | CA % | EA % (exact MICs) | n |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| ECOLI | ceftriaxone | aft_known_unitig | 0.0% (n=20) | 0.0% (n=20) | 100.0% (n=40) | 77.5% (n=19) | 40 |
-| ECOLI | ciprofloxacin | aft_known_unitig | 0.0% (n=5) | 0.0% (n=34) | 97.5% (n=40) | 85.0% (n=32) | 40 |
-| ECOLI | meropenem | aft_known_unitig | 0.0% (n=7) | 0.0% (n=30) | 92.7% (n=41) | 97.6% (n=16) | 41 |
-| ECOLI | piperacillin-tazobactam | aft_known_unitig | 0.0% (n=12) | 0.0% (n=23) | 97.2% (n=36) | 83.3% (n=24) | 36 |
-| KPNEU | ceftriaxone | aft_known_unitig | 0.0% (n=75) | 0.0% (n=16) | 100.0% (n=91) | 96.7% (n=22) | 91 |
-| KPNEU | ciprofloxacin | aft_known_unitig | 0.0% (n=65) | 0.0% (n=24) | 96.7% (n=91) | 96.7% (n=52) | 91 |
-| KPNEU | gentamicin | aft_known_unitig | 0.0% (n=17) | 0.0% (n=36) | 84.1% (n=63) | 96.8% (n=46) | 63 |
-| KPNEU | meropenem | aft_known_unitig | 0.0% (n=60) | 0.0% (n=30) | 75.5% (n=94) | 93.6% (n=44) | 94 |
-| KPNEU | piperacillin-tazobactam | aft_known_unitig | 0.0% (n=45) | 50.0% (n=12) | 89.5% (n=57) | 91.2% (n=16) | 57 |
+| Species | Drug | Model | VME % as reported (of lab R) | ME % as reported (of lab S) | CA % as reported | VME % re-derived (of lab R) | ME % re-derived (of lab S) | CA % re-derived | EA % (exact lab MICs) | n |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ECOLI | ceftriaxone | aft_known_unitig | 0.0% (n=19) | 0.0% (n=19) | 100.0% (n=38) | 0.0% (n=19) | 0.0% (n=19) | 100.0% (n=38) | 52.6% (n=19) | 38 |
+| ECOLI | ciprofloxacin | aft_known_unitig | 0.0% (n=4) | 0.0% (n=33) | 97.4% (n=38) | 0.0% (n=4) | 0.0% (n=33) | 97.4% (n=38) | 93.8% (n=32) | 38 |
+| ECOLI | meropenem | aft_known_unitig | 0.0% (n=6) | 0.0% (n=30) | 82.5% (n=40) | 0.0% (n=6) | 0.0% (n=32) | 87.5% (n=40) | 68.8% (n=16) | 40 |
+| ECOLI | piperacillin-tazobactam | aft_known_unitig | 0.0% (n=11) | 0.0% (n=23) | 97.1% (n=35) | 8.3% (n=12) | 0.0% (n=23) | 97.1% (n=35) | 75.0% (n=24) | 35 |
+| KPNEU | ceftriaxone | aft_known_unitig | 2.6% (n=38) | 0.0% (n=43) | 98.8% (n=81) | 2.6% (n=38) | 0.0% (n=43) | 98.8% (n=81) | 61.3% (n=31) | 81 |
+| KPNEU | ciprofloxacin | aft_known_unitig | 0.0% (n=14) | 1.6% (n=61) | 92.5% (n=80) | 0.0% (n=14) | 1.6% (n=61) | 92.5% (n=80) | 93.8% (n=65) | 80 |
+| KPNEU | gentamicin | aft_known_unitig | 0.0% (n=7) | 0.0% (n=45) | 98.1% (n=53) | 0.0% (n=8) | 0.0% (n=45) | 100.0% (n=53) | 97.5% (n=40) | 53 |
+| KPNEU | meropenem | aft_known_unitig | 0.0% (n=17) | 0.0% (n=61) | 86.9% (n=84) | 0.0% (n=8) | 0.0% (n=61) | 94.9% (n=79) | 75.0% (n=36) | 84 |
+| KPNEU | piperacillin-tazobactam | aft_known_unitig | 6.7% (n=15) | 3.6% (n=28) | 95.3% (n=43) | 6.7% (n=15) | 3.6% (n=28) | 95.3% (n=43) | 96.6% (n=29) | 43 |
 
 ## Data
 
@@ -36,53 +38,59 @@ _All numbers below come from synthetic data (see the banner above)._
 
 | species | drug | n | n_R | n_S | n_I | n_exact | n_censored | n_distinct_mic |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ECOLI | ceftriaxone | 239 | 129 | 110 | 0 | 82 | 157 | 10 |
-| ECOLI | ciprofloxacin | 239 | 100 | 130 | 9 | 181 | 58 | 11 |
-| ECOLI | gentamicin | 57 | 17 | 39 | 1 | 36 | 21 | 7 |
-| ECOLI | meropenem | 248 | 60 | 167 | 21 | 93 | 155 | 10 |
-| ECOLI | piperacillin-tazobactam | 213 | 85 | 125 | 3 | 136 | 77 | 10 |
-| KPNEU | ceftriaxone | 572 | 315 | 257 | 0 | 179 | 393 | 10 |
-| KPNEU | ciprofloxacin | 591 | 231 | 331 | 29 | 402 | 189 | 11 |
-| KPNEU | gentamicin | 357 | 64 | 272 | 21 | 229 | 128 | 8 |
-| KPNEU | meropenem | 606 | 192 | 384 | 30 | 249 | 357 | 12 |
-| KPNEU | piperacillin-tazobactam | 365 | 145 | 212 | 8 | 209 | 156 | 10 |
+| ECOLI | ceftriaxone | 225 | 120 | 105 | 0 | 83 | 142 | 10 |
+| ECOLI | ciprofloxacin | 227 | 96 | 122 | 9 | 181 | 46 | 11 |
+| ECOLI | gentamicin | 52 | 16 | 35 | 1 | 36 | 16 | 7 |
+| ECOLI | meropenem | 233 | 54 | 158 | 21 | 92 | 141 | 10 |
+| ECOLI | piperacillin-tazobactam | 201 | 80 | 118 | 3 | 136 | 65 | 10 |
+| KPNEU | ceftriaxone | 532 | 297 | 235 | 0 | 179 | 353 | 10 |
+| KPNEU | ciprofloxacin | 550 | 216 | 305 | 29 | 402 | 148 | 11 |
+| KPNEU | gentamicin | 330 | 59 | 249 | 22 | 228 | 102 | 8 |
+| KPNEU | meropenem | 562 | 182 | 353 | 27 | 244 | 318 | 12 |
+| KPNEU | piperacillin-tazobactam | 345 | 139 | 198 | 8 | 209 | 136 | 10 |
 
 ### Pairs kept (>= 50 non-susceptible, >= 50 susceptible, >= 4 distinct MIC levels)
 
 | species | drug | n | n_nonsusceptible | n_susceptible | n_distinct_mic |
 | --- | --- | --- | --- | --- | --- |
-| ECOLI | ceftriaxone | 239 | 129 | 110 | 10 |
-| ECOLI | ciprofloxacin | 239 | 109 | 130 | 11 |
-| ECOLI | meropenem | 248 | 81 | 167 | 10 |
-| ECOLI | piperacillin-tazobactam | 213 | 88 | 125 | 10 |
-| KPNEU | ceftriaxone | 572 | 315 | 257 | 10 |
-| KPNEU | ciprofloxacin | 591 | 260 | 331 | 11 |
-| KPNEU | gentamicin | 357 | 85 | 272 | 8 |
-| KPNEU | meropenem | 606 | 222 | 384 | 12 |
-| KPNEU | piperacillin-tazobactam | 365 | 153 | 212 | 10 |
+| ECOLI | ceftriaxone | 225 | 120 | 105 | 10 |
+| ECOLI | ciprofloxacin | 227 | 105 | 122 | 11 |
+| ECOLI | meropenem | 233 | 75 | 158 | 10 |
+| ECOLI | piperacillin-tazobactam | 201 | 83 | 118 | 10 |
+| KPNEU | ceftriaxone | 532 | 297 | 235 | 10 |
+| KPNEU | ciprofloxacin | 550 | 245 | 305 | 11 |
+| KPNEU | gentamicin | 330 | 81 | 249 | 8 |
+| KPNEU | meropenem | 562 | 209 | 353 | 12 |
+| KPNEU | piperacillin-tazobactam | 345 | 147 | 198 | 10 |
 
 ### Drop logs (every filter, with its count)
 
-#### Stage `evaluate` — 11224 rows dropped
+#### Stage `evaluate` — 25942 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
-| evaluate | pred_mic null: categorical metrics only | 3288 | models: b0_resfinder |
+| evaluate | pred_mic null: categorical metrics only | 3075 | models: b0_resfinder |
 | evaluate | lab_lower/lab_upper null: excluded from MIC metrics | 0 | — |
 | evaluate | lab interval (0, inf): excluded from MIC metrics | 0 | — |
+| evaluate | lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage | 7568 | models: aft_known, aft_known_unitig, b1_lookup, b2_xgb_steps |
+| evaluate | lab_exact false (one-step interval but not a measured MIC, e.g. disk diffusion): excluded from EA, exact agreement and band coverage | 32 | models: aft_known, aft_known_unitig, b1_lookup, b2_xgb_steps |
 | evaluate | pred_sir or lab_sir null: excluded from categorical metrics | 0 | — |
-| evaluate | lab_sir I: excluded from AUROC | 680 | — |
-| evaluate | band_low/band_high null: excluded from band metrics | 3288 | models: b0_resfinder |
-| evaluate | nearest_distance null: excluded from distance bins | 3288 | — |
+| evaluate | pred_sir or lab_sir_rederived null: excluded from re-derived categorical metrics | 89 | — |
+| evaluate | lab_sir I: excluded from AUROC | 676 | — |
+| evaluate | band_low/band_high null: excluded from band metrics | 3075 | models: b0_resfinder |
+| evaluate | nearest_distance null: excluded from distance bins | 3075 | — |
 | evaluate | nearest_distance outside bins: excluded from distance bins | 0 | — |
 | evaluate | pred_mic null: categorical metrics only | 0 | — |
 | evaluate | lab_lower/lab_upper null: excluded from MIC metrics | 0 | — |
 | evaluate | lab interval (0, inf): excluded from MIC metrics | 0 | — |
+| evaluate | lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage | 7568 | models: aft_known, aft_known_unitig, b1_lookup, b2_xgb_steps |
+| evaluate | lab_exact false (one-step interval but not a measured MIC, e.g. disk diffusion): excluded from EA, exact agreement and band coverage | 32 | models: aft_known, aft_known_unitig, b1_lookup, b2_xgb_steps |
 | evaluate | pred_sir or lab_sir null: excluded from categorical metrics | 0 | — |
-| evaluate | lab_sir I: excluded from AUROC | 680 | — |
+| evaluate | pred_sir or lab_sir_rederived null: excluded from re-derived categorical metrics | 76 | — |
+| evaluate | lab_sir I: excluded from AUROC | 676 | — |
 | evaluate | band_low/band_high null: excluded from band metrics | 0 | — |
 
-#### Stage `ingest` — 1038 rows dropped
+#### Stage `ingest` — 2456 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
@@ -97,11 +105,15 @@ _All numbers below come from synthetic data (see the banner above)._
 | ingest | no MIC value and no S/I/R | 0 | — |
 | ingest | unknown S/I/R value on S/I/R-only row | 0 | — |
 | ingest | null or unknown standard on S/I/R-only row | 111 | — |
+| ingest | S/I/R-only row with null standard_year | 253 | — |
+| ingest | no breakpoint table for standard_year | 59 | EUCAST 2017 (14), EUCAST 2020 (13), CLSI 2019 (8), EUCAST 2023 (5), CLSI 2017 (3), ... 9 more |
 | ingest | no breakpoint for species x drug x standard on S/I/R-only row | 0 | — |
 | ingest | 'I' reported but the standard has no I category (S == R) | 0 | — |
+| ingest | combination MIC 'x/y': primary-agent value x used, full text kept in raw_result (count, not a drop) | 151 | 128/4 (35), 2/4 (29), 4/4 (23), 1/4 (17), 64/4 (10), ... 11 more |
+| ingest | decimal rendering of a power of two snapped to the doubling grid, e.g. 0.016 -> 2^-6 (count, not a drop) | 1037 | 0.06 (515), 0.03 (426), 0.12 (50), 0.015 (46) |
 | ingest | biosample de-dup: rows re-keyed to the BV-BRC genome_id (count, not a drop) | 0 | — |
-| ingest | duplicate (genome_id, drug): extra rows merged into one interval | 418 | 411 pairs |
-| ingest | duplicate (genome_id, drug): S vs R conflict, pair dropped | 66 | 33 pairs: 573.1000/ciprofloxacin, 573.1001/piperacillin-tazobactam, 573.1028/gentamicin, 573.1035/meropenem, 573.1041/ciprofloxacin, ... 28 more |
+| ingest | duplicate (genome_id, drug): extra rows merged into one interval | 346 | 341 pairs |
+| ingest | duplicate (genome_id, drug): S vs R conflict, pair dropped | 56 | 28 pairs: 573.1000/ciprofloxacin, 573.1001/piperacillin-tazobactam, 573.1028/gentamicin, 573.1035/meropenem, 573.1041/ciprofloxacin, ... 23 more |
 | ingest | duplicate (genome_id, drug): intervals more than 1 step apart, pair dropped | 0 | — |
 
 #### Stage `known_amr` — 152 rows dropped
@@ -141,22 +153,24 @@ _All numbers below come from synthetic data (see the banner above)._
 | qc | too_distant | 10 | mash_distance > 0.05 from every reference, or no Mash result |
 | qc | qc_fail_any | 40 | distinct genomes failing >= 1 rule (per-rule counts above overlap); excluded from training and the unitig build |
 
-#### Stage `splits` — 145 rows dropped
+#### Stage `splits` — 133 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
 | splits | lineage_rows_species_not_in_config | 0 | — |
-| splits | label_rows_for_genomes_without_lineage | 145 | genome failed QC or has no lineage row; excluded from the test-set R/S check |
+| splits | label_rows_for_genomes_without_lineage | 133 | genome failed QC or has no lineage row; excluded from the test-set R/S check |
 | splits | kept_pairs_for_species_without_lineages | 0 | — |
 
-#### Stage `synth` — 808 rows dropped
+#### Stage `synth` — 1162 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
 | synth | planted expected_drop: evidence == Computational Prediction | 183 | — |
-| synth | planted expected_drop: S/I/R-only row with blank standard | 89 | — |
+| synth | planted expected_drop: S/I/R-only row with blank standard | 111 | — |
+| synth | planted expected_drop: S/I/R-only row with null standard_year | 253 | — |
+| synth | planted expected_drop: S/I/R-only row with no breakpoint table for standard_year | 59 | — |
 | synth | planted expected_drop: unknown antibiotic name | 20 | — |
-| synth | planted expected_drop: unknown typing method | 220 | — |
+| synth | planted expected_drop: unknown typing method | 240 | — |
 | synth | planted expected_drop: conflicting cross-source duplicate (genome x drug pairs) | 37 | — |
 | synth | planted: within-source duplicate rows (consistent) (not a drop; ingest should merge) | 68 | — |
 | synth | planted: biosamples present in both sources (not a drop; ingest should merge) | 150 | — |
@@ -166,74 +180,74 @@ _All numbers below come from synthetic data (see the banner above)._
 | synth | planted expected_drop: QC-fail genome (too_distant) | 10 | — |
 | synth | planted expected_drop: species x drug pairs failing the 50/50 inclusion rule | 1 | ECOLI x gentamicin |
 
-#### Stage `train` — 1697160 rows dropped
+#### Stage `train` — 1700758 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
-| train | label_without_split_row | 11 | ECOLI x ceftriaxone |
+| train | label_without_split_row | 10 | ECOLI x ceftriaxone |
 | train | label_without_qc_row | 0 | ECOLI x ceftriaxone |
 | train | qc_fail | 0 | ECOLI x ceftriaxone |
 | train | label_without_lineage_row | 0 | ECOLI x ceftriaxone |
 | train | label_without_known_amr_row | 0 | ECOLI x ceftriaxone |
 | train | label_without_unitig_row | 0 | ECOLI x ceftriaxone |
-| train | known_rare_feature | 3 | present in < 5 of 156 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 156 training genomes |
-| train | unitig_below_min_freq | 114 | present in < 1% of 156 training rows |
-| train | unitig_above_max_freq | 567 | present in > 99% of 156 training rows |
-| train | unitig_beyond_top_k | 14268 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 105 | 51 exact rows kept of 156 |
-| train | known_rare_feature | 3 | present in < 5 of 164 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 164 training genomes |
-| train | unitig_below_min_freq | 78 | present in < 1% of 164 training rows |
-| train | unitig_above_max_freq | 468 | present in > 99% of 164 training rows |
-| train | unitig_beyond_top_k | 14403 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 114 | 50 exact rows kept of 164 |
-| train | known_rare_feature | 3 | present in < 5 of 112 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 112 training genomes |
-| train | unitig_below_min_freq | 510 | present in < 1% of 112 training rows |
-| train | unitig_above_max_freq | 1045 | present in > 99% of 112 training rows |
-| train | unitig_beyond_top_k | 13394 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 76 | 36 exact rows kept of 112 |
-| train | known_rare_feature | 3 | present in < 5 of 168 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 168 training genomes |
-| train | unitig_below_min_freq | 81 | present in < 1% of 168 training rows |
-| train | unitig_above_max_freq | 367 | present in > 99% of 168 training rows |
-| train | unitig_beyond_top_k | 14501 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 112 | 56 exact rows kept of 168 |
-| train | known_rare_feature | 3 | present in < 5 of 152 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 152 training genomes |
-| train | unitig_below_min_freq | 167 | present in < 1% of 152 training rows |
-| train | unitig_above_max_freq | 424 | present in > 99% of 152 training rows |
-| train | unitig_beyond_top_k | 14358 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 109 | 43 exact rows kept of 152 |
-| train | censored row (conformal residuals use exact MICs only) | 129 | — |
-| train | missing prediction (conformal residuals) | 0 | — |
-| train | censored row (conformal residuals use exact MICs only) | 129 | — |
-| train | missing prediction (conformal residuals) | 0 | — |
-| train | censored row (conformal residuals use exact MICs only) | 129 | — |
-| train | missing prediction (conformal residuals) | 0 | — |
-| train | censored row (conformal residuals use exact MICs only) | 129 | — |
-| train | missing prediction (conformal residuals) | 0 | — |
-| train | known_rare_feature | 3 | present in < 5 of 188 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 188 training genomes |
-| train | unitig_below_min_freq | 19 | present in < 1% of 188 training rows |
-| train | unitig_above_max_freq | 66 | present in > 99% of 188 training rows |
-| train | unitig_beyond_top_k | 14864 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 129 | 59 exact rows kept of 188 |
-| train | known_rare_feature | 3 | present in < 5 of 150 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 150 training genomes |
-| train | unitig_below_min_freq | 307 | present in < 1% of 150 training rows |
-| train | unitig_above_max_freq | 340 | present in > 99% of 150 training rows |
-| train | unitig_beyond_top_k | 14302 | ranked below top_k=2000 by \|corr\| with y_point |
-| train | censored row (B2 trains on exact MICs only) | 105 | 45 exact rows kept of 150 |
-| train | known_rare_feature | 3 | present in < 5 of 158 training genomes |
-| train | known_rare_feature | 3 | present in < 5 of 158 training genomes |
-| train | unitig_below_min_freq | 167 | present in < 1% of 158 training rows |
-| train | unitig_above_max_freq | 268 | present in > 99% of 158 training rows |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 148 training genomes |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 148 training genomes |
+| train | unitig_below_min_freq | 119 | ECOLI x ceftriaxone: present in < 1% of 148 training rows |
+| train | unitig_above_max_freq | 668 | ECOLI x ceftriaxone: present in > 99% of 148 training rows |
+| train | unitig_beyond_top_k | 14162 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 96 | ECOLI x ceftriaxone: 52 exact rows kept of 148 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 157 training genomes |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 157 training genomes |
+| train | unitig_below_min_freq | 83 | ECOLI x ceftriaxone: present in < 1% of 157 training rows |
+| train | unitig_above_max_freq | 512 | ECOLI x ceftriaxone: present in > 99% of 157 training rows |
+| train | unitig_beyond_top_k | 14354 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 106 | ECOLI x ceftriaxone: 51 exact rows kept of 157 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | known_rare_feature | 4 | ECOLI x ceftriaxone: present in < 5 of 102 training genomes |
+| train | known_rare_feature | 4 | ECOLI x ceftriaxone: present in < 5 of 102 training genomes |
+| train | unitig_below_min_freq | 539 | ECOLI x ceftriaxone: present in < 1% of 102 training rows |
+| train | unitig_above_max_freq | 1245 | ECOLI x ceftriaxone: present in > 99% of 102 training rows |
+| train | unitig_beyond_top_k | 13165 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 66 | ECOLI x ceftriaxone: 36 exact rows kept of 102 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 158 training genomes |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 158 training genomes |
+| train | unitig_below_min_freq | 86 | ECOLI x ceftriaxone: present in < 1% of 158 training rows |
+| train | unitig_above_max_freq | 484 | ECOLI x ceftriaxone: present in > 99% of 158 training rows |
+| train | unitig_beyond_top_k | 14379 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 101 | ECOLI x ceftriaxone: 57 exact rows kept of 158 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 143 training genomes |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 143 training genomes |
+| train | unitig_below_min_freq | 177 | ECOLI x ceftriaxone: present in < 1% of 143 training rows |
+| train | unitig_above_max_freq | 529 | ECOLI x ceftriaxone: present in > 99% of 143 training rows |
+| train | unitig_beyond_top_k | 14243 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 99 | ECOLI x ceftriaxone: 44 exact rows kept of 143 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | censored row (conformal residuals use exact MICs only) | 117 | ECOLI x ceftriaxone |
+| train | missing prediction (conformal residuals) | 0 | ECOLI x ceftriaxone |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): conformal residuals use exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | censored row (conformal residuals use exact MICs only) | 117 | ECOLI x ceftriaxone |
+| train | missing prediction (conformal residuals) | 0 | ECOLI x ceftriaxone |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): conformal residuals use exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | censored row (conformal residuals use exact MICs only) | 117 | ECOLI x ceftriaxone |
+| train | missing prediction (conformal residuals) | 0 | ECOLI x ceftriaxone |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): conformal residuals use exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | censored row (conformal residuals use exact MICs only) | 117 | ECOLI x ceftriaxone |
+| train | missing prediction (conformal residuals) | 0 | ECOLI x ceftriaxone |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): conformal residuals use exact MICs only | 0 | ECOLI x ceftriaxone |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 177 training genomes |
+| train | known_rare_feature | 3 | ECOLI x ceftriaxone: present in < 5 of 177 training genomes |
+| train | unitig_below_min_freq | 25 | ECOLI x ceftriaxone: present in < 1% of 177 training rows |
+| train | unitig_above_max_freq | 127 | ECOLI x ceftriaxone: present in > 99% of 177 training rows |
+| train | unitig_beyond_top_k | 14797 | ECOLI x ceftriaxone: ranked below top_k=2000 by \|corr\| with y_point |
+| train | censored row (B2 trains on exact MICs only) | 117 | ECOLI x ceftriaxone: 60 exact rows kept of 177 |
+| train | one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only | 0 | ECOLI x ceftriaxone |
 
-_507 more rows not shown._
+_633 more rows not shown._
 
-#### Stage `unitigs` — 365431 rows dropped
+#### Stage `unitigs` — 376784 rows dropped
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
@@ -245,8 +259,8 @@ _507 more rows not shown._
 | unitigs | no_qc_row | 0 | species=KPNEU |
 | unitigs | qc_fail | 0 | species=KPNEU |
 | unitigs | fasta_missing | 0 | species=KPNEU |
-| unitigs | kmer_below_min_freq | 252337 | present in < 1% of 561 training genomes |
-| unitigs | kmer_above_max_freq | 1809 | present in > 99% of 561 training genomes |
+| unitigs | kmer_below_min_freq | 263464 | present in < 1% of 567 training genomes |
+| unitigs | kmer_above_max_freq | 2035 | present in > 99% of 567 training genomes |
 
 ## Results by species and drug
 
@@ -256,43 +270,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 1 mg/L, R if MIC > 2 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 40 | 0.0% (n=20) | 0.0% (n=20) | 0.0% (n=40) | 100.0% (n=40) | — | — | — | — | — |
-| b1_lookup | 40 | 0.0% (n=20) | 5.0% (n=20) | 0.0% (n=40) | 97.5% (n=40) | 77.5% (n=19) | 40.0% (n=19) | 0.989 | 100.0% (n=40) | 14.00 |
-| b2_xgb_steps | 40 | 0.0% (n=20) | 0.0% (n=20) | 0.0% (n=40) | 100.0% (n=40) | 95.0% (n=19) | 32.5% (n=19) | 1.000 | 100.0% (n=40) | 12.00 |
-| aft_known | 40 | 0.0% (n=20) | 0.0% (n=20) | 0.0% (n=40) | 100.0% (n=40) | 100.0% (n=19) | 60.0% (n=19) | 1.000 | 100.0% (n=40) | 6.00 |
-| aft_known_unitig | 40 | 0.0% (n=20) | 0.0% (n=20) | 0.0% (n=40) | 100.0% (n=40) | 77.5% (n=19) | 57.5% (n=19) | 1.000 | 100.0% (n=40) | 10.00 |
+| b0_resfinder | 38 | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) | — | — | — | — | — |
+| b1_lookup | 38 | 0.0% (n=19) | 5.3% (n=19) | 0.0% (n=38) | 97.4% (n=38) | 94.7% (n=19) | 10.5% (n=19) | 0.989 | 100.0% (n=19) | 16.00 |
+| b2_xgb_steps | 38 | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) | 100.0% (n=19) | 42.1% (n=19) | 1.000 | 100.0% (n=19) | 12.00 |
+| aft_known | 38 | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) | 100.0% (n=19) | 21.1% (n=19) | 1.000 | 100.0% (n=19) | 4.00 |
+| aft_known_unitig | 38 | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) | 52.6% (n=19) | 21.1% (n=19) | 1.000 | 100.0% (n=19) | 10.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) |
+| b1_lookup | 0.0% (n=19) | 5.3% (n=19) | 0.0% (n=38) | 97.4% (n=38) |
+| b2_xgb_steps | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) |
+| aft_known | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) |
+| aft_known_unitig | 0.0% (n=19) | 0.0% (n=19) | 0.0% (n=38) | 100.0% (n=38) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 188 | 0.0% (n=104) | 0.0% (n=84) | 0.0% (n=188) | 100.0% (n=188) | — | — | — | — | — |
-| b1_lookup | 188 | 50.0% (n=104) | 8.3% (n=84) | 0.0% (n=188) | 68.6% (n=188) | 54.8% (n=59) | 41.0% (n=59) | 0.875 | 84.6% (n=188) | 14.00 |
-| b2_xgb_steps | 188 | 5.8% (n=104) | 14.3% (n=84) | 0.0% (n=188) | 90.4% (n=188) | 74.5% (n=59) | 32.4% (n=59) | 0.934 | 94.7% (n=188) | 12.00 |
-| aft_known | 188 | 0.0% (n=104) | 0.0% (n=84) | 1.6% (n=188) | 98.4% (n=188) | 88.3% (n=59) | 67.6% (n=59) | 1.000 | 98.9% (n=188) | 6.00 |
-| aft_known_unitig | 188 | 9.6% (n=104) | 0.0% (n=84) | 1.6% (n=188) | 93.1% (n=188) | 83.5% (n=59) | 57.4% (n=59) | 0.990 | 97.3% (n=188) | 10.00 |
+| b0_resfinder | 177 | 0.0% (n=97) | 0.0% (n=80) | 0.0% (n=177) | 100.0% (n=177) | — | — | — | — | — |
+| b1_lookup | 177 | 52.6% (n=97) | 8.8% (n=80) | 0.0% (n=177) | 67.2% (n=177) | 56.7% (n=60) | 21.7% (n=60) | 0.850 | 100.0% (n=60) | 16.00 |
+| b2_xgb_steps | 177 | 7.2% (n=97) | 13.8% (n=80) | 0.0% (n=177) | 89.8% (n=177) | 80.0% (n=60) | 53.3% (n=60) | 0.931 | 93.3% (n=60) | 12.00 |
+| aft_known | 177 | 5.2% (n=97) | 0.0% (n=80) | 1.1% (n=177) | 96.0% (n=177) | 68.3% (n=60) | 36.7% (n=60) | 0.998 | 91.7% (n=60) | 4.00 |
+| aft_known_unitig | 177 | 10.3% (n=97) | 0.0% (n=80) | 1.7% (n=177) | 92.7% (n=177) | 51.7% (n=60) | 16.7% (n=60) | 0.993 | 91.7% (n=60) | 10.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=97) | 0.0% (n=80) | 0.0% (n=177) | 100.0% (n=177) |
+| b1_lookup | 52.6% (n=97) | 8.8% (n=80) | 0.0% (n=177) | 67.2% (n=177) |
+| b2_xgb_steps | 7.2% (n=97) | 13.8% (n=80) | 0.0% (n=177) | 89.8% (n=177) |
+| aft_known | 5.2% (n=97) | 0.0% (n=80) | 1.1% (n=177) | 96.0% (n=177) |
+| aft_known_unitig | 10.3% (n=97) | 0.0% (n=80) | 1.7% (n=177) | 92.7% (n=177) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (ECOLI_ML_001)** (`lolo_ECOLI_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 38 | 80.0% (n=35) | 0.0% (n=3) | 0.0% (n=38) | 26.3% (n=38) | 21.1% (n=14) | 13.2% (n=14) | 0.600 | 100.0% (n=38) | 14.00 |
-| b2_xgb_steps | 38 | 8.6% (n=35) | 0.0% (n=3) | 0.0% (n=38) | 92.1% (n=38) | 52.6% (n=14) | 26.3% (n=14) | 0.971 | 97.4% (n=38) | 12.00 |
-| aft_known | 38 | 0.0% (n=35) | 0.0% (n=3) | 0.0% (n=38) | 100.0% (n=38) | 84.2% (n=14) | 71.1% (n=14) | 1.000 | 100.0% (n=38) | 6.00 |
-| aft_known_unitig | 38 | 11.4% (n=35) | 0.0% (n=3) | 0.0% (n=38) | 89.5% (n=38) | 65.8% (n=14) | 57.9% (n=14) | 0.995 | 100.0% (n=38) | 10.00 |
+| b1_lookup | 37 | 80.0% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 24.3% (n=37) | 35.7% (n=14) | 7.1% (n=14) | 0.600 | 100.0% (n=14) | 16.00 |
+| b2_xgb_steps | 37 | 8.6% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 91.9% (n=37) | 71.4% (n=14) | 28.6% (n=14) | 0.964 | 92.9% (n=14) | 12.00 |
+| aft_known | 37 | 0.0% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 100.0% (n=37) | 78.6% (n=14) | 35.7% (n=14) | 1.000 | 100.0% (n=14) | 4.00 |
+| aft_known_unitig | 37 | 11.4% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 89.2% (n=37) | 57.1% (n=14) | 0.0% (n=14) | 0.986 | 100.0% (n=14) | 10.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 80.0% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 24.3% (n=37) |
+| b2_xgb_steps | 8.6% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 91.9% (n=37) |
+| aft_known | 0.0% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 100.0% (n=37) |
+| aft_known_unitig | 11.4% (n=35) | 0.0% (n=2) | 0.0% (n=37) | 89.2% (n=37) |
 
 **leave-one-lineage-out (ECOLI_ML_002)** (`lolo_ECOLI_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 30 | 0.0% (n=24) | 83.3% (n=6) | 0.0% (n=30) | 83.3% (n=30) | 30.0% (n=8) | 23.3% (n=8) | 0.670 | 100.0% (n=30) | 14.00 |
-| b2_xgb_steps | 30 | 0.0% (n=24) | 16.7% (n=6) | 0.0% (n=30) | 96.7% (n=30) | 80.0% (n=8) | 36.7% (n=8) | 0.969 | 100.0% (n=30) | 12.00 |
-| aft_known | 30 | 0.0% (n=24) | 0.0% (n=6) | 0.0% (n=30) | 100.0% (n=30) | 93.3% (n=8) | 80.0% (n=8) | 1.000 | 100.0% (n=30) | 6.00 |
-| aft_known_unitig | 30 | 4.2% (n=24) | 0.0% (n=6) | 6.7% (n=30) | 90.0% (n=30) | 83.3% (n=8) | 76.7% (n=8) | 1.000 | 100.0% (n=30) | 10.00 |
+| b1_lookup | 29 | 0.0% (n=23) | 0.0% (n=6) | 79.3% (n=29) | 20.7% (n=29) | 12.5% (n=8) | 0.0% (n=8) | 0.674 | 100.0% (n=8) | 16.00 |
+| b2_xgb_steps | 29 | 0.0% (n=23) | 16.7% (n=6) | 0.0% (n=29) | 96.6% (n=29) | 75.0% (n=8) | 75.0% (n=8) | 0.967 | 100.0% (n=8) | 12.00 |
+| aft_known | 29 | 0.0% (n=23) | 0.0% (n=6) | 0.0% (n=29) | 100.0% (n=29) | 75.0% (n=8) | 25.0% (n=8) | 1.000 | 100.0% (n=8) | 4.00 |
+| aft_known_unitig | 29 | 13.0% (n=23) | 0.0% (n=6) | 0.0% (n=29) | 89.7% (n=29) | 50.0% (n=8) | 12.5% (n=8) | 1.000 | 100.0% (n=8) | 10.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 0.0% (n=23) | 0.0% (n=6) | 79.3% (n=29) | 20.7% (n=29) |
+| b2_xgb_steps | 0.0% (n=23) | 16.7% (n=6) | 0.0% (n=29) | 96.6% (n=29) |
+| aft_known | 0.0% (n=23) | 0.0% (n=6) | 0.0% (n=29) | 100.0% (n=29) |
+| aft_known_unitig | 13.0% (n=23) | 0.0% (n=6) | 0.0% (n=29) | 89.7% (n=29) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_ECOLI_ceftriaxone.png)
 
@@ -308,43 +362,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 0.25 mg/L, R if MIC > 0.
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 40 | 80.0% (n=5) | 11.8% (n=34) | 2.5% (n=40) | 77.5% (n=40) | — | — | — | — | — |
-| b1_lookup | 40 | 0.0% (n=5) | 0.0% (n=34) | 22.5% (n=40) | 77.5% (n=40) | 70.0% (n=32) | 37.5% (n=32) | 0.976 | 100.0% (n=40) | 12.00 |
-| b2_xgb_steps | 40 | 0.0% (n=5) | 0.0% (n=34) | 2.5% (n=40) | 97.5% (n=40) | 85.0% (n=32) | 55.0% (n=32) | 1.000 | 90.0% (n=40) | 4.00 |
-| aft_known | 40 | 0.0% (n=5) | 0.0% (n=34) | 5.0% (n=40) | 95.0% (n=40) | 82.5% (n=32) | 42.5% (n=32) | 1.000 | 90.0% (n=40) | 4.00 |
-| aft_known_unitig | 40 | 0.0% (n=5) | 0.0% (n=34) | 2.5% (n=40) | 97.5% (n=40) | 85.0% (n=32) | 55.0% (n=32) | 1.000 | 100.0% (n=40) | 4.00 |
+| b0_resfinder | 38 | 100.0% (n=4) | 12.1% (n=33) | 2.6% (n=38) | 76.3% (n=38) | — | — | — | — | — |
+| b1_lookup | 38 | 0.0% (n=4) | 0.0% (n=33) | 21.1% (n=38) | 78.9% (n=38) | 65.6% (n=32) | 37.5% (n=32) | 1.000 | 100.0% (n=32) | 12.00 |
+| b2_xgb_steps | 38 | 0.0% (n=4) | 0.0% (n=33) | 2.6% (n=38) | 97.4% (n=38) | 81.2% (n=32) | 53.1% (n=32) | 1.000 | 87.5% (n=32) | 4.00 |
+| aft_known | 38 | 0.0% (n=4) | 0.0% (n=33) | 5.3% (n=38) | 94.7% (n=38) | 84.4% (n=32) | 37.5% (n=32) | 1.000 | 87.5% (n=32) | 4.00 |
+| aft_known_unitig | 38 | 0.0% (n=4) | 0.0% (n=33) | 2.6% (n=38) | 97.4% (n=38) | 93.8% (n=32) | 37.5% (n=32) | 1.000 | 100.0% (n=32) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 100.0% (n=4) | 12.1% (n=33) | 2.6% (n=38) | 76.3% (n=38) |
+| b1_lookup | 0.0% (n=4) | 0.0% (n=33) | 21.1% (n=38) | 78.9% (n=38) |
+| b2_xgb_steps | 0.0% (n=4) | 0.0% (n=33) | 2.6% (n=38) | 97.4% (n=38) |
+| aft_known | 0.0% (n=4) | 0.0% (n=33) | 5.3% (n=38) | 94.7% (n=38) |
+| aft_known_unitig | 0.0% (n=4) | 0.0% (n=33) | 2.6% (n=38) | 97.4% (n=38) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 188 | 53.8% (n=91) | 12.4% (n=89) | 4.3% (n=188) | 63.8% (n=188) | — | — | — | — | — |
-| b1_lookup | 188 | 65.9% (n=91) | 19.1% (n=89) | 6.4% (n=188) | 52.7% (n=188) | 40.4% (n=142) | 22.9% (n=142) | 0.652 | 88.3% (n=188) | 12.00 |
-| b2_xgb_steps | 188 | 3.3% (n=91) | 4.5% (n=89) | 4.8% (n=188) | 91.5% (n=188) | 79.3% (n=142) | 35.6% (n=142) | 0.984 | 92.0% (n=188) | 4.00 |
-| aft_known | 188 | 3.3% (n=91) | 0.0% (n=89) | 4.3% (n=188) | 94.1% (n=188) | 81.4% (n=142) | 41.5% (n=142) | 0.993 | 95.2% (n=188) | 4.00 |
-| aft_known_unitig | 188 | 3.3% (n=91) | 0.0% (n=89) | 4.8% (n=188) | 93.6% (n=188) | 79.8% (n=142) | 34.6% (n=142) | 0.999 | 96.3% (n=188) | 4.00 |
+| b0_resfinder | 179 | 54.5% (n=88) | 13.3% (n=83) | 4.5% (n=179) | 62.6% (n=179) | — | — | — | — | — |
+| b1_lookup | 179 | 65.9% (n=88) | 16.9% (n=83) | 6.7% (n=179) | 53.1% (n=179) | 46.5% (n=142) | 25.4% (n=142) | 0.663 | 95.8% (n=142) | 12.00 |
+| b2_xgb_steps | 179 | 3.4% (n=88) | 4.8% (n=83) | 5.0% (n=179) | 91.1% (n=179) | 83.1% (n=142) | 35.9% (n=142) | 0.984 | 92.3% (n=142) | 4.00 |
+| aft_known | 179 | 2.3% (n=88) | 0.0% (n=83) | 6.1% (n=179) | 92.7% (n=179) | 88.0% (n=142) | 42.3% (n=142) | 0.993 | 95.8% (n=142) | 4.00 |
+| aft_known_unitig | 179 | 3.4% (n=88) | 0.0% (n=83) | 5.0% (n=179) | 93.3% (n=179) | 87.3% (n=142) | 39.4% (n=142) | 0.999 | 99.3% (n=142) | 4.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 54.5% (n=88) | 13.3% (n=83) | 4.5% (n=179) | 62.6% (n=179) |
+| b1_lookup | 65.9% (n=88) | 16.9% (n=83) | 6.7% (n=179) | 53.1% (n=179) |
+| b2_xgb_steps | 3.4% (n=88) | 4.8% (n=83) | 5.0% (n=179) | 91.1% (n=179) |
+| aft_known | 2.3% (n=88) | 0.0% (n=83) | 6.1% (n=179) | 92.7% (n=179) |
+| aft_known_unitig | 3.4% (n=88) | 0.0% (n=83) | 5.0% (n=179) | 93.3% (n=179) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (ECOLI_ML_001)** (`lolo_ECOLI_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 40 | 79.4% (n=34) | 0.0% (n=2) | 10.0% (n=40) | 22.5% (n=40) | 27.5% (n=30) | 7.5% (n=30) | 0.801 | 100.0% (n=40) | 12.00 |
-| b2_xgb_steps | 40 | 2.9% (n=34) | 0.0% (n=2) | 10.0% (n=40) | 87.5% (n=40) | 82.5% (n=30) | 30.0% (n=30) | 1.000 | 95.0% (n=40) | 4.00 |
-| aft_known | 40 | 0.0% (n=34) | 0.0% (n=2) | 10.0% (n=40) | 90.0% (n=40) | 87.5% (n=30) | 40.0% (n=30) | 1.000 | 100.0% (n=40) | 4.00 |
-| aft_known_unitig | 40 | 2.9% (n=34) | 0.0% (n=2) | 10.0% (n=40) | 87.5% (n=40) | 95.0% (n=30) | 40.0% (n=30) | 1.000 | 100.0% (n=40) | 4.00 |
+| b1_lookup | 39 | 78.8% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 23.1% (n=39) | 26.7% (n=30) | 13.3% (n=30) | 0.803 | 100.0% (n=30) | 12.00 |
+| b2_xgb_steps | 39 | 3.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 87.2% (n=39) | 80.0% (n=30) | 26.7% (n=30) | 1.000 | 96.7% (n=30) | 4.00 |
+| aft_known | 39 | 0.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 89.7% (n=39) | 80.0% (n=30) | 33.3% (n=30) | 1.000 | 96.7% (n=30) | 4.00 |
+| aft_known_unitig | 39 | 0.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 89.7% (n=39) | 96.7% (n=30) | 43.3% (n=30) | 1.000 | 100.0% (n=30) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 78.8% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 23.1% (n=39) |
+| b2_xgb_steps | 3.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 87.2% (n=39) |
+| aft_known | 0.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 89.7% (n=39) |
+| aft_known_unitig | 0.0% (n=33) | 0.0% (n=2) | 10.3% (n=39) | 89.7% (n=39) |
 
 **leave-one-lineage-out (ECOLI_ML_002)** (`lolo_ECOLI_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 32 | 82.1% (n=28) | 0.0% (n=3) | 3.1% (n=32) | 25.0% (n=32) | 21.9% (n=20) | 3.1% (n=20) | 1.000 | 100.0% (n=32) | 12.00 |
-| b2_xgb_steps | 32 | 0.0% (n=28) | 0.0% (n=3) | 6.2% (n=32) | 93.8% (n=32) | 62.5% (n=20) | 28.1% (n=20) | 1.000 | 87.5% (n=32) | 4.00 |
-| aft_known | 32 | 0.0% (n=28) | 0.0% (n=3) | 3.1% (n=32) | 96.9% (n=32) | 75.0% (n=20) | 37.5% (n=20) | 1.000 | 93.8% (n=32) | 4.00 |
-| aft_known_unitig | 32 | 0.0% (n=28) | 0.0% (n=3) | 3.1% (n=32) | 96.9% (n=32) | 90.6% (n=20) | 40.6% (n=20) | 1.000 | 100.0% (n=32) | 4.00 |
+| b1_lookup | 31 | 81.5% (n=27) | 0.0% (n=3) | 3.2% (n=31) | 25.8% (n=31) | 35.0% (n=20) | 5.0% (n=20) | 1.000 | 100.0% (n=20) | 12.00 |
+| b2_xgb_steps | 31 | 0.0% (n=27) | 0.0% (n=3) | 6.5% (n=31) | 93.5% (n=31) | 75.0% (n=20) | 25.0% (n=20) | 1.000 | 95.0% (n=20) | 4.00 |
+| aft_known | 31 | 0.0% (n=27) | 0.0% (n=3) | 3.2% (n=31) | 96.8% (n=31) | 90.0% (n=20) | 25.0% (n=20) | 1.000 | 100.0% (n=20) | 4.00 |
+| aft_known_unitig | 31 | 0.0% (n=27) | 0.0% (n=3) | 0.0% (n=31) | 100.0% (n=31) | 85.0% (n=20) | 40.0% (n=20) | 1.000 | 100.0% (n=20) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 81.5% (n=27) | 0.0% (n=3) | 3.2% (n=31) | 25.8% (n=31) |
+| b2_xgb_steps | 0.0% (n=27) | 0.0% (n=3) | 6.5% (n=31) | 93.5% (n=31) |
+| aft_known | 0.0% (n=27) | 0.0% (n=3) | 3.2% (n=31) | 96.8% (n=31) |
+| aft_known_unitig | 0.0% (n=27) | 0.0% (n=3) | 0.0% (n=31) | 100.0% (n=31) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_ECOLI_ciprofloxacin.png)
 
@@ -360,43 +454,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 2 mg/L, R if MIC > 8 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 41 | 0.0% (n=7) | 6.7% (n=30) | 9.8% (n=41) | 85.4% (n=41) | — | — | — | — | — |
-| b1_lookup | 41 | 57.1% (n=7) | 0.0% (n=30) | 12.2% (n=41) | 78.0% (n=41) | 85.4% (n=16) | 65.9% (n=16) | 0.924 | 100.0% (n=41) | 18.00 |
-| b2_xgb_steps | 41 | 0.0% (n=7) | 0.0% (n=30) | 7.3% (n=41) | 92.7% (n=41) | 100.0% (n=16) | 24.4% (n=16) | 1.000 | 100.0% (n=41) | 14.00 |
-| aft_known | 41 | 0.0% (n=7) | 0.0% (n=30) | 14.6% (n=41) | 85.4% (n=41) | 97.6% (n=16) | 70.7% (n=16) | 1.000 | 100.0% (n=41) | 6.00 |
-| aft_known_unitig | 41 | 0.0% (n=7) | 0.0% (n=30) | 7.3% (n=41) | 92.7% (n=41) | 97.6% (n=16) | 73.2% (n=16) | 1.000 | 100.0% (n=41) | 6.00 |
+| b0_resfinder | 40 | 0.0% (n=6) | 6.7% (n=30) | 10.0% (n=40) | 85.0% (n=40) | — | — | — | — | — |
+| b1_lookup | 40 | 50.0% (n=6) | 0.0% (n=30) | 12.5% (n=40) | 80.0% (n=40) | 75.0% (n=16) | 37.5% (n=16) | 0.933 | 100.0% (n=16) | 18.00 |
+| b2_xgb_steps | 40 | 0.0% (n=6) | 0.0% (n=30) | 7.5% (n=40) | 92.5% (n=40) | 100.0% (n=16) | 43.8% (n=16) | 1.000 | 100.0% (n=16) | 14.00 |
+| aft_known | 40 | 0.0% (n=6) | 0.0% (n=30) | 15.0% (n=40) | 85.0% (n=40) | 93.8% (n=16) | 25.0% (n=16) | 1.000 | 100.0% (n=16) | 8.00 |
+| aft_known_unitig | 40 | 0.0% (n=6) | 0.0% (n=30) | 17.5% (n=40) | 82.5% (n=40) | 68.8% (n=16) | 25.0% (n=16) | 1.000 | 100.0% (n=16) | 8.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=6) | 12.5% (n=32) | 5.0% (n=40) | 85.0% (n=40) |
+| b1_lookup | 50.0% (n=6) | 0.0% (n=32) | 7.5% (n=40) | 85.0% (n=40) |
+| b2_xgb_steps | 0.0% (n=6) | 0.0% (n=32) | 12.5% (n=40) | 87.5% (n=40) |
+| aft_known | 0.0% (n=6) | 0.0% (n=32) | 10.0% (n=40) | 90.0% (n=40) |
+| aft_known_unitig | 0.0% (n=6) | 0.0% (n=32) | 12.5% (n=40) | 87.5% (n=40) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 196 | 2.0% (n=51) | 4.7% (n=128) | 8.7% (n=196) | 87.8% (n=196) | — | — | — | — | — |
-| b1_lookup | 196 | 92.2% (n=51) | 0.0% (n=128) | 9.7% (n=196) | 66.3% (n=196) | 63.8% (n=75) | 39.8% (n=75) | 0.545 | 89.3% (n=196) | 18.00 |
-| b2_xgb_steps | 196 | 7.8% (n=51) | 0.0% (n=128) | 18.9% (n=196) | 79.1% (n=196) | 80.6% (n=75) | 27.6% (n=75) | 0.947 | 98.0% (n=196) | 14.00 |
-| aft_known | 196 | 13.7% (n=51) | 0.0% (n=128) | 20.9% (n=196) | 75.5% (n=196) | 77.6% (n=75) | 55.6% (n=75) | 0.981 | 95.4% (n=196) | 6.00 |
-| aft_known_unitig | 196 | 11.8% (n=51) | 0.0% (n=128) | 24.5% (n=196) | 72.4% (n=196) | 66.3% (n=75) | 41.8% (n=75) | 0.982 | 96.4% (n=196) | 6.00 |
+| b0_resfinder | 182 | 2.2% (n=45) | 5.0% (n=120) | 9.3% (n=182) | 86.8% (n=182) | — | — | — | — | — |
+| b1_lookup | 182 | 100.0% (n=45) | 0.0% (n=120) | 10.4% (n=182) | 64.8% (n=182) | 38.4% (n=73) | 4.1% (n=73) | 0.509 | 93.2% (n=73) | 18.00 |
+| b2_xgb_steps | 182 | 15.6% (n=45) | 0.0% (n=120) | 17.0% (n=182) | 79.1% (n=182) | 72.6% (n=73) | 43.8% (n=73) | 0.927 | 97.3% (n=73) | 14.00 |
+| aft_known | 182 | 22.2% (n=45) | 0.0% (n=120) | 18.1% (n=182) | 76.4% (n=182) | 57.5% (n=73) | 19.2% (n=73) | 0.972 | 95.9% (n=73) | 8.00 |
+| aft_known_unitig | 182 | 26.7% (n=45) | 0.0% (n=120) | 22.0% (n=182) | 71.4% (n=182) | 45.2% (n=73) | 15.1% (n=73) | 0.979 | 95.9% (n=73) | 8.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=38) | 10.9% (n=128) | 8.3% (n=181) | 84.0% (n=181) |
+| b1_lookup | 100.0% (n=38) | 0.0% (n=128) | 9.4% (n=181) | 69.6% (n=181) |
+| b2_xgb_steps | 10.5% (n=38) | 0.0% (n=128) | 18.8% (n=181) | 79.0% (n=181) |
+| aft_known | 10.5% (n=38) | 0.0% (n=128) | 18.2% (n=181) | 79.6% (n=181) |
+| aft_known_unitig | 15.8% (n=38) | 0.0% (n=128) | 21.0% (n=181) | 75.7% (n=181) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (ECOLI_ML_001)** (`lolo_ECOLI_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 42 | 95.2% (n=21) | 0.0% (n=16) | 11.9% (n=42) | 40.5% (n=42) | 42.9% (n=16) | 23.8% (n=16) | 0.583 | 73.8% (n=42) | 18.00 |
-| b2_xgb_steps | 42 | 38.1% (n=21) | 0.0% (n=16) | 16.7% (n=42) | 64.3% (n=42) | 61.9% (n=16) | 23.8% (n=16) | 0.930 | 97.6% (n=42) | 14.00 |
-| aft_known | 42 | 0.0% (n=21) | 0.0% (n=16) | 11.9% (n=42) | 88.1% (n=42) | 83.3% (n=16) | 57.1% (n=16) | 1.000 | 100.0% (n=42) | 6.00 |
-| aft_known_unitig | 42 | 0.0% (n=21) | 0.0% (n=16) | 23.8% (n=42) | 76.2% (n=42) | 66.7% (n=16) | 35.7% (n=16) | 1.000 | 100.0% (n=42) | 6.00 |
+| b1_lookup | 40 | 95.0% (n=20) | 0.0% (n=15) | 12.5% (n=40) | 40.0% (n=40) | 53.3% (n=15) | 13.3% (n=15) | 0.430 | 86.7% (n=15) | 18.00 |
+| b2_xgb_steps | 40 | 25.0% (n=20) | 0.0% (n=15) | 17.5% (n=40) | 70.0% (n=40) | 93.3% (n=15) | 53.3% (n=15) | 0.957 | 100.0% (n=15) | 14.00 |
+| aft_known | 40 | 0.0% (n=20) | 0.0% (n=15) | 12.5% (n=40) | 87.5% (n=40) | 86.7% (n=15) | 33.3% (n=15) | 1.000 | 100.0% (n=15) | 8.00 |
+| aft_known_unitig | 40 | 5.0% (n=20) | 0.0% (n=15) | 35.0% (n=40) | 62.5% (n=40) | 40.0% (n=15) | 6.7% (n=15) | 1.000 | 100.0% (n=15) | 8.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 94.7% (n=19) | 0.0% (n=17) | 12.8% (n=39) | 41.0% (n=39) |
+| b2_xgb_steps | 21.1% (n=19) | 0.0% (n=17) | 17.9% (n=39) | 71.8% (n=39) |
+| aft_known | 0.0% (n=19) | 0.0% (n=17) | 7.7% (n=39) | 92.3% (n=39) |
+| aft_known_unitig | 0.0% (n=19) | 0.0% (n=17) | 30.8% (n=39) | 69.2% (n=39) |
 
 **leave-one-lineage-out (ECOLI_ML_002)** (`lolo_ECOLI_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 31 | 91.7% (n=12) | 0.0% (n=13) | 19.4% (n=31) | 45.2% (n=31) | 45.2% (n=19) | 25.8% (n=19) | 0.577 | 96.8% (n=31) | 18.00 |
-| b2_xgb_steps | 31 | 16.7% (n=12) | 0.0% (n=13) | 32.3% (n=31) | 61.3% (n=31) | 87.1% (n=19) | 45.2% (n=19) | 0.942 | 100.0% (n=31) | 14.00 |
-| aft_known | 31 | 8.3% (n=12) | 0.0% (n=13) | 9.7% (n=31) | 87.1% (n=31) | 96.8% (n=19) | 71.0% (n=19) | 0.984 | 100.0% (n=31) | 6.00 |
-| aft_known_unitig | 31 | 8.3% (n=12) | 0.0% (n=13) | 19.4% (n=31) | 77.4% (n=31) | 93.5% (n=19) | 58.1% (n=19) | 0.978 | 100.0% (n=31) | 6.00 |
+| b1_lookup | 29 | 90.9% (n=11) | 0.0% (n=12) | 20.7% (n=29) | 44.8% (n=29) | 33.3% (n=18) | 22.2% (n=18) | 0.432 | 94.4% (n=18) | 18.00 |
+| b2_xgb_steps | 29 | 36.4% (n=11) | 0.0% (n=12) | 24.1% (n=29) | 62.1% (n=29) | 50.0% (n=18) | 38.9% (n=18) | 0.848 | 94.4% (n=18) | 14.00 |
+| aft_known | 29 | 0.0% (n=11) | 0.0% (n=12) | 13.8% (n=29) | 86.2% (n=29) | 94.4% (n=18) | 55.6% (n=18) | 0.992 | 100.0% (n=18) | 8.00 |
+| aft_known_unitig | 29 | 18.2% (n=11) | 0.0% (n=12) | 41.4% (n=29) | 51.7% (n=29) | 83.3% (n=18) | 33.3% (n=18) | 0.981 | 100.0% (n=18) | 8.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 88.9% (n=9) | 0.0% (n=17) | 10.3% (n=29) | 62.1% (n=29) |
+| b2_xgb_steps | 22.2% (n=9) | 0.0% (n=17) | 13.8% (n=29) | 79.3% (n=29) |
+| aft_known | 0.0% (n=9) | 0.0% (n=17) | 17.2% (n=29) | 82.8% (n=29) |
+| aft_known_unitig | 0.0% (n=9) | 0.0% (n=17) | 31.0% (n=29) | 69.0% (n=29) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_ECOLI_meropenem.png)
 
@@ -412,43 +546,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 8 mg/L, R if MIC > 8 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 36 | 0.0% (n=12) | 0.0% (n=23) | 2.8% (n=36) | 97.2% (n=36) | — | — | — | — | — |
-| b1_lookup | 36 | 83.3% (n=12) | 0.0% (n=23) | 2.8% (n=36) | 69.4% (n=36) | 61.1% (n=24) | 27.8% (n=24) | 0.946 | 77.8% (n=36) | 6.00 |
-| b2_xgb_steps | 36 | 58.3% (n=12) | 0.0% (n=23) | 2.8% (n=36) | 77.8% (n=36) | 69.4% (n=24) | 30.6% (n=24) | 0.947 | 80.6% (n=36) | 4.00 |
-| aft_known | 36 | 0.0% (n=12) | 0.0% (n=23) | 2.8% (n=36) | 97.2% (n=36) | 88.9% (n=24) | 41.7% (n=24) | 1.000 | 100.0% (n=36) | 4.00 |
-| aft_known_unitig | 36 | 0.0% (n=12) | 0.0% (n=23) | 2.8% (n=36) | 97.2% (n=36) | 83.3% (n=24) | 44.4% (n=24) | 1.000 | 100.0% (n=36) | 6.00 |
+| b0_resfinder | 35 | 0.0% (n=11) | 0.0% (n=23) | 2.9% (n=35) | 97.1% (n=35) | — | — | — | — | — |
+| b1_lookup | 35 | 81.8% (n=11) | 0.0% (n=23) | 2.9% (n=35) | 71.4% (n=35) | 70.8% (n=24) | 33.3% (n=24) | 0.947 | 100.0% (n=24) | 8.00 |
+| b2_xgb_steps | 35 | 63.6% (n=11) | 0.0% (n=23) | 2.9% (n=35) | 77.1% (n=35) | 79.2% (n=24) | 29.2% (n=24) | 0.943 | 91.7% (n=24) | 4.00 |
+| aft_known | 35 | 0.0% (n=11) | 0.0% (n=23) | 2.9% (n=35) | 97.1% (n=35) | 83.3% (n=24) | 33.3% (n=24) | 1.000 | 100.0% (n=24) | 4.00 |
+| aft_known_unitig | 35 | 0.0% (n=11) | 0.0% (n=23) | 2.9% (n=35) | 97.1% (n=35) | 75.0% (n=24) | 25.0% (n=24) | 1.000 | 100.0% (n=24) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 8.3% (n=12) | 0.0% (n=23) | 0.0% (n=35) | 97.1% (n=35) |
+| b1_lookup | 75.0% (n=12) | 0.0% (n=23) | 0.0% (n=35) | 74.3% (n=35) |
+| b2_xgb_steps | 58.3% (n=12) | 0.0% (n=23) | 0.0% (n=35) | 80.0% (n=35) |
+| aft_known | 8.3% (n=12) | 0.0% (n=23) | 0.0% (n=35) | 97.1% (n=35) |
+| aft_known_unitig | 8.3% (n=12) | 0.0% (n=23) | 0.0% (n=35) | 97.1% (n=35) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 167 | 12.9% (n=70) | 0.0% (n=95) | 1.2% (n=167) | 93.4% (n=167) | — | — | — | — | — |
-| b1_lookup | 167 | 90.0% (n=70) | 4.2% (n=95) | 1.2% (n=167) | 58.7% (n=167) | 51.5% (n=106) | 28.7% (n=106) | 0.777 | 76.0% (n=167) | 6.00 |
-| b2_xgb_steps | 167 | 30.0% (n=70) | 6.3% (n=95) | 1.2% (n=167) | 82.6% (n=167) | 66.5% (n=106) | 31.7% (n=106) | 0.916 | 82.6% (n=167) | 4.00 |
-| aft_known | 167 | 8.6% (n=70) | 5.3% (n=95) | 1.2% (n=167) | 92.2% (n=167) | 83.2% (n=106) | 42.5% (n=106) | 0.990 | 97.0% (n=167) | 4.00 |
-| aft_known_unitig | 167 | 10.0% (n=70) | 7.4% (n=95) | 1.2% (n=167) | 90.4% (n=167) | 72.5% (n=106) | 40.7% (n=106) | 0.980 | 97.6% (n=167) | 6.00 |
+| b0_resfinder | 157 | 13.6% (n=66) | 0.0% (n=89) | 1.3% (n=157) | 93.0% (n=157) | — | — | — | — | — |
+| b1_lookup | 157 | 92.4% (n=66) | 4.5% (n=89) | 1.3% (n=157) | 57.3% (n=157) | 72.6% (n=106) | 29.2% (n=106) | 0.603 | 96.2% (n=106) | 8.00 |
+| b2_xgb_steps | 157 | 30.3% (n=66) | 6.7% (n=89) | 1.3% (n=157) | 82.2% (n=157) | 80.2% (n=106) | 35.8% (n=106) | 0.914 | 93.4% (n=106) | 4.00 |
+| aft_known | 157 | 15.2% (n=66) | 1.1% (n=89) | 1.3% (n=157) | 91.7% (n=157) | 87.7% (n=106) | 43.4% (n=106) | 0.988 | 96.2% (n=106) | 4.00 |
+| aft_known_unitig | 157 | 10.6% (n=66) | 7.9% (n=89) | 1.3% (n=157) | 89.8% (n=157) | 77.4% (n=106) | 42.5% (n=106) | 0.978 | 92.5% (n=106) | 4.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 16.2% (n=68) | 0.0% (n=89) | 0.0% (n=157) | 93.0% (n=157) |
+| b1_lookup | 92.6% (n=68) | 4.5% (n=89) | 0.0% (n=157) | 57.3% (n=157) |
+| b2_xgb_steps | 32.4% (n=68) | 6.7% (n=89) | 0.0% (n=157) | 82.2% (n=157) |
+| aft_known | 17.6% (n=68) | 1.1% (n=89) | 0.0% (n=157) | 91.7% (n=157) |
+| aft_known_unitig | 10.3% (n=68) | 7.9% (n=89) | 0.0% (n=157) | 91.1% (n=157) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (ECOLI_ML_001)** (`lolo_ECOLI_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 36 | 88.0% (n=25) | 36.4% (n=11) | 0.0% (n=36) | 27.8% (n=36) | 30.6% (n=13) | 16.7% (n=13) | 0.400 | 52.8% (n=36) | 6.00 |
-| b2_xgb_steps | 36 | 100.0% (n=25) | 9.1% (n=11) | 0.0% (n=36) | 27.8% (n=36) | 22.2% (n=13) | 8.3% (n=13) | 0.409 | 30.6% (n=36) | 4.00 |
-| aft_known | 36 | 0.0% (n=25) | 54.5% (n=11) | 0.0% (n=36) | 83.3% (n=36) | 83.3% (n=13) | 66.7% (n=13) | 0.989 | 100.0% (n=36) | 4.00 |
-| aft_known_unitig | 36 | 0.0% (n=25) | 45.5% (n=11) | 0.0% (n=36) | 86.1% (n=36) | 77.8% (n=13) | 50.0% (n=13) | 0.991 | 100.0% (n=36) | 6.00 |
+| b1_lookup | 35 | 88.0% (n=25) | 40.0% (n=10) | 0.0% (n=35) | 25.7% (n=35) | 69.2% (n=13) | 30.8% (n=13) | 0.384 | 100.0% (n=13) | 8.00 |
+| b2_xgb_steps | 35 | 100.0% (n=25) | 10.0% (n=10) | 0.0% (n=35) | 25.7% (n=35) | 46.2% (n=13) | 15.4% (n=13) | 0.400 | 69.2% (n=13) | 4.00 |
+| aft_known | 35 | 0.0% (n=25) | 60.0% (n=10) | 0.0% (n=35) | 82.9% (n=35) | 61.5% (n=13) | 23.1% (n=13) | 0.988 | 100.0% (n=13) | 4.00 |
+| aft_known_unitig | 35 | 0.0% (n=25) | 60.0% (n=10) | 0.0% (n=35) | 82.9% (n=35) | 61.5% (n=13) | 23.1% (n=13) | 0.984 | 100.0% (n=13) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 88.0% (n=25) | 40.0% (n=10) | 0.0% (n=35) | 25.7% (n=35) |
+| b2_xgb_steps | 100.0% (n=25) | 10.0% (n=10) | 0.0% (n=35) | 25.7% (n=35) |
+| aft_known | 0.0% (n=25) | 60.0% (n=10) | 0.0% (n=35) | 82.9% (n=35) |
+| aft_known_unitig | 0.0% (n=25) | 60.0% (n=10) | 0.0% (n=35) | 82.9% (n=35) |
 
 **leave-one-lineage-out (ECOLI_ML_002)** (`lolo_ECOLI_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 30 | 90.5% (n=21) | 0.0% (n=9) | 0.0% (n=30) | 36.7% (n=30) | 23.3% (n=14) | 20.0% (n=14) | 0.548 | 56.7% (n=30) | 6.00 |
-| b2_xgb_steps | 30 | 100.0% (n=21) | 0.0% (n=9) | 0.0% (n=30) | 30.0% (n=30) | 30.0% (n=14) | 13.3% (n=14) | 0.820 | 46.7% (n=30) | 4.00 |
-| aft_known | 30 | 4.8% (n=21) | 0.0% (n=9) | 0.0% (n=30) | 96.7% (n=30) | 83.3% (n=14) | 60.0% (n=14) | 0.989 | 100.0% (n=30) | 4.00 |
-| aft_known_unitig | 30 | 4.8% (n=21) | 0.0% (n=9) | 0.0% (n=30) | 96.7% (n=30) | 93.3% (n=14) | 70.0% (n=14) | 0.997 | 100.0% (n=30) | 6.00 |
+| b1_lookup | 27 | 90.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 33.3% (n=27) | 28.6% (n=14) | 21.4% (n=14) | 0.486 | 71.4% (n=14) | 8.00 |
+| b2_xgb_steps | 27 | 100.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 25.9% (n=27) | 50.0% (n=14) | 14.3% (n=14) | 0.861 | 71.4% (n=14) | 4.00 |
+| aft_known | 27 | 5.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 96.3% (n=27) | 64.3% (n=14) | 28.6% (n=14) | 0.989 | 92.9% (n=14) | 4.00 |
+| aft_known_unitig | 27 | 5.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 96.3% (n=27) | 92.9% (n=14) | 50.0% (n=14) | 1.000 | 100.0% (n=14) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 90.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 33.3% (n=27) |
+| b2_xgb_steps | 100.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 25.9% (n=27) |
+| aft_known | 5.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 96.3% (n=27) |
+| aft_known_unitig | 5.0% (n=20) | 0.0% (n=7) | 0.0% (n=27) | 96.3% (n=27) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_ECOLI_piperacillin-tazobactam.png)
 
@@ -464,43 +638,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 1 mg/L, R if MIC > 2 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 91 | 0.0% (n=75) | 0.0% (n=16) | 0.0% (n=91) | 100.0% (n=91) | — | — | — | — | — |
-| b1_lookup | 91 | 70.7% (n=75) | 0.0% (n=16) | 0.0% (n=91) | 41.8% (n=91) | 31.9% (n=22) | 24.2% (n=22) | 0.868 | 70.3% (n=91) | 10.00 |
-| b2_xgb_steps | 91 | 0.0% (n=75) | 0.0% (n=16) | 0.0% (n=91) | 100.0% (n=91) | 71.4% (n=22) | 29.7% (n=22) | 1.000 | 71.4% (n=91) | 2.00 |
-| aft_known | 91 | 0.0% (n=75) | 0.0% (n=16) | 0.0% (n=91) | 100.0% (n=91) | 94.5% (n=22) | 89.0% (n=22) | 1.000 | 98.9% (n=91) | 4.00 |
-| aft_known_unitig | 91 | 0.0% (n=75) | 0.0% (n=16) | 0.0% (n=91) | 100.0% (n=91) | 96.7% (n=22) | 89.0% (n=22) | 1.000 | 100.0% (n=91) | 6.00 |
+| b0_resfinder | 81 | 0.0% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 100.0% (n=81) | — | — | — | — | — |
+| b1_lookup | 81 | 0.0% (n=38) | 11.6% (n=43) | 0.0% (n=81) | 93.8% (n=81) | 87.1% (n=31) | 32.3% (n=31) | 0.971 | 100.0% (n=31) | 10.00 |
+| b2_xgb_steps | 81 | 2.6% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 98.8% (n=81) | 96.8% (n=31) | 67.7% (n=31) | 0.987 | 96.8% (n=31) | 2.00 |
+| aft_known | 81 | 0.0% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 100.0% (n=81) | 51.6% (n=31) | 29.0% (n=31) | 1.000 | 90.3% (n=31) | 4.00 |
+| aft_known_unitig | 81 | 2.6% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 98.8% (n=81) | 61.3% (n=31) | 35.5% (n=31) | 1.000 | 100.0% (n=31) | 6.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 100.0% (n=81) |
+| b1_lookup | 0.0% (n=38) | 11.6% (n=43) | 0.0% (n=81) | 93.8% (n=81) |
+| b2_xgb_steps | 2.6% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 98.8% (n=81) |
+| aft_known | 0.0% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 100.0% (n=81) |
+| aft_known_unitig | 2.6% (n=38) | 0.0% (n=43) | 0.0% (n=81) | 98.8% (n=81) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 457 | 0.0% (n=228) | 0.0% (n=229) | 0.0% (n=457) | 100.0% (n=457) | — | — | — | — | — |
-| b1_lookup | 457 | 38.2% (n=228) | 6.6% (n=229) | 0.0% (n=457) | 77.7% (n=457) | 66.7% (n=153) | 43.1% (n=153) | 0.945 | 84.2% (n=457) | 10.00 |
-| b2_xgb_steps | 457 | 3.5% (n=228) | 0.0% (n=229) | 0.0% (n=457) | 98.2% (n=457) | 87.1% (n=153) | 36.1% (n=153) | 0.989 | 87.1% (n=457) | 2.00 |
-| aft_known | 457 | 0.0% (n=228) | 0.0% (n=229) | 0.2% (n=457) | 99.8% (n=457) | 90.4% (n=153) | 69.1% (n=153) | 1.000 | 99.3% (n=457) | 4.00 |
-| aft_known_unitig | 457 | 1.3% (n=228) | 0.0% (n=229) | 0.0% (n=457) | 99.3% (n=457) | 85.3% (n=153) | 68.3% (n=153) | 1.000 | 99.1% (n=457) | 6.00 |
+| b0_resfinder | 429 | 0.0% (n=249) | 0.0% (n=180) | 0.0% (n=429) | 100.0% (n=429) | — | — | — | — | — |
+| b1_lookup | 429 | 0.0% (n=249) | 13.9% (n=180) | 0.0% (n=429) | 94.2% (n=429) | 69.4% (n=144) | 20.8% (n=144) | 0.940 | 97.2% (n=144) | 10.00 |
+| b2_xgb_steps | 429 | 1.6% (n=249) | 1.7% (n=180) | 0.0% (n=429) | 98.4% (n=429) | 91.7% (n=144) | 53.5% (n=144) | 0.986 | 91.7% (n=144) | 2.00 |
+| aft_known | 429 | 0.8% (n=249) | 0.0% (n=180) | 0.2% (n=429) | 99.3% (n=429) | 77.1% (n=144) | 26.4% (n=144) | 1.000 | 95.1% (n=144) | 4.00 |
+| aft_known_unitig | 429 | 1.2% (n=249) | 0.0% (n=180) | 1.4% (n=429) | 97.9% (n=429) | 62.5% (n=144) | 20.8% (n=144) | 0.999 | 91.0% (n=144) | 6.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=249) | 0.0% (n=180) | 0.0% (n=429) | 100.0% (n=429) |
+| b1_lookup | 0.0% (n=249) | 13.9% (n=180) | 0.0% (n=429) | 94.2% (n=429) |
+| b2_xgb_steps | 1.6% (n=249) | 1.7% (n=180) | 0.0% (n=429) | 98.4% (n=429) |
+| aft_known | 0.8% (n=249) | 0.0% (n=180) | 0.2% (n=429) | 99.3% (n=429) |
+| aft_known_unitig | 1.2% (n=249) | 0.0% (n=180) | 1.4% (n=429) | 97.9% (n=429) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (KPNEU_ML_001)** (`lolo_KPNEU_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 88 | 90.1% (n=81) | 0.0% (n=7) | 0.0% (n=88) | 17.0% (n=88) | 12.5% (n=28) | 3.4% (n=28) | 0.549 | 37.5% (n=88) | 10.00 |
-| b2_xgb_steps | 88 | 1.2% (n=81) | 0.0% (n=7) | 0.0% (n=88) | 98.9% (n=88) | 68.2% (n=28) | 31.8% (n=28) | 0.993 | 68.2% (n=88) | 2.00 |
-| aft_known | 88 | 0.0% (n=81) | 0.0% (n=7) | 0.0% (n=88) | 100.0% (n=88) | 89.8% (n=28) | 75.0% (n=28) | 1.000 | 98.9% (n=88) | 4.00 |
-| aft_known_unitig | 88 | 1.2% (n=81) | 0.0% (n=7) | 0.0% (n=88) | 98.9% (n=88) | 92.0% (n=28) | 73.9% (n=28) | 1.000 | 98.9% (n=88) | 6.00 |
+| b1_lookup | 84 | 76.9% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 28.6% (n=84) | 21.4% (n=28) | 7.1% (n=28) | 0.744 | 100.0% (n=28) | 10.00 |
+| b2_xgb_steps | 84 | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) | 92.9% (n=28) | 46.4% (n=28) | 0.993 | 92.9% (n=28) | 2.00 |
+| aft_known | 84 | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) | 78.6% (n=28) | 32.1% (n=28) | 0.999 | 89.3% (n=28) | 4.00 |
+| aft_known_unitig | 84 | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) | 75.0% (n=28) | 35.7% (n=28) | 1.000 | 96.4% (n=28) | 6.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 76.9% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 28.6% (n=84) |
+| b2_xgb_steps | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) |
+| aft_known | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) |
+| aft_known_unitig | 1.3% (n=78) | 0.0% (n=6) | 0.0% (n=84) | 98.8% (n=84) |
 
 **leave-one-lineage-out (KPNEU_ML_002)** (`lolo_KPNEU_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 81 | 72.6% (n=73) | 0.0% (n=8) | 0.0% (n=81) | 34.6% (n=81) | 24.7% (n=17) | 19.8% (n=17) | 0.773 | 66.7% (n=81) | 10.00 |
-| b2_xgb_steps | 81 | 0.0% (n=73) | 0.0% (n=8) | 0.0% (n=81) | 100.0% (n=81) | 67.9% (n=17) | 29.6% (n=17) | 1.000 | 67.9% (n=81) | 2.00 |
-| aft_known | 81 | 0.0% (n=73) | 0.0% (n=8) | 0.0% (n=81) | 100.0% (n=81) | 93.8% (n=17) | 90.1% (n=17) | 1.000 | 98.8% (n=81) | 4.00 |
-| aft_known_unitig | 81 | 0.0% (n=73) | 0.0% (n=8) | 0.0% (n=81) | 100.0% (n=81) | 97.5% (n=17) | 91.4% (n=17) | 1.000 | 100.0% (n=81) | 6.00 |
+| b1_lookup | 76 | 0.0% (n=68) | 62.5% (n=8) | 0.0% (n=76) | 93.4% (n=76) | 52.9% (n=17) | 29.4% (n=17) | 0.766 | 100.0% (n=17) | 10.00 |
+| b2_xgb_steps | 76 | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) | 94.1% (n=17) | 58.8% (n=17) | 1.000 | 94.1% (n=17) | 2.00 |
+| aft_known | 76 | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) | 94.1% (n=17) | 70.6% (n=17) | 1.000 | 100.0% (n=17) | 4.00 |
+| aft_known_unitig | 76 | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) | 82.4% (n=17) | 41.2% (n=17) | 1.000 | 100.0% (n=17) | 6.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 0.0% (n=68) | 62.5% (n=8) | 0.0% (n=76) | 93.4% (n=76) |
+| b2_xgb_steps | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) |
+| aft_known | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) |
+| aft_known_unitig | 0.0% (n=68) | 0.0% (n=8) | 0.0% (n=76) | 100.0% (n=76) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_KPNEU_ceftriaxone.png)
 
@@ -516,43 +730,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 0.25 mg/L, R if MIC > 0.
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 91 | 30.8% (n=65) | 37.5% (n=24) | 2.2% (n=91) | 65.9% (n=91) | — | — | — | — | — |
-| b1_lookup | 91 | 67.7% (n=65) | 0.0% (n=24) | 2.2% (n=91) | 49.5% (n=91) | 38.5% (n=52) | 22.0% (n=52) | 0.803 | 74.7% (n=91) | 8.00 |
-| b2_xgb_steps | 91 | 1.5% (n=65) | 0.0% (n=24) | 5.5% (n=91) | 93.4% (n=91) | 69.2% (n=52) | 40.7% (n=52) | 0.995 | 94.5% (n=91) | 6.00 |
-| aft_known | 91 | 0.0% (n=65) | 0.0% (n=24) | 4.4% (n=91) | 95.6% (n=91) | 80.2% (n=52) | 51.6% (n=52) | 1.000 | 94.5% (n=91) | 4.00 |
-| aft_known_unitig | 91 | 0.0% (n=65) | 0.0% (n=24) | 3.3% (n=91) | 96.7% (n=91) | 96.7% (n=52) | 56.0% (n=52) | 1.000 | 96.7% (n=91) | 2.00 |
+| b0_resfinder | 80 | 42.9% (n=14) | 29.5% (n=61) | 6.2% (n=80) | 63.7% (n=80) | — | — | — | — | — |
+| b1_lookup | 80 | 50.0% (n=14) | 1.6% (n=61) | 7.5% (n=80) | 82.5% (n=80) | 73.8% (n=65) | 29.2% (n=65) | 0.875 | 100.0% (n=65) | 8.00 |
+| b2_xgb_steps | 80 | 7.1% (n=14) | 4.9% (n=61) | 6.2% (n=80) | 88.8% (n=80) | 75.4% (n=65) | 36.9% (n=65) | 0.963 | 95.4% (n=65) | 6.00 |
+| aft_known | 80 | 7.1% (n=14) | 1.6% (n=61) | 10.0% (n=80) | 87.5% (n=80) | 73.8% (n=65) | 20.0% (n=65) | 0.954 | 93.8% (n=65) | 4.00 |
+| aft_known_unitig | 80 | 0.0% (n=14) | 1.6% (n=61) | 6.2% (n=80) | 92.5% (n=80) | 93.8% (n=65) | 41.5% (n=65) | 0.992 | 93.8% (n=65) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 42.9% (n=14) | 29.5% (n=61) | 6.2% (n=80) | 63.7% (n=80) |
+| b1_lookup | 50.0% (n=14) | 1.6% (n=61) | 7.5% (n=80) | 82.5% (n=80) |
+| b2_xgb_steps | 7.1% (n=14) | 4.9% (n=61) | 6.2% (n=80) | 88.8% (n=80) |
+| aft_known | 7.1% (n=14) | 1.6% (n=61) | 10.0% (n=80) | 87.5% (n=80) |
+| aft_known_unitig | 0.0% (n=14) | 1.6% (n=61) | 6.2% (n=80) | 92.5% (n=80) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 476 | 45.3% (n=159) | 23.6% (n=292) | 5.3% (n=476) | 65.1% (n=476) | — | — | — | — | — |
-| b1_lookup | 476 | 67.3% (n=159) | 0.7% (n=292) | 6.1% (n=476) | 71.0% (n=476) | 57.4% (n=333) | 31.7% (n=333) | 0.847 | 86.3% (n=476) | 8.00 |
-| b2_xgb_steps | 476 | 8.2% (n=159) | 2.1% (n=292) | 6.9% (n=476) | 89.1% (n=476) | 76.9% (n=333) | 40.3% (n=333) | 0.988 | 96.0% (n=476) | 6.00 |
-| aft_known | 476 | 4.4% (n=159) | 0.7% (n=292) | 6.5% (n=476) | 91.6% (n=476) | 77.7% (n=333) | 41.0% (n=333) | 0.985 | 94.3% (n=476) | 4.00 |
-| aft_known_unitig | 476 | 1.9% (n=159) | 0.7% (n=292) | 5.3% (n=476) | 93.7% (n=476) | 90.8% (n=333) | 51.9% (n=333) | 0.997 | 90.8% (n=476) | 2.00 |
+| b0_resfinder | 448 | 42.6% (n=195) | 23.4% (n=231) | 4.9% (n=448) | 64.5% (n=448) | — | — | — | — | — |
+| b1_lookup | 448 | 54.4% (n=195) | 0.9% (n=231) | 13.6% (n=448) | 62.3% (n=448) | 58.4% (n=320) | 28.4% (n=320) | 0.866 | 90.3% (n=320) | 8.00 |
+| b2_xgb_steps | 448 | 3.6% (n=195) | 2.2% (n=231) | 6.2% (n=448) | 91.1% (n=448) | 78.8% (n=320) | 42.2% (n=320) | 0.991 | 96.9% (n=320) | 6.00 |
+| aft_known | 448 | 3.1% (n=195) | 0.4% (n=231) | 7.6% (n=448) | 90.8% (n=448) | 80.3% (n=320) | 35.3% (n=320) | 0.994 | 93.4% (n=320) | 4.00 |
+| aft_known_unitig | 448 | 1.0% (n=195) | 0.4% (n=231) | 5.1% (n=448) | 94.2% (n=448) | 93.8% (n=320) | 48.1% (n=320) | 0.998 | 93.8% (n=320) | 2.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 42.6% (n=195) | 23.4% (n=231) | 4.9% (n=448) | 64.5% (n=448) |
+| b1_lookup | 54.4% (n=195) | 0.9% (n=231) | 13.6% (n=448) | 62.3% (n=448) |
+| b2_xgb_steps | 3.6% (n=195) | 2.2% (n=231) | 6.2% (n=448) | 91.1% (n=448) |
+| aft_known | 3.1% (n=195) | 0.4% (n=231) | 7.6% (n=448) | 90.8% (n=448) |
+| aft_known_unitig | 1.0% (n=195) | 0.4% (n=231) | 5.1% (n=448) | 94.2% (n=448) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (KPNEU_ML_001)** (`lolo_KPNEU_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 97 | 87.5% (n=80) | 0.0% (n=8) | 9.3% (n=97) | 18.6% (n=97) | 15.5% (n=58) | 7.2% (n=58) | 0.617 | 49.5% (n=97) | 8.00 |
-| b2_xgb_steps | 97 | 3.8% (n=80) | 12.5% (n=8) | 11.3% (n=97) | 84.5% (n=97) | 61.9% (n=58) | 26.8% (n=58) | 0.980 | 96.9% (n=97) | 6.00 |
-| aft_known | 97 | 1.2% (n=80) | 0.0% (n=8) | 12.4% (n=97) | 86.6% (n=97) | 79.4% (n=58) | 48.5% (n=58) | 0.989 | 92.8% (n=97) | 4.00 |
-| aft_known_unitig | 97 | 0.0% (n=80) | 0.0% (n=8) | 9.3% (n=97) | 90.7% (n=97) | 93.8% (n=58) | 52.6% (n=58) | 0.998 | 93.8% (n=97) | 2.00 |
+| b1_lookup | 92 | 74.7% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 29.3% (n=92) | 21.1% (n=57) | 8.8% (n=57) | 0.720 | 63.2% (n=57) | 8.00 |
+| b2_xgb_steps | 92 | 2.7% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 88.0% (n=92) | 75.4% (n=57) | 35.1% (n=57) | 0.994 | 96.5% (n=57) | 6.00 |
+| aft_known | 92 | 1.3% (n=75) | 0.0% (n=8) | 12.0% (n=92) | 87.0% (n=92) | 73.7% (n=57) | 31.6% (n=57) | 0.993 | 91.2% (n=57) | 4.00 |
+| aft_known_unitig | 92 | 1.3% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 89.1% (n=92) | 93.0% (n=57) | 50.9% (n=57) | 0.994 | 93.0% (n=57) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 74.7% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 29.3% (n=92) |
+| b2_xgb_steps | 2.7% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 88.0% (n=92) |
+| aft_known | 1.3% (n=75) | 0.0% (n=8) | 12.0% (n=92) | 87.0% (n=92) |
+| aft_known_unitig | 1.3% (n=75) | 0.0% (n=8) | 9.8% (n=92) | 89.1% (n=92) |
 
 **leave-one-lineage-out (KPNEU_ML_002)** (`lolo_KPNEU_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 82 | 67.7% (n=65) | 0.0% (n=16) | 1.2% (n=82) | 45.1% (n=82) | 35.4% (n=44) | 20.7% (n=44) | 0.725 | 72.0% (n=82) | 8.00 |
-| b2_xgb_steps | 82 | 1.5% (n=65) | 0.0% (n=16) | 4.9% (n=82) | 93.9% (n=82) | 69.5% (n=44) | 41.5% (n=44) | 0.993 | 95.1% (n=82) | 6.00 |
-| aft_known | 82 | 0.0% (n=65) | 0.0% (n=16) | 3.7% (n=82) | 96.3% (n=82) | 81.7% (n=44) | 53.7% (n=44) | 1.000 | 95.1% (n=82) | 4.00 |
-| aft_known_unitig | 82 | 0.0% (n=65) | 0.0% (n=16) | 2.4% (n=82) | 97.6% (n=82) | 97.6% (n=44) | 58.5% (n=44) | 1.000 | 97.6% (n=82) | 2.00 |
+| b1_lookup | 76 | 66.1% (n=59) | 0.0% (n=16) | 1.3% (n=76) | 47.4% (n=76) | 43.2% (n=44) | 20.5% (n=44) | 0.731 | 86.4% (n=44) | 8.00 |
+| b2_xgb_steps | 76 | 0.0% (n=59) | 12.5% (n=16) | 6.6% (n=76) | 90.8% (n=76) | 79.5% (n=44) | 45.5% (n=44) | 0.971 | 97.7% (n=44) | 6.00 |
+| aft_known | 76 | 0.0% (n=59) | 6.2% (n=16) | 3.9% (n=76) | 94.7% (n=76) | 86.4% (n=44) | 40.9% (n=44) | 0.994 | 95.5% (n=44) | 4.00 |
+| aft_known_unitig | 76 | 0.0% (n=59) | 0.0% (n=16) | 2.6% (n=76) | 97.4% (n=76) | 100.0% (n=44) | 43.2% (n=44) | 1.000 | 100.0% (n=44) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 66.1% (n=59) | 0.0% (n=16) | 1.3% (n=76) | 47.4% (n=76) |
+| b2_xgb_steps | 0.0% (n=59) | 12.5% (n=16) | 6.6% (n=76) | 90.8% (n=76) |
+| aft_known | 0.0% (n=59) | 6.2% (n=16) | 3.9% (n=76) | 94.7% (n=76) |
+| aft_known_unitig | 0.0% (n=59) | 0.0% (n=16) | 2.6% (n=76) | 97.4% (n=76) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_KPNEU_ciprofloxacin.png)
 
@@ -568,43 +822,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 2 mg/L, R if MIC > 2 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 63 | 100.0% (n=17) | 0.0% (n=36) | 15.9% (n=63) | 57.1% (n=63) | — | — | — | — | — |
-| b1_lookup | 63 | 88.2% (n=17) | 0.0% (n=36) | 15.9% (n=63) | 60.3% (n=63) | 60.3% (n=46) | 42.9% (n=46) | 0.583 | 77.8% (n=63) | 6.00 |
-| b2_xgb_steps | 63 | 0.0% (n=17) | 0.0% (n=36) | 15.9% (n=63) | 84.1% (n=63) | 93.7% (n=46) | 52.4% (n=46) | 1.000 | 93.7% (n=63) | 2.00 |
-| aft_known | 63 | 0.0% (n=17) | 0.0% (n=36) | 15.9% (n=63) | 84.1% (n=63) | 90.5% (n=46) | 41.3% (n=46) | 1.000 | 90.5% (n=63) | 2.00 |
-| aft_known_unitig | 63 | 0.0% (n=17) | 0.0% (n=36) | 15.9% (n=63) | 84.1% (n=63) | 96.8% (n=46) | 55.6% (n=46) | 1.000 | 100.0% (n=63) | 4.00 |
+| b0_resfinder | 53 | 100.0% (n=7) | 0.0% (n=45) | 1.9% (n=53) | 84.9% (n=53) | — | — | — | — | — |
+| b1_lookup | 53 | 28.6% (n=7) | 0.0% (n=45) | 1.9% (n=53) | 94.3% (n=53) | 90.0% (n=40) | 72.5% (n=40) | 0.857 | 97.5% (n=40) | 8.00 |
+| b2_xgb_steps | 53 | 0.0% (n=7) | 0.0% (n=45) | 1.9% (n=53) | 98.1% (n=53) | 97.5% (n=40) | 72.5% (n=40) | 1.000 | 97.5% (n=40) | 2.00 |
+| aft_known | 53 | 0.0% (n=7) | 0.0% (n=45) | 1.9% (n=53) | 98.1% (n=53) | 95.0% (n=40) | 70.0% (n=40) | 1.000 | 95.0% (n=40) | 2.00 |
+| aft_known_unitig | 53 | 0.0% (n=7) | 0.0% (n=45) | 1.9% (n=53) | 98.1% (n=53) | 97.5% (n=40) | 62.5% (n=40) | 1.000 | 97.5% (n=40) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 100.0% (n=8) | 0.0% (n=45) | 0.0% (n=53) | 84.9% (n=53) |
+| b1_lookup | 37.5% (n=8) | 0.0% (n=45) | 0.0% (n=53) | 94.3% (n=53) |
+| b2_xgb_steps | 0.0% (n=8) | 0.0% (n=45) | 0.0% (n=53) | 100.0% (n=53) |
+| aft_known | 0.0% (n=8) | 0.0% (n=45) | 0.0% (n=53) | 100.0% (n=53) |
+| aft_known_unitig | 0.0% (n=8) | 0.0% (n=45) | 0.0% (n=53) | 100.0% (n=53) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 280 | 100.0% (n=45) | 0.0% (n=224) | 3.9% (n=280) | 80.0% (n=280) | — | — | — | — | — |
-| b1_lookup | 280 | 68.9% (n=45) | 0.4% (n=224) | 3.9% (n=280) | 84.6% (n=280) | 77.9% (n=174) | 46.4% (n=174) | 0.625 | 92.1% (n=280) | 6.00 |
-| b2_xgb_steps | 280 | 2.2% (n=45) | 1.3% (n=224) | 3.9% (n=280) | 94.6% (n=280) | 96.8% (n=174) | 57.9% (n=174) | 0.986 | 96.8% (n=280) | 2.00 |
-| aft_known | 280 | 2.2% (n=45) | 1.3% (n=224) | 3.9% (n=280) | 94.6% (n=280) | 96.1% (n=174) | 58.9% (n=174) | 0.972 | 96.1% (n=280) | 2.00 |
-| aft_known_unitig | 280 | 2.2% (n=45) | 1.3% (n=224) | 3.9% (n=280) | 94.6% (n=280) | 86.4% (n=174) | 51.4% (n=174) | 0.976 | 98.2% (n=280) | 4.00 |
+| b0_resfinder | 265 | 100.0% (n=50) | 0.0% (n=194) | 7.9% (n=265) | 73.2% (n=265) | — | — | — | — | — |
+| b1_lookup | 265 | 76.0% (n=50) | 1.0% (n=194) | 7.9% (n=265) | 77.0% (n=265) | 70.9% (n=179) | 53.1% (n=179) | 0.637 | 97.2% (n=179) | 8.00 |
+| b2_xgb_steps | 265 | 2.0% (n=50) | 1.5% (n=194) | 7.9% (n=265) | 90.6% (n=265) | 96.1% (n=179) | 65.4% (n=179) | 0.983 | 96.1% (n=179) | 2.00 |
+| aft_known | 265 | 2.0% (n=50) | 1.5% (n=194) | 7.9% (n=265) | 90.6% (n=265) | 95.0% (n=179) | 59.2% (n=179) | 0.975 | 95.0% (n=179) | 2.00 |
+| aft_known_unitig | 265 | 2.0% (n=50) | 1.5% (n=194) | 7.9% (n=265) | 90.6% (n=265) | 93.9% (n=179) | 52.0% (n=179) | 0.983 | 93.9% (n=179) | 2.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 100.0% (n=71) | 0.0% (n=194) | 0.0% (n=265) | 73.2% (n=265) |
+| b1_lookup | 77.5% (n=71) | 1.0% (n=194) | 0.0% (n=265) | 78.5% (n=265) |
+| b2_xgb_steps | 1.4% (n=71) | 1.5% (n=194) | 0.0% (n=265) | 98.5% (n=265) |
+| aft_known | 1.4% (n=71) | 1.5% (n=194) | 0.0% (n=265) | 98.5% (n=265) |
+| aft_known_unitig | 1.4% (n=71) | 1.5% (n=194) | 0.0% (n=265) | 98.5% (n=265) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (KPNEU_ML_001)** (`lolo_KPNEU_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 53 | 100.0% (n=13) | 0.0% (n=36) | 7.5% (n=53) | 67.9% (n=53) | 60.4% (n=30) | 30.2% (n=30) | 0.486 | 90.6% (n=53) | 6.00 |
-| b2_xgb_steps | 53 | 0.0% (n=13) | 8.3% (n=36) | 7.5% (n=53) | 86.8% (n=53) | 98.1% (n=30) | 54.7% (n=30) | 0.968 | 98.1% (n=53) | 2.00 |
-| aft_known | 53 | 0.0% (n=13) | 8.3% (n=36) | 7.5% (n=53) | 86.8% (n=53) | 94.3% (n=30) | 60.4% (n=30) | 0.940 | 94.3% (n=53) | 2.00 |
-| aft_known_unitig | 53 | 0.0% (n=13) | 8.3% (n=36) | 7.5% (n=53) | 86.8% (n=53) | 92.5% (n=30) | 43.4% (n=30) | 0.937 | 96.2% (n=53) | 4.00 |
+| b1_lookup | 51 | 84.6% (n=13) | 2.9% (n=34) | 7.8% (n=51) | 68.6% (n=51) | 50.0% (n=30) | 40.0% (n=30) | 0.575 | 100.0% (n=30) | 8.00 |
+| b2_xgb_steps | 51 | 0.0% (n=13) | 8.8% (n=34) | 7.8% (n=51) | 86.3% (n=51) | 93.3% (n=30) | 56.7% (n=30) | 0.962 | 93.3% (n=30) | 2.00 |
+| aft_known | 51 | 0.0% (n=13) | 8.8% (n=34) | 7.8% (n=51) | 86.3% (n=51) | 100.0% (n=30) | 73.3% (n=30) | 0.956 | 100.0% (n=30) | 2.00 |
+| aft_known_unitig | 51 | 0.0% (n=13) | 8.8% (n=34) | 7.8% (n=51) | 86.3% (n=51) | 96.7% (n=30) | 66.7% (n=30) | 0.948 | 96.7% (n=30) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 88.2% (n=17) | 2.9% (n=34) | 0.0% (n=51) | 68.6% (n=51) |
+| b2_xgb_steps | 0.0% (n=17) | 8.8% (n=34) | 0.0% (n=51) | 94.1% (n=51) |
+| aft_known | 0.0% (n=17) | 8.8% (n=34) | 0.0% (n=51) | 94.1% (n=51) |
+| aft_known_unitig | 0.0% (n=17) | 8.8% (n=34) | 0.0% (n=51) | 94.1% (n=51) |
 
 **leave-one-lineage-out (KPNEU_ML_002)** (`lolo_KPNEU_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 56 | 93.8% (n=16) | 0.0% (n=30) | 17.9% (n=56) | 55.4% (n=56) | 57.1% (n=41) | 41.1% (n=41) | 0.578 | 75.0% (n=56) | 6.00 |
-| b2_xgb_steps | 56 | 0.0% (n=16) | 0.0% (n=30) | 17.9% (n=56) | 82.1% (n=56) | 94.6% (n=41) | 53.6% (n=41) | 1.000 | 94.6% (n=56) | 2.00 |
-| aft_known | 56 | 0.0% (n=16) | 0.0% (n=30) | 17.9% (n=56) | 82.1% (n=56) | 92.9% (n=41) | 41.1% (n=41) | 1.000 | 92.9% (n=56) | 2.00 |
-| aft_known_unitig | 56 | 0.0% (n=16) | 0.0% (n=30) | 17.9% (n=56) | 82.1% (n=56) | 98.2% (n=41) | 57.1% (n=41) | 1.000 | 100.0% (n=56) | 4.00 |
+| b1_lookup | 52 | 92.9% (n=14) | 0.0% (n=28) | 19.2% (n=52) | 55.8% (n=52) | 53.8% (n=39) | 43.6% (n=39) | 0.585 | 92.3% (n=39) | 8.00 |
+| b2_xgb_steps | 52 | 0.0% (n=14) | 0.0% (n=28) | 19.2% (n=52) | 80.8% (n=52) | 94.9% (n=39) | 56.4% (n=39) | 1.000 | 94.9% (n=39) | 2.00 |
+| aft_known | 52 | 0.0% (n=14) | 0.0% (n=28) | 19.2% (n=52) | 80.8% (n=52) | 89.7% (n=39) | 43.6% (n=39) | 1.000 | 89.7% (n=39) | 2.00 |
+| aft_known_unitig | 52 | 0.0% (n=14) | 0.0% (n=28) | 19.2% (n=52) | 80.8% (n=52) | 92.3% (n=39) | 64.1% (n=39) | 1.000 | 92.3% (n=39) | 2.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 87.5% (n=24) | 0.0% (n=28) | 0.0% (n=52) | 59.6% (n=52) |
+| b2_xgb_steps | 0.0% (n=24) | 0.0% (n=28) | 0.0% (n=52) | 100.0% (n=52) |
+| aft_known | 8.3% (n=24) | 0.0% (n=28) | 0.0% (n=52) | 96.2% (n=52) |
+| aft_known_unitig | 4.2% (n=24) | 0.0% (n=28) | 0.0% (n=52) | 98.1% (n=52) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_KPNEU_gentamicin.png)
 
@@ -620,43 +914,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 2 mg/L, R if MIC > 8 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 94 | 0.0% (n=60) | 6.7% (n=30) | 4.3% (n=94) | 93.6% (n=94) | — | — | — | — | — |
-| b1_lookup | 94 | 63.3% (n=60) | 0.0% (n=30) | 9.6% (n=94) | 50.0% (n=94) | 51.1% (n=44) | 34.0% (n=44) | 0.726 | 77.7% (n=94) | 16.00 |
-| b2_xgb_steps | 94 | 6.7% (n=60) | 0.0% (n=30) | 27.7% (n=94) | 68.1% (n=94) | 68.1% (n=44) | 35.1% (n=44) | 0.987 | 89.4% (n=94) | 4.00 |
-| aft_known | 94 | 0.0% (n=60) | 0.0% (n=30) | 11.7% (n=94) | 88.3% (n=94) | 83.0% (n=44) | 58.5% (n=44) | 1.000 | 97.9% (n=94) | 4.00 |
-| aft_known_unitig | 94 | 0.0% (n=60) | 0.0% (n=30) | 24.5% (n=94) | 75.5% (n=94) | 93.6% (n=44) | 60.6% (n=44) | 1.000 | 97.9% (n=94) | 4.00 |
+| b0_resfinder | 84 | 0.0% (n=17) | 1.6% (n=61) | 7.1% (n=84) | 91.7% (n=84) | — | — | — | — | — |
+| b1_lookup | 84 | 76.5% (n=17) | 0.0% (n=61) | 6.0% (n=84) | 78.6% (n=84) | 75.0% (n=36) | 36.1% (n=36) | 0.818 | 100.0% (n=36) | 16.00 |
+| b2_xgb_steps | 84 | 17.6% (n=17) | 0.0% (n=61) | 9.5% (n=84) | 86.9% (n=84) | 88.9% (n=36) | 61.1% (n=36) | 0.968 | 94.4% (n=36) | 6.00 |
+| aft_known | 84 | 5.9% (n=17) | 0.0% (n=61) | 4.8% (n=84) | 94.0% (n=84) | 77.8% (n=36) | 22.2% (n=36) | 1.000 | 94.4% (n=36) | 4.00 |
+| aft_known_unitig | 84 | 0.0% (n=17) | 0.0% (n=61) | 13.1% (n=84) | 86.9% (n=84) | 75.0% (n=36) | 13.9% (n=36) | 1.000 | 100.0% (n=36) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=8) | 1.6% (n=61) | 12.7% (n=79) | 86.1% (n=79) |
+| b1_lookup | 75.0% (n=8) | 0.0% (n=61) | 8.9% (n=79) | 83.5% (n=79) |
+| b2_xgb_steps | 0.0% (n=8) | 0.0% (n=61) | 10.1% (n=79) | 89.9% (n=79) |
+| aft_known | 0.0% (n=8) | 0.0% (n=61) | 7.6% (n=79) | 92.4% (n=79) |
+| aft_known_unitig | 0.0% (n=8) | 0.0% (n=61) | 5.1% (n=79) | 94.9% (n=79) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 485 | 0.0% (n=123) | 1.5% (n=337) | 5.2% (n=485) | 93.8% (n=485) | — | — | — | — | — |
-| b1_lookup | 485 | 82.9% (n=123) | 0.0% (n=337) | 5.8% (n=485) | 73.2% (n=485) | 70.7% (n=195) | 45.4% (n=195) | 0.808 | 88.7% (n=485) | 16.00 |
-| b2_xgb_steps | 485 | 14.6% (n=123) | 0.3% (n=337) | 16.7% (n=485) | 79.4% (n=485) | 83.3% (n=195) | 35.9% (n=195) | 0.949 | 90.5% (n=485) | 4.00 |
-| aft_known | 485 | 4.1% (n=123) | 0.0% (n=337) | 16.1% (n=485) | 82.9% (n=485) | 81.9% (n=195) | 54.4% (n=195) | 1.000 | 94.8% (n=485) | 4.00 |
-| aft_known_unitig | 485 | 8.9% (n=123) | 0.0% (n=337) | 17.7% (n=485) | 80.0% (n=485) | 77.1% (n=195) | 54.2% (n=195) | 0.999 | 90.3% (n=485) | 4.00 |
+| b0_resfinder | 453 | 0.0% (n=157) | 2.2% (n=275) | 4.6% (n=453) | 94.0% (n=453) | — | — | — | — | — |
+| b1_lookup | 453 | 68.8% (n=157) | 0.0% (n=275) | 6.4% (n=453) | 69.8% (n=453) | 60.3% (n=199) | 20.6% (n=199) | 0.814 | 96.0% (n=199) | 16.00 |
+| b2_xgb_steps | 453 | 17.8% (n=157) | 0.7% (n=275) | 13.0% (n=453) | 80.4% (n=453) | 79.9% (n=199) | 50.3% (n=199) | 0.966 | 90.5% (n=199) | 6.00 |
+| aft_known | 453 | 3.8% (n=157) | 0.0% (n=275) | 10.2% (n=453) | 88.5% (n=453) | 68.3% (n=199) | 22.6% (n=199) | 0.999 | 94.0% (n=199) | 4.00 |
+| aft_known_unitig | 453 | 8.3% (n=157) | 0.0% (n=275) | 12.1% (n=453) | 85.0% (n=453) | 73.4% (n=199) | 28.6% (n=199) | 0.999 | 97.5% (n=199) | 4.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 0.0% (n=126) | 3.2% (n=278) | 9.4% (n=446) | 88.6% (n=446) |
+| b1_lookup | 70.6% (n=126) | 0.0% (n=278) | 9.4% (n=446) | 70.6% (n=446) |
+| b2_xgb_steps | 18.3% (n=126) | 0.7% (n=278) | 14.8% (n=446) | 79.6% (n=446) |
+| aft_known | 0.8% (n=126) | 0.0% (n=278) | 11.0% (n=446) | 88.8% (n=446) |
+| aft_known_unitig | 4.0% (n=126) | 0.0% (n=278) | 10.5% (n=446) | 88.3% (n=446) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (KPNEU_ML_001)** (`lolo_KPNEU_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 93 | 95.5% (n=67) | 0.0% (n=20) | 8.6% (n=93) | 22.6% (n=93) | 15.1% (n=39) | 9.7% (n=39) | 0.618 | 51.6% (n=93) | 16.00 |
-| b2_xgb_steps | 93 | 1.5% (n=67) | 0.0% (n=20) | 55.9% (n=93) | 43.0% (n=93) | 47.3% (n=39) | 21.5% (n=39) | 0.998 | 75.3% (n=93) | 4.00 |
-| aft_known | 93 | 3.0% (n=67) | 0.0% (n=20) | 49.5% (n=93) | 48.4% (n=93) | 52.7% (n=39) | 24.7% (n=39) | 1.000 | 67.7% (n=93) | 4.00 |
-| aft_known_unitig | 93 | 0.0% (n=67) | 0.0% (n=20) | 57.0% (n=93) | 43.0% (n=93) | 46.2% (n=39) | 21.5% (n=39) | 1.000 | 63.4% (n=93) | 4.00 |
+| b1_lookup | 88 | 76.6% (n=64) | 0.0% (n=18) | 9.1% (n=88) | 35.2% (n=88) | 28.9% (n=38) | 13.2% (n=38) | 0.660 | 86.8% (n=38) | 16.00 |
+| b2_xgb_steps | 88 | 1.6% (n=64) | 0.0% (n=18) | 21.6% (n=88) | 77.3% (n=88) | 68.4% (n=38) | 28.9% (n=38) | 0.998 | 100.0% (n=38) | 6.00 |
+| aft_known | 88 | 0.0% (n=64) | 0.0% (n=18) | 20.5% (n=88) | 79.5% (n=88) | 73.7% (n=38) | 28.9% (n=38) | 1.000 | 92.1% (n=38) | 4.00 |
+| aft_known_unitig | 88 | 0.0% (n=64) | 0.0% (n=18) | 26.1% (n=88) | 73.9% (n=88) | 57.9% (n=38) | 18.4% (n=38) | 1.000 | 97.4% (n=38) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 76.3% (n=59) | 0.0% (n=18) | 11.8% (n=85) | 35.3% (n=85) |
+| b2_xgb_steps | 1.7% (n=59) | 0.0% (n=18) | 20.0% (n=85) | 78.8% (n=85) |
+| aft_known | 0.0% (n=59) | 0.0% (n=18) | 18.8% (n=85) | 81.2% (n=85) |
+| aft_known_unitig | 0.0% (n=59) | 0.0% (n=18) | 24.7% (n=85) | 75.3% (n=85) |
 
 **leave-one-lineage-out (KPNEU_ML_002)** (`lolo_KPNEU_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 82 | 64.4% (n=59) | 0.0% (n=19) | 9.8% (n=82) | 43.9% (n=82) | 45.1% (n=40) | 30.5% (n=40) | 0.661 | 74.4% (n=82) | 16.00 |
-| b2_xgb_steps | 82 | 6.8% (n=59) | 0.0% (n=19) | 29.3% (n=82) | 65.9% (n=82) | 64.6% (n=40) | 37.8% (n=40) | 0.983 | 87.8% (n=82) | 4.00 |
-| aft_known | 82 | 0.0% (n=59) | 0.0% (n=19) | 12.2% (n=82) | 87.8% (n=82) | 80.5% (n=40) | 56.1% (n=40) | 1.000 | 97.6% (n=82) | 4.00 |
-| aft_known_unitig | 82 | 0.0% (n=59) | 0.0% (n=19) | 26.8% (n=82) | 73.2% (n=82) | 92.7% (n=40) | 57.3% (n=40) | 1.000 | 97.6% (n=82) | 4.00 |
+| b1_lookup | 77 | 63.6% (n=55) | 0.0% (n=18) | 9.1% (n=77) | 45.5% (n=77) | 45.0% (n=40) | 25.0% (n=40) | 0.682 | 92.5% (n=40) | 16.00 |
+| b2_xgb_steps | 77 | 25.5% (n=55) | 5.6% (n=18) | 23.4% (n=77) | 57.1% (n=77) | 65.0% (n=40) | 35.0% (n=40) | 0.899 | 82.5% (n=40) | 6.00 |
+| aft_known | 77 | 0.0% (n=55) | 0.0% (n=18) | 13.0% (n=77) | 87.0% (n=77) | 72.5% (n=40) | 30.0% (n=40) | 1.000 | 95.0% (n=40) | 4.00 |
+| aft_known_unitig | 77 | 3.6% (n=55) | 0.0% (n=18) | 13.0% (n=77) | 84.4% (n=77) | 80.0% (n=40) | 50.0% (n=40) | 1.000 | 97.5% (n=40) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 60.9% (n=46) | 0.0% (n=18) | 16.0% (n=75) | 46.7% (n=75) |
+| b2_xgb_steps | 28.3% (n=46) | 5.6% (n=18) | 29.3% (n=75) | 52.0% (n=75) |
+| aft_known | 0.0% (n=46) | 0.0% (n=18) | 14.7% (n=75) | 85.3% (n=75) |
+| aft_known_unitig | 2.2% (n=46) | 0.0% (n=18) | 10.7% (n=75) | 88.0% (n=75) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_KPNEU_meropenem.png)
 
@@ -672,43 +1006,83 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 8 mg/L, R if MIC > 8 mg/
 
 #### Test set (lineage-held-out genomes, scored once)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 57 | 6.7% (n=45) | 0.0% (n=12) | 0.0% (n=57) | 94.7% (n=57) | — | — | — | — | — |
-| b1_lookup | 57 | 84.4% (n=45) | 8.3% (n=12) | 0.0% (n=57) | 31.6% (n=57) | 26.3% (n=16) | 19.3% (n=16) | 0.611 | 33.3% (n=57) | 4.00 |
-| b2_xgb_steps | 57 | 17.8% (n=45) | 41.7% (n=12) | 0.0% (n=57) | 77.2% (n=57) | 63.2% (n=16) | 28.1% (n=16) | 0.818 | 64.9% (n=57) | 4.00 |
-| aft_known | 57 | 2.2% (n=45) | 25.0% (n=12) | 0.0% (n=57) | 93.0% (n=57) | 93.0% (n=16) | 64.9% (n=16) | 0.987 | 93.0% (n=57) | 2.00 |
-| aft_known_unitig | 57 | 0.0% (n=45) | 50.0% (n=12) | 0.0% (n=57) | 89.5% (n=57) | 91.2% (n=16) | 49.1% (n=16) | 0.989 | 100.0% (n=57) | 4.00 |
+| b0_resfinder | 43 | 6.7% (n=15) | 0.0% (n=28) | 0.0% (n=43) | 97.7% (n=43) | — | — | — | — | — |
+| b1_lookup | 43 | 86.7% (n=15) | 7.1% (n=28) | 0.0% (n=43) | 65.1% (n=43) | 72.4% (n=29) | 31.0% (n=29) | 0.836 | 96.6% (n=29) | 6.00 |
+| b2_xgb_steps | 43 | 33.3% (n=15) | 10.7% (n=28) | 0.0% (n=43) | 81.4% (n=43) | 86.2% (n=29) | 37.9% (n=29) | 0.902 | 100.0% (n=29) | 4.00 |
+| aft_known | 43 | 6.7% (n=15) | 3.6% (n=28) | 0.0% (n=43) | 95.3% (n=43) | 86.2% (n=29) | 37.9% (n=29) | 0.992 | 96.6% (n=29) | 4.00 |
+| aft_known_unitig | 43 | 6.7% (n=15) | 3.6% (n=28) | 0.0% (n=43) | 95.3% (n=43) | 96.6% (n=29) | 62.1% (n=29) | 0.994 | 100.0% (n=29) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 6.7% (n=15) | 0.0% (n=28) | 0.0% (n=43) | 97.7% (n=43) |
+| b1_lookup | 86.7% (n=15) | 7.1% (n=28) | 0.0% (n=43) | 65.1% (n=43) |
+| b2_xgb_steps | 33.3% (n=15) | 10.7% (n=28) | 0.0% (n=43) | 81.4% (n=43) |
+| aft_known | 6.7% (n=15) | 3.6% (n=28) | 0.0% (n=43) | 95.3% (n=43) |
+| aft_known_unitig | 6.7% (n=15) | 3.6% (n=28) | 0.0% (n=43) | 95.3% (n=43) |
 
 #### Cross-validation (out-of-fold, train split)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs; in-sample, see note) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b0_resfinder | 298 | 6.2% (n=96) | 0.0% (n=194) | 2.7% (n=298) | 95.3% (n=298) | — | — | — | — | — |
-| b1_lookup | 298 | 81.2% (n=96) | 2.1% (n=194) | 2.7% (n=298) | 69.8% (n=298) | 65.4% (n=188) | 33.6% (n=188) | 0.775 | 74.5% (n=298) | 4.00 |
-| b2_xgb_steps | 298 | 31.2% (n=96) | 4.1% (n=194) | 2.7% (n=298) | 84.6% (n=298) | 70.5% (n=188) | 38.9% (n=188) | 0.920 | 78.2% (n=298) | 4.00 |
-| aft_known | 298 | 3.1% (n=96) | 1.5% (n=194) | 2.7% (n=298) | 95.3% (n=298) | 92.3% (n=188) | 56.4% (n=188) | 0.998 | 92.3% (n=298) | 2.00 |
-| aft_known_unitig | 298 | 6.2% (n=96) | 2.1% (n=194) | 2.7% (n=298) | 94.0% (n=298) | 83.2% (n=188) | 42.6% (n=188) | 0.995 | 97.7% (n=298) | 4.00 |
+| b0_resfinder | 293 | 6.6% (n=121) | 0.0% (n=164) | 2.7% (n=293) | 94.5% (n=293) | — | — | — | — | — |
+| b1_lookup | 293 | 78.5% (n=121) | 2.4% (n=164) | 2.7% (n=293) | 63.5% (n=293) | 74.9% (n=175) | 33.7% (n=175) | 0.757 | 93.7% (n=175) | 6.00 |
+| b2_xgb_steps | 293 | 31.4% (n=121) | 7.9% (n=164) | 2.7% (n=293) | 79.9% (n=293) | 83.4% (n=175) | 45.7% (n=175) | 0.914 | 93.7% (n=175) | 4.00 |
+| aft_known | 293 | 4.1% (n=121) | 4.3% (n=164) | 2.7% (n=293) | 93.2% (n=293) | 89.1% (n=175) | 42.3% (n=175) | 0.997 | 98.9% (n=175) | 4.00 |
+| aft_known_unitig | 293 | 2.5% (n=121) | 4.3% (n=164) | 2.7% (n=293) | 93.9% (n=293) | 77.1% (n=175) | 38.3% (n=175) | 0.996 | 97.1% (n=175) | 4.00 |
+
+_Note: CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO coverage is an evaluation._
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b0_resfinder | 11.6% (n=129) | 0.0% (n=164) | 0.0% (n=293) | 94.9% (n=293) |
+| b1_lookup | 79.8% (n=129) | 2.4% (n=164) | 0.0% (n=293) | 63.5% (n=293) |
+| b2_xgb_steps | 34.9% (n=129) | 7.9% (n=164) | 0.0% (n=293) | 80.2% (n=293) |
+| aft_known | 7.0% (n=129) | 4.3% (n=164) | 0.0% (n=293) | 94.5% (n=293) |
+| aft_known_unitig | 6.2% (n=129) | 4.3% (n=164) | 0.0% (n=293) | 94.9% (n=293) |
 
 #### External and leave-one-lineage-out sets
 
 **leave-one-lineage-out (KPNEU_ML_001)** (`lolo_KPNEU_ML_001`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 58 | 97.7% (n=44) | 0.0% (n=12) | 3.4% (n=58) | 22.4% (n=58) | 20.7% (n=17) | 10.3% (n=17) | 0.511 | 27.6% (n=58) | 4.00 |
-| b2_xgb_steps | 58 | 2.3% (n=44) | 8.3% (n=12) | 3.4% (n=58) | 93.1% (n=58) | 44.8% (n=17) | 17.2% (n=17) | 0.966 | 50.0% (n=58) | 4.00 |
-| aft_known | 58 | 0.0% (n=44) | 8.3% (n=12) | 3.4% (n=58) | 94.8% (n=58) | 93.1% (n=17) | 56.9% (n=17) | 0.999 | 93.1% (n=58) | 2.00 |
-| aft_known_unitig | 58 | 0.0% (n=44) | 0.0% (n=12) | 3.4% (n=58) | 96.6% (n=58) | 65.5% (n=17) | 34.5% (n=17) | 1.000 | 94.8% (n=58) | 4.00 |
+| b1_lookup | 55 | 83.3% (n=42) | 0.0% (n=11) | 3.6% (n=55) | 32.7% (n=55) | 64.7% (n=17) | 29.4% (n=17) | 0.583 | 88.2% (n=17) | 6.00 |
+| b2_xgb_steps | 55 | 14.3% (n=42) | 9.1% (n=11) | 3.6% (n=55) | 83.6% (n=55) | 76.5% (n=17) | 41.2% (n=17) | 0.939 | 100.0% (n=17) | 4.00 |
+| aft_known | 55 | 0.0% (n=42) | 9.1% (n=11) | 3.6% (n=55) | 94.5% (n=55) | 94.1% (n=17) | 23.5% (n=17) | 1.000 | 100.0% (n=17) | 4.00 |
+| aft_known_unitig | 55 | 0.0% (n=42) | 0.0% (n=11) | 3.6% (n=55) | 96.4% (n=55) | 41.2% (n=17) | 11.8% (n=17) | 1.000 | 100.0% (n=17) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 84.1% (n=44) | 0.0% (n=11) | 0.0% (n=55) | 32.7% (n=55) |
+| b2_xgb_steps | 13.6% (n=44) | 9.1% (n=11) | 0.0% (n=55) | 87.3% (n=55) |
+| aft_known | 0.0% (n=44) | 9.1% (n=11) | 0.0% (n=55) | 98.2% (n=55) |
+| aft_known_unitig | 0.0% (n=44) | 0.0% (n=11) | 0.0% (n=55) | 100.0% (n=55) |
 
 **leave-one-lineage-out (KPNEU_ML_002)** (`lolo_KPNEU_ML_002`)
 
-| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact MICs) | Exact agreement % | AUROC (R vs S) | Band coverage % (90% band) | Band width (doubling steps) |
+| Model | n | VME % (predicted S, lab R; of lab R) | ME % (predicted R, lab S; of lab S) | Minor error % (of categorised) | CA % (same S/I/R) | EA % (within +/-1 step; exact lab MICs) | Exact agreement % (exact lab MICs) | AUROC (R vs S) | Band coverage % (90% band; exact lab MICs) | Band width (doubling steps) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| b1_lookup | 52 | 84.4% (n=45) | 14.3% (n=7) | 0.0% (n=52) | 25.0% (n=52) | 21.2% (n=11) | 15.4% (n=11) | 0.575 | 26.9% (n=52) | 4.00 |
-| b2_xgb_steps | 52 | 17.8% (n=45) | 57.1% (n=7) | 0.0% (n=52) | 76.9% (n=52) | 59.6% (n=11) | 25.0% (n=11) | 0.735 | 61.5% (n=52) | 4.00 |
-| aft_known | 52 | 2.2% (n=45) | 42.9% (n=7) | 0.0% (n=52) | 92.3% (n=52) | 92.3% (n=11) | 65.4% (n=11) | 0.979 | 92.3% (n=52) | 2.00 |
-| aft_known_unitig | 52 | 0.0% (n=45) | 71.4% (n=7) | 0.0% (n=52) | 90.4% (n=52) | 90.4% (n=11) | 50.0% (n=11) | 0.984 | 100.0% (n=52) | 4.00 |
+| b1_lookup | 50 | 84.1% (n=44) | 16.7% (n=6) | 0.0% (n=50) | 24.0% (n=50) | 27.3% (n=11) | 0.0% (n=11) | 0.576 | 63.6% (n=11) | 6.00 |
+| b2_xgb_steps | 50 | 25.0% (n=44) | 83.3% (n=6) | 0.0% (n=50) | 68.0% (n=50) | 81.8% (n=11) | 45.5% (n=11) | 0.498 | 90.9% (n=11) | 4.00 |
+| aft_known | 50 | 2.3% (n=44) | 33.3% (n=6) | 0.0% (n=50) | 94.0% (n=50) | 81.8% (n=11) | 18.2% (n=11) | 0.987 | 100.0% (n=11) | 4.00 |
+| aft_known_unitig | 50 | 0.0% (n=44) | 83.3% (n=6) | 0.0% (n=50) | 90.0% (n=50) | 81.8% (n=11) | 45.5% (n=11) | 0.991 | 90.9% (n=11) | 4.00 |
+
+Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:
+
+| Model | VME % re-derived (of lab R) | ME % re-derived (of lab S) | Minor error % re-derived | CA % re-derived |
+| --- | --- | --- | --- | --- |
+| b1_lookup | 84.1% (n=44) | 16.7% (n=6) | 0.0% (n=50) | 24.0% (n=50) |
+| b2_xgb_steps | 25.0% (n=44) | 83.3% (n=6) | 0.0% (n=50) | 68.0% (n=50) |
+| aft_known | 2.3% (n=44) | 33.3% (n=6) | 0.0% (n=50) | 94.0% (n=50) |
+| aft_known_unitig | 0.0% (n=44) | 83.3% (n=6) | 0.0% (n=50) | 90.0% (n=50) |
 
 ![VME and ME by model, test set](figures/vme_me_by_model_KPNEU_piperacillin-tazobactam.png)
 
@@ -744,16 +1118,19 @@ Call breakpoint (EUCAST 2024, bloodstream): S if MIC <= 8 mg/L, R if MIC > 8 mg/
 
 Checks from `DATA_CONTRACT.md` section 4 that can be verified from the files on disk. `NOT RUN` means the input needed for that check is missing. Fold-internal feature selection and calibration-on-validation-only are enforced in the training code and are not re-verifiable from outputs.
 
+- Rule 8 (test set touched once) is checked against `results/test_ledger.csv`, which `train` appends to every time it scores the test rows of a pair: each species x drug must carry one run_id (training parameters + splits) and one inputs_sha1 (labels, features, unitig set, drug/breakpoint configs, model code). This shows the test rows were only ever scored by one configuration on one set of inputs; it cannot show that nobody looked at test metrics before settling on that configuration.
+- Unitig patterns are built from every train genome, including the genomes held out within CV folds and LOLO runs; only test genomes are queried against the frozen set. No labels enter the build and per-fold selection recomputes frequency filters and ranking on the fit rows only, so this is not label leakage, but CV and LOLO rows use the build-time encoding rather than the query path a new genome takes and may read slightly optimistic.
+
 6 passed, 0 failed, 0 not run.
 
 | Check | Result | Detail |
 | --- | --- | --- |
-| no forbidden columns among features | PASS | 23575 feature names across 20 source(s); none forbidden, all prefixed |
+| no forbidden columns among features | PASS | 23667 feature names across 20 source(s); none forbidden, all prefixed |
 | no lineage cluster in two splits or two folds | PASS | 50 clusters over 960 genomes; every cluster is in one split and one fold |
-| unitig patterns built on train genomes only | PASS | unitigs_ECOLI_rows.parquet: 238 built, 50 queried; unitigs_KPNEU_rows.parquet: 561 built, 111 queried |
-| labels de-duplicated by biosample | PASS | 943 biosamples over 943 genomes (0 rows without biosample) |
-| prediction rows match their split | PASS | 20524 rows across 9 preds file(s); cv rows are train genomes, test rows are test genomes |
-| test set touched once (informational: one run_id per preds file) | PASS | preds_ECOLI_ceftriaxone.parquet: f53e58239efc; preds_ECOLI_ciprofloxacin.parquet: f53e58239efc; preds_ECOLI_meropenem.parquet: f53e58239efc; preds_ECOLI_piperacillin-tazobactam.parquet: f53e58239efc; preds_KPNEU_ceftriaxone.parquet: f53e58239efc; preds_KPNEU_ciprofloxacin.parquet: f53e58239efc; preds_KPNEU_gentamicin.parquet: f53e58239efc; preds_KPNEU_meropenem.parquet: f53e58239efc; preds_KPNEU_piperacillin-tazobactam.parquet: f53e58239efc |
+| unitig patterns built on train genomes only | PASS | unitigs_ECOLI_rows.parquet: 238 built, 50 queried; unitigs_KPNEU_rows.parquet: 567 built, 105 queried |
+| labels de-duplicated by biosample | PASS | 878 biosamples over 878 genomes (0 rows without biosample) |
+| prediction rows match their split | PASS | 19247 rows across 9 preds file(s); cv rows are train genomes, test rows are test genomes, 3872 lolo row(s) are train genomes of their held-out lineage |
+| test set touched once (one run_id and inputs_sha1 per species x drug in results/test_ledger.csv) | PASS | test_ledger.csv: 9 scoring(s) of 9 pair(s), one run_id and inputs_sha1 each (ECOLI x ceftriaxone: d9483de1f1a0/7b1d811b8bfe, ECOLI x ciprofloxacin: d9483de1f1a0/7b1d811b8bfe, ECOLI x meropenem: d9483de1f1a0/7b1d811b8bfe, ECOLI x piperacillin-tazobactam: d9483de1f1a0/7b1d811b8bfe, KPNEU x ceftriaxone: d9483de1f1a0/f7aacd46f77a, ... (+4 more)); 9 preds file(s) match it |
 
 ## Inputs and notes
 
@@ -801,14 +1178,14 @@ Checks from `DATA_CONTRACT.md` section 4 that can be verified from the files on 
 
 | stage | reason | n_dropped | detail |
 | --- | --- | --- | --- |
-| report | mic_confusion: censored lab interval or null prediction | 21 | ECOLI ceftriaxone aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 8 | ECOLI ciprofloxacin aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 25 | ECOLI meropenem aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 12 | ECOLI piperacillin-tazobactam aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 69 | KPNEU ceftriaxone aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 39 | KPNEU ciprofloxacin aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 17 | KPNEU gentamicin aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 50 | KPNEU meropenem aft_known_unitig test |
-| report | mic_confusion: censored lab interval or null prediction | 41 | KPNEU piperacillin-tazobactam aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 19 | ECOLI ceftriaxone aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 6 | ECOLI ciprofloxacin aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 24 | ECOLI meropenem aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 11 | ECOLI piperacillin-tazobactam aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 50 | KPNEU ceftriaxone aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 15 | KPNEU ciprofloxacin aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 13 | KPNEU gentamicin aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 48 | KPNEU meropenem aft_known_unitig test |
+| report | mic_confusion: lab result not an exact MIC (interval wider than one doubling step, or lab_exact false), or null prediction | 14 | KPNEU piperacillin-tazobactam aft_known_unitig test |
 
 > These are predictions of in-vitro susceptibility, not prescribing advice. Dose, route, and final drug choice depend on PK/PD, infection site, renal function, allergies, and other patient factors, and remain with the clinician. Confirm with standard AST.

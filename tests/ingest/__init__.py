@@ -97,6 +97,10 @@ drugs:
     synonyms: [MEM, mero, meropenem trihydrate]
     spectrum_tier: 4
     strong_markers: [gene_blakpc]
+  piperacillin-tazobactam:
+    synonyms: [TZP, piperacillin/tazobactam]
+    spectrum_tier: 3
+    strong_markers: []
 """
 
 # EUCAST v14.0 (2024) Enterobacterales, bloodstream. ECOLI x ceftriaxone is left

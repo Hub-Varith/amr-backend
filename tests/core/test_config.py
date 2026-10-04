@@ -39,7 +39,15 @@ EXPECTED_REFERENCES = {
     "PAER": "NC_002516.2",
     "ABAU": "CP000521.1",
 }
-CARBAPENEMASES = {"gene_blakpc", "gene_blandm", "gene_blaoxa_48", "gene_blavim", "gene_blaimp"}
+CARBAPENEMASES = {
+    "gene_blakpc",
+    "gene_blandm",
+    "gene_blaoxa_48",
+    "gene_blaoxa_181",
+    "gene_blaoxa_232",
+    "gene_blavim",
+    "gene_blaimp",
+}
 FORBIDDEN_FEATURE_NAMES = {
     "lineage_cluster",
     "st",
@@ -180,18 +188,27 @@ def test_breakpoint_lowercase_standard_and_string_year(config: Config) -> None:
     assert (bp.standard, bp.version, bp.s_breakpoint, bp.r_breakpoint) == ("CLSI", "2024", 1.0, 2.0)
 
 
-def test_breakpoint_falls_back_to_latest_when_year_has_no_table(config: Config) -> None:
-    exact = config.breakpoint("KPNEU", "meropenem", "CLSI", 2024)
-    fallback = config.breakpoint("KPNEU", "meropenem", "CLSI", 2016)
-    assert fallback == exact
-    assert fallback is not None and fallback.version == config.latest_version("CLSI")
+def test_breakpoint_never_falls_back_to_another_year(config: Config) -> None:
+    """DATA_CONTRACT stage 2: the table must match the row's standard *and* standard_year."""
+    assert config.breakpoint("KPNEU", "meropenem", "CLSI", 2024) is not None
+    assert config.breakpoint("KPNEU", "meropenem", "CLSI", 2016) is None
+    assert config.breakpoint("KPNEU", "meropenem", "EUCAST", 2019) is None
 
 
-def test_breakpoint_falls_back_to_latest_when_year_is_missing(config: Config) -> None:
-    assert config.breakpoint("ECOLI", "ciprofloxacin", "EUCAST", None) == config.breakpoint(
-        "ECOLI", "ciprofloxacin", "EUCAST", 2024
-    )
-    assert config.breakpoint("ECOLI", "ciprofloxacin", "EUCAST", float("nan")) is not None  # type: ignore[arg-type]
+def test_breakpoint_with_missing_year_returns_none(config: Config) -> None:
+    assert config.breakpoint("ECOLI", "ciprofloxacin", "EUCAST", None) is None
+    assert config.breakpoint("ECOLI", "ciprofloxacin", "EUCAST", float("nan")) is None  # type: ignore[arg-type]
+    assert config.breakpoint("ECOLI", "ciprofloxacin", "EUCAST", "") is None  # type: ignore[arg-type]
+
+
+def test_has_breakpoint_table(config: Config) -> None:
+    assert config.has_breakpoint_table("EUCAST", 2024)
+    assert config.has_breakpoint_table("eucast", "2024")  # type: ignore[arg-type]
+    assert config.has_breakpoint_table("NCCLS", 2024)  # alias of CLSI
+    assert not config.has_breakpoint_table("EUCAST", 2016)
+    assert not config.has_breakpoint_table("EUCAST", None)
+    assert not config.has_breakpoint_table(None, 2024)
+    assert not config.has_breakpoint_table("SFM", 2024)
 
 
 def test_breakpoint_null_or_unknown_standard_returns_none(config: Config) -> None:
@@ -381,6 +398,36 @@ def test_strong_markers(config: Config) -> None:
             assert marker not in FORBIDDEN_FEATURE_NAMES
 
 
+def test_strong_subclasses_only_on_carbapenems(config: Config) -> None:
+    for drug in ("ertapenem", "imipenem", "meropenem"):
+        assert config.drugs[drug].strong_subclasses == ("CARBAPENEM",)
+    others = {name: d.strong_subclasses for name, d in config.drugs.items() if name not in ("ertapenem", "imipenem", "meropenem")}
+    assert all(subclasses == () for subclasses in others.values()), others
+
+
+def test_every_kept_carbapenemase_variant_is_a_carbapenem_strong_marker(config: Config) -> None:
+    """A keep_variant.csv carbapenemase prefix yields its own gene_ column; the override must cover it.
+
+    Regression guard: blaOXA-181 / blaOXA-232 were kept as variants but missing from the
+    carbapenem ``strong_markers``, so the override never fired for them.
+    """
+    import csv  # noqa: PLC0415
+
+    from genome2mic.features.known_amr import column_name  # noqa: PLC0415
+
+    with (CONFIGS_DIR / "keep_variant.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    carbapenemase_prefixes = [
+        row["family_prefix"] for row in rows if "carbapenem" in row["note"].lower() or "metallo" in row["note"].lower()
+    ]
+    assert carbapenemase_prefixes
+    for prefix in carbapenemase_prefixes:
+        column = column_name("gene_", prefix)
+        for drug in ("ertapenem", "imipenem", "meropenem"):
+            markers = config.drugs[drug].strong_markers
+            assert any(column == m or column.startswith(m + "_") for m in markers), (prefix, drug)
+
+
 def test_every_breakpoint_row_is_consistent(config: Config) -> None:
     rows = config.breakpoint_rows()
     assert rows
@@ -498,7 +545,7 @@ def test_load_config_requires_call_standard_table(configs_copy: Path) -> None:
 
 
 def test_older_table_is_used_when_year_matches(configs_copy: Path) -> None:
-    """A second table for an older year is matched exactly; other years fall back to the latest."""
+    """A second table for an older year is matched exactly; years without a table match nothing."""
     old = configs_copy / "breakpoints" / "clsi_2019.csv"
     old.write_text(
         "species,drug,s_breakpoint,r_breakpoint,version,site,note\n"
@@ -511,7 +558,9 @@ def test_older_table_is_used_when_year_matches(configs_copy: Path) -> None:
         "KPNEU", "gentamicin", 4.0, 8.0, "CLSI", "2019"
     )
     assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", 2024).version == "2024"  # type: ignore[union-attr]
-    assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", 2016).version == "2024"  # type: ignore[union-attr]
-    assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", None).version == "2024"  # type: ignore[union-attr]
+    assert cfg.has_breakpoint_table("CLSI", 2019) and not cfg.has_breakpoint_table("CLSI", 2016)
+    # No table for 2016 and no year at all: no breakpoint, never the latest table.
+    assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", 2016) is None
+    assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", None) is None
     # The 2019 test table has no ciprofloxacin row: exact-year match does not fall back.
     assert cfg.breakpoint("KPNEU", "ciprofloxacin", "CLSI", 2019) is None

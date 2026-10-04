@@ -2,9 +2,15 @@
 
 The contract lists ``b2_xgb_steps`` as a multi-class model over the doubling steps:
 ``multi:softprob`` with one class per step observed among the training rows that
-have an exact MIC (``censor == 'interval'``, i.e. ``lo > 0 and hi < inf``). Censored
-rows are dropped (and counted through :class:`~genome2mic.droplog.DropLog`) because
-a class label needs a single step. Prediction is the argmax step, not the expected
+have an exact MIC. Exact means the lab interval pins the MIC to **one doubling
+step** (``hi == 2 * lo``, :func:`genome2mic.models.base.exact_mask`) -- not merely
+``censor == 'interval'``: a multi-step ``I``-only interval such as ``(2, 8]`` is not
+exact. The caller may narrow this further with ``fit(..., exact_rows=...)``; training
+passes its ``lab_exact`` mask (:func:`genome2mic.mic.lab_exact_mask`), which also
+drops disk-diffusion rows whose ``I`` range happens to be one step (CLSI meropenem
+``(1, 2]``), because disk diffusion never measures an MIC. Every other row is
+dropped (and counted through :class:`~genome2mic.droplog.DropLog`) because a class
+label needs a single measured step. Prediction is the argmax step, not the expected
 value, so the output is always a step the training data contained.
 
 ``n_rounds`` is chosen by early stopping (``mlogloss``) on a seeded 20% holdout of
@@ -107,22 +113,40 @@ class B2XgbSteps(ModelBundleMixin):
         feature_names: list[str],
         groups: np.ndarray | None = None,
         droplog: DropLog | None = None,
+        exact_rows: np.ndarray | None = None,
     ) -> "B2XgbSteps":
-        """Fit on the exact rows of ``(lo, hi]``; censored rows are dropped and counted."""
+        """Fit on the exact rows of ``(lo, hi]``; every other row is dropped and counted.
+
+        ``exact_rows`` (optional boolean mask, one entry per row) marks the rows whose
+        lab result is a measured MIC (training passes ``lab_exact``, which excludes
+        disk diffusion). It only restricts the one-step interval rule; the one-step
+        rows it removes get their own drop reason.
+        """
         matrix = to_csr(X)
         low, high = validate_intervals(lo, hi, matrix.shape[0])
         names = check_feature_names(feature_names, matrix.shape[1])
         n = matrix.shape[0]
 
         log = droplog if droplog is not None else DropLog(self.name)
-        exact = exact_mask(low, high)
+        interval_exact = exact_mask(low, high)
+        exact = interval_exact
+        if exact_rows is not None:
+            measured = np.asarray(exact_rows, dtype=bool).ravel()
+            if measured.size != n:
+                raise ValueError(f"exact_rows has {measured.size} entries for {n} rows")
+            exact = interval_exact & measured
         log.drop(
             "censored row (B2 trains on exact MICs only)",
-            int(n - exact.sum()),
+            int(n - interval_exact.sum()),
             detail=f"{int(exact.sum())} exact rows kept of {n}",
         )
+        if exact_rows is not None:
+            log.drop(
+                "one-step lab interval but not a measured MIC (e.g. disk diffusion): B2 trains on exact MICs only",
+                int((interval_exact & ~exact).sum()),
+            )
         if not exact.any():
-            raise ValueError("B2XgbSteps needs at least one exact (interval-censored) row")
+            raise ValueError("B2XgbSteps needs at least one exact (one doubling step, measured) row")
 
         steps_float = np.log2(high[exact])
         steps = np.rint(steps_float)

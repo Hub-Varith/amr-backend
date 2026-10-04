@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from genome2mic.config import Breakpoint, Config, load_config
 from genome2mic.predict import rank
-from genome2mic.predict.amr_detect import SUBTYPE_AMR, SUBTYPE_POINT, Marker
+from genome2mic.predict.amr_detect import SUBTYPE_AMR, SUBTYPE_POINT, Marker, known_amr_row
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIGS_DIR = REPO_ROOT / "configs"
@@ -186,6 +187,105 @@ def test_strong_marker_hits_exact_prefix_for_oxa_48(config: Config) -> None:
     assert rank.strong_marker_hits({"gene_blaoxa_48": ("blaOXA-48",)}, config.drugs["meropenem"]) == ["blaOXA-48"]
     # The generic OXA family (OXA-1, OXA-10) is not a carbapenemase marker.
     assert rank.strong_marker_hits({"gene_blaoxa": ("blaOXA-1",)}, config.drugs["meropenem"]) == []
+
+
+# --------------------------------------------------------------------------- #
+# Strong-marker override end to end: detection table -> known-AMR row -> hits
+# --------------------------------------------------------------------------- #
+
+CARBAPENEMS = ("ertapenem", "imipenem", "meropenem")
+CEPHALOSPORINS_WITH_MARKERS = ("cefotaxime", "ceftriaxone", "ceftazidime", "cefepime")
+
+
+def _detections(*rows: tuple[str, str, str, str]) -> pd.DataFrame:
+    """AMRFinder-style detection table from ``(symbol, subtype, class, subclass)`` rows (FAKE hits)."""
+    return pd.DataFrame(
+        {
+            "symbol": [r[0] for r in rows],
+            "type": ["AMR"] * len(rows),
+            "subtype": [r[1] for r in rows],
+            "class": [r[2] for r in rows],
+            "subclass": [r[3] for r in rows],
+            "method": ["EXACTX"] * len(rows),
+            "coverage": [100.0] * len(rows),
+            "identity": [100.0] * len(rows),
+            "backend": ["test"] * len(rows),
+        }
+    )
+
+
+def _hits(config: Config, drug: str, *rows: tuple[str, str, str, str]) -> list[str]:
+    row = known_amr_row(_detections(*rows), config)
+    return rank.strong_marker_hits(row.symbols_by_column, config.drugs[drug], row.markers)
+
+
+@pytest.mark.parametrize("symbol", ["blaOXA-181", "blaOXA-232"])
+@pytest.mark.parametrize("drug", CARBAPENEMS + CEPHALOSPORINS_WITH_MARKERS)
+def test_kept_oxa_48_like_variants_are_strong_markers(config: Config, symbol: str, drug: str) -> None:
+    """keep_variant.csv keeps OXA-181/OXA-232 as their own columns; drugs.yaml must list them too."""
+    row = known_amr_row(_detections((symbol, "AMR", "BETA-LACTAM", "CARBAPENEM")), config)
+    assert set(row.symbols_by_column) == {"gene_" + symbol.lower().replace("-", "_")}
+    # By the column prefix alone (no markers passed), so the drugs.yaml list itself is checked.
+    assert rank.strong_marker_hits(row.symbols_by_column, config.drugs[drug]) == [symbol]
+
+
+@pytest.mark.parametrize(
+    "symbol",
+    [
+        "blaOXA-181",
+        "blaOXA-232",
+        "blaOXA-23",  # A. baumannii carbapenemase; collapses to gene_blaoxa with OXA-1
+        "blaOXA-58",
+        "blaGES-5",  # GES carbapenemase variant; collapses to gene_blages with ESBL GES-1
+        "blaIMI-1",
+    ],
+)
+@pytest.mark.parametrize("drug", CARBAPENEMS)
+def test_acquired_gene_with_carbapenem_subclass_forces_carbapenems_inactive(config: Config, symbol: str, drug: str) -> None:
+    assert _hits(config, drug, (symbol, "AMR", "BETA-LACTAM", "CARBAPENEM")) == [symbol]
+
+
+def test_subclass_rule_is_limited_to_drugs_that_list_it(config: Config) -> None:
+    # Ceftriaxone has no strong_subclasses: a GES-5 hit (family gene_blages) is not an override there.
+    assert config.drugs["ceftriaxone"].strong_subclasses == ()
+    assert _hits(config, "ceftriaxone", ("blaGES-5", "AMR", "BETA-LACTAM", "CARBAPENEM")) == []
+    assert _hits(config, "ciprofloxacin", ("blaKPC-2", "AMR", "BETA-LACTAM", "CARBAPENEM")) == []
+
+
+def test_point_mutation_with_carbapenem_subclass_is_not_an_override(config: Config) -> None:
+    """Porin loss (ompK36) raises carbapenem MICs only modestly; the model decides, not the override."""
+    for drug in CARBAPENEMS:
+        assert _hits(config, drug, ("ompK36_D135DGD", "POINT", "BETA-LACTAM", "CARBAPENEM")) == []
+
+
+def test_non_carbapenemase_subclass_is_not_an_override(config: Config) -> None:
+    for drug in CARBAPENEMS:
+        assert _hits(config, drug, ("blaOXA-1", "AMR", "BETA-LACTAM", "BETA-LACTAM")) == []
+        assert _hits(config, drug, ("blaGES-1", "AMR", "BETA-LACTAM", "CEPHALOSPORIN")) == []
+        assert _hits(config, drug, ("blaCTX-M-15", "AMR", "BETA-LACTAM", "CEPHALOSPORIN")) == []
+
+
+def test_multi_token_subclass_matches_on_any_token(config: Config) -> None:
+    assert _hits(config, "meropenem", ("blaFAKE-1", "AMR", "BETA-LACTAM", "CEPHALOSPORIN/CARBAPENEM")) == ["blaFAKE-1"]
+
+
+def test_strong_marker_hits_lists_every_marker_once_in_detection_order(config: Config) -> None:
+    hits = _hits(
+        config,
+        "meropenem",
+        ("blaOXA-23", "AMR", "BETA-LACTAM", "CARBAPENEM"),  # subclass rule
+        ("blaOXA-1", "AMR", "BETA-LACTAM", "BETA-LACTAM"),  # same column, not a carbapenemase
+        ("blaKPC-2", "AMR", "BETA-LACTAM", "CARBAPENEM"),  # prefix and subclass rule
+        ("ompK36_D135DGD", "POINT", "BETA-LACTAM", "CARBAPENEM"),  # POINT: never
+        ("blaNDM-1", "AMR", "BETA-LACTAM", "CARBAPENEM"),
+    )
+    assert hits == ["blaOXA-23", "blaKPC-2", "blaNDM-1"]
+
+
+def test_marker_without_subclass_falls_back_to_prefixes_only(config: Config) -> None:
+    present = {"gene_blaoxa": ("blaOXA-23",)}
+    markers = (Marker("blaOXA-23", SUBTYPE_AMR, "BETA-LACTAM", None, column="gene_blaoxa"),)
+    assert rank.strong_marker_hits(present, config.drugs["meropenem"], markers) == []
 
 
 # --------------------------------------------------------------------------- #

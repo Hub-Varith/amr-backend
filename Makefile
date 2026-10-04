@@ -55,13 +55,10 @@ report:
 # redo an existing root), then copy the report, metrics CSVs and figures into the tracked demo dir.
 demo: synth pipeline demo-copy
 
+# Labels every copied artefact as synthetic: README.md, a leading `synthetic` column in the
+# metrics CSVs (figures are already watermarked by the report stage). Refuses a non-synthetic ROOT.
 demo-copy:
-	mkdir -p $(DEMO_DIR)/figures
-	cp $(ROOT)/results/report.md $(DEMO_DIR)/report.md
-	cp $(ROOT)/results/metrics.csv $(DEMO_DIR)/metrics.csv
-	cp $(ROOT)/results/metrics_by_distance.csv $(DEMO_DIR)/metrics_by_distance.csv
-	cp $(ROOT)/results/figures/*.png $(DEMO_DIR)/figures/
-	@echo "demo copied to $(DEMO_DIR) (SYNTHETIC data; not clinical validation)"
+	$(PYTHON) -m genome2mic.eval.demo --root $(ROOT) --out $(DEMO_DIR)
 
 clean-synth:
 	rm -rf $(ROOT)

@@ -2,25 +2,36 @@
 
 Construction (``DATA_CONTRACT.md`` stage 7, per species, seeded):
 
-1. Shuffle the lineage clusters and assign *whole clusters* to ``test`` until
-   15-20 % of the species' genomes are held out (never splitting a cluster).
-2. For every kept species x drug pair (``pairs_kept.csv``) verify the test set
+1. Reserve the ``n_lolo`` (default two) largest clusters for leave-one-lineage-out
+   runs. Reserved clusters are never test candidates, so they always stay
+   ``train`` and a LOLO fit (train minus the lineage) is a genuine refit rather
+   than a relabelled copy of the test evaluation.
+2. Shuffle the remaining lineage clusters and assign *whole clusters* to ``test``
+   until 15-20 % of the species' genomes (all of them, reserved clusters
+   included) are held out (never splitting a cluster).
+3. For every kept species x drug pair (``pairs_kept.csv``) verify the test set
    contains both a resistant (``sir == 'R'``) and a susceptible (``sir == 'S'``)
    genome. If not, swap clusters between train and test (bounded number of
-   attempts, every swap logged). If a class exists nowhere outside the test set
-   the check is logged as unfixable and the run continues with a warning.
-3. ``GroupKFold(n_splits=5)`` on the remaining genomes, grouped by cluster, gives
+   attempts, every swap logged; reserved clusters are never swapped in). If a
+   class exists nowhere outside the test set and the reserved clusters, the check
+   is logged as unfixable and the run continues with a warning.
+4. ``GroupKFold(n_splits=5)`` on the remaining genomes, grouped by cluster, gives
    ``fold`` (0-4; null for test rows, stored as pandas ``Int64``).
-4. External sets, defined on test rows only and kept disjoint:
+5. External sets, defined on test rows only and kept disjoint:
    ``country_holdout`` = the most common test-set country,
    ``time_holdout`` = the latest test-set year among rows not already in the
    country hold-out.
-5. ``lolo_lineage``: the two largest clusters per species carry their own cluster
-   id on every row (train or test) for leave-one-lineage-out runs.
+6. ``lolo_lineage``: every row of a reserved cluster carries its own cluster id
+   (train rows only, by construction).
 
 Invariants (raise :class:`~genome2mic.errors.ContractViolation`): no cluster in
 two splits; no cluster in two folds; ``fold`` is null exactly on test rows;
-external sets only on test rows.
+external sets only on test rows; ``lolo_lineage`` only on train rows and equal to
+the row's own cluster.
+
+Text columns may arrive as pd.NA-based ``string`` dtype (``labels.parquet`` as
+ingest writes it); every comparison on them goes through :func:`_true`, which
+treats a missing value as ``False`` instead of letting ``pd.NA`` reach a mask.
 
 Freezing: :func:`run` refuses to overwrite an existing ``splits.parquet`` unless
 ``force=True`` (``CLAUDE.md`` rule 7 -- changing splits invalidates every result
@@ -34,7 +45,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -65,6 +76,8 @@ __all__ = [
     "species_rng",
     "greedy_test_clusters",
     "missing_classes",
+    "cluster_class_presence",
+    "missing_from_presence",
     "repair_test_clusters",
     "assign_folds",
     "genome_metadata",
@@ -100,6 +113,20 @@ _PAIRS_COLUMNS_REQUIRED: tuple[str, ...] = ("species", "drug")
 
 
 # --------------------------------------------------------------------------- #
+# Masks
+# --------------------------------------------------------------------------- #
+def _true(mask: pd.Series) -> np.ndarray:
+    """Plain ``bool`` ndarray from a comparison result; missing (``pd.NA``/NaN) -> ``False``.
+
+    Comparing a pd.NA-based ``string`` column yields a nullable boolean
+    (``boolean`` / ``bool[pyarrow]``) whose ``.to_numpy()`` is an object array
+    holding ``pd.NA``; ``.loc`` refuses to mask with it. Every mask built from a
+    text column in this module goes through here.
+    """
+    return np.asarray(mask.to_numpy(dtype=bool, na_value=False), dtype=bool)
+
+
+# --------------------------------------------------------------------------- #
 # Randomness
 # --------------------------------------------------------------------------- #
 def species_rng(seed: int, species: str) -> np.random.Generator:
@@ -119,6 +146,8 @@ def greedy_test_clusters(
     rng: np.random.Generator,
     lo: float = DEFAULT_TEST_RANGE[0],
     hi: float = DEFAULT_TEST_RANGE[1],
+    *,
+    reserved: Collection[str] = (),
 ) -> set[str]:
     """Pick whole clusters for ``test`` until ``lo..hi`` of the genomes are held out.
 
@@ -132,6 +161,9 @@ def greedy_test_clusters(
         sizes: ``cluster_id -> number of genomes``.
         rng: Seeded generator.
         lo, hi: Target range as fractions of the species' genome count.
+        reserved: Clusters that may never enter ``test`` (the LOLO clusters).
+            They still count towards the species' genome total, and the seeded
+            visiting order of the other clusters is the same as without them.
     """
     if not 0.0 <= lo <= hi <= 1.0:
         raise ValueError(f"need 0 <= lo <= hi <= 1; got lo={lo}, hi={hi}")
@@ -140,7 +172,8 @@ def greedy_test_clusters(
     if n_total == 0:
         return set()
     lo_n, hi_n = lo * n_total, hi * n_total
-    order = [names[i] for i in rng.permutation(len(names))]
+    blocked = set(reserved)
+    order = [c for c in (names[i] for i in rng.permutation(len(names))) if c not in blocked]
 
     chosen: set[str] = set()
     n_test = 0
@@ -185,12 +218,48 @@ def missing_classes(labels_sp: pd.DataFrame, genome_ids: set[str], drugs: Sequen
     """
     if labels_sp.empty or not drugs:
         return [(d, c) for d in drugs for c in _CHECKED_CLASSES]
-    sub = labels_sp[labels_sp["genome_id"].isin(genome_ids)]
+    sub = labels_sp[_true(labels_sp["genome_id"].isin(genome_ids))]
     out: list[tuple[str, str]] = []
     for drug in drugs:
-        present = set(sub.loc[(sub["drug"] == drug).to_numpy(), "sir"].dropna().astype(str))
+        present = set(sub.loc[_true(sub["drug"] == drug), "sir"].dropna().astype(str))
         out.extend((drug, cls) for cls in _CHECKED_CLASSES if cls not in present)
     return out
+
+
+def cluster_class_presence(labels_sp: pd.DataFrame, cluster_of: Mapping[str, str]) -> dict[str, frozenset[tuple[str, str]]]:
+    """``cluster -> {(drug, class), ...}`` for the checked classes its genomes carry.
+
+    Computed once per species so the repair loop can score a candidate test set
+    by a set union over its clusters instead of re-scanning the label table
+    (:func:`missing_from_presence` on these sets equals :func:`missing_classes`
+    on the clusters' genomes). Label rows of genomes outside ``cluster_of`` and
+    null ``sir`` values are ignored, exactly as in :func:`missing_classes`.
+    """
+    if labels_sp.empty:
+        return {}
+    sir = labels_sp["sir"]
+    checked = _true(sir.isin(list(_CHECKED_CLASSES)))
+    sub = labels_sp.loc[checked, ["genome_id", "drug", "sir"]]
+    presence: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for gid, drug, cls in zip(sub["genome_id"].astype(str), sub["drug"].astype(object), sub["sir"].astype(str)):
+        cluster = cluster_of.get(gid)
+        if cluster is None or drug is None or pd.isna(drug):
+            continue
+        presence[cluster].add((str(drug), cls))
+    return {c: frozenset(v) for c, v in presence.items()}
+
+
+def missing_from_presence(
+    presence: Mapping[str, frozenset[tuple[str, str]]], clusters: Collection[str], drugs: Sequence[str]
+) -> list[tuple[str, str]]:
+    """:func:`missing_classes` for the genomes of ``clusters``, from :func:`cluster_class_presence`.
+
+    Same order as :func:`missing_classes`: drugs as given, then ``R`` before ``S``.
+    """
+    present: set[tuple[str, str]] = set()
+    for cluster in clusters:
+        present |= presence.get(cluster, frozenset())
+    return [(d, c) for d in drugs for c in _CHECKED_CLASSES if (d, c) not in present]
 
 
 def repair_test_clusters(
@@ -205,6 +274,7 @@ def repair_test_clusters(
     max_swaps: int = DEFAULT_MAX_SWAPS,
     max_candidates: int = 25,
     species: str | None = None,
+    reserved: Collection[str] = (),
 ) -> tuple[set[str], list[tuple[str, str]]]:
     """Swap clusters between train and test until every kept drug has R and S in test.
 
@@ -221,6 +291,11 @@ def repair_test_clusters(
     state outside the size range or with failing checks is logged at WARNING.
     The size bounds are soft; the class check is what matters.
 
+    Clusters in ``reserved`` (the LOLO clusters) are never brought into test;
+    they still count towards the species' genome total. Which ``(drug, class)``
+    each cluster carries is computed once (:func:`cluster_class_presence`), so
+    scoring an option costs a set union over its clusters, not a label scan.
+
     Returns:
         ``(test_clusters, still_failing)``.
     """
@@ -231,18 +306,23 @@ def repair_test_clusters(
     n_total = sum(sizes.values())
     lo_n, hi_n = lo * n_total, hi * n_total
     tag = f"{species}: " if species else ""
-
-    def genomes_in(clusters: set[str]) -> set[str]:
-        return set().union(*(members[c] for c in clusters)) if clusters else set()
+    blocked = set(reserved)
+    presence = cluster_class_presence(labels_sp, cluster_of)
+    carriers: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for cluster, classes in presence.items():
+        for check in classes:
+            carriers[check].add(cluster)
 
     def size_of(clusters: set[str]) -> int:
         return sum(sizes[c] for c in clusters)
 
     def evaluate(clusters: set[str]) -> tuple[list[tuple[str, str]], float]:
         n = size_of(clusters)
-        return missing_classes(labels_sp, genomes_in(clusters), drugs), max(0.0, lo_n - n) + max(0.0, n - hi_n)
+        return missing_from_presence(presence, clusters, drugs), max(0.0, lo_n - n) + max(0.0, n - hi_n)
 
     test = set(test)
+    if test & blocked:
+        raise ValueError(f"reserved clusters cannot start in test: {sorted(test & blocked)[:5]}")
     failing, violation = evaluate(test)
     unfixable: set[tuple[str, str]] = set()
     attempts = n_swaps = 0
@@ -254,25 +334,23 @@ def repair_test_clusters(
         options: list[tuple[str | None, str | None, set[str]]]
         if open_checks:
             drug, cls = open_checks[int(rng.integers(len(open_checks)))]
-            carriers = labels_sp.loc[
-                ((labels_sp["drug"] == drug) & (labels_sp["sir"] == cls)).to_numpy(), "genome_id"
-            ]
-            candidates = sorted({cluster_of[g] for g in carriers if g in cluster_of} - test)
+            candidates = sorted(carriers.get((drug, cls), set()) - test - blocked)
             if not candidates:
                 unfixable.add((drug, cls))
                 logger.warning(
-                    "[%s] %sno cluster outside the test set carries %s=%s; cannot repair this check",
+                    "[%s] %sno cluster outside the test set carries %s=%s%s; cannot repair this check",
                     STAGE,
                     tag,
                     drug,
                     cls,
+                    " (LOLO-reserved clusters excluded)" if blocked else "",
                 )
                 continue
             add = candidates[int(rng.integers(len(candidates)))]
             options = [(add, None, test | {add})] + [(add, c, (test - {c}) | {add}) for c in sorted(test)]
             reason = f"to restore {drug}={cls} in test"
         else:
-            others = sorted(set(sizes) - test)
+            others = sorted(set(sizes) - test - blocked)
             sample = [others[i] for i in rng.permutation(len(others))[: max(1, int(max_candidates))]]
             current_test = sorted(test)
             if size_of(test) > hi_n:
@@ -425,7 +503,7 @@ def mark_external_sets(test_meta: pd.DataFrame, species: str | None = None) -> p
     counts = country.dropna().astype(str).value_counts()
     if len(counts):
         top = sorted(counts[counts == counts.max()].index)[0]
-        mask = (country.astype(object) == top).to_numpy(dtype=bool)
+        mask = _true(country.astype(object) == top)
         ext[mask] = EXTERNAL_COUNTRY
         logger.info("[%s] %s%s = %r on %d test genome(s)", STAGE, tag, EXTERNAL_COUNTRY, top, int(mask.sum()))
     else:
@@ -436,7 +514,7 @@ def mark_external_sets(test_meta: pd.DataFrame, species: str | None = None) -> p
     free_years = year[free].dropna()
     if len(free_years):
         latest = int(free_years.max())
-        mask = free & (year == latest).fillna(False).to_numpy(dtype=bool)
+        mask = free & _true(year == latest)
         ext[mask] = EXTERNAL_TIME
         logger.info("[%s] %s%s = %d on %d test genome(s)", STAGE, tag, EXTERNAL_TIME, latest, int(mask.sum()))
     else:
@@ -445,7 +523,12 @@ def mark_external_sets(test_meta: pd.DataFrame, species: str | None = None) -> p
 
 
 def lolo_clusters(lineages_sp: pd.DataFrame, n_lolo: int = DEFAULT_N_LOLO) -> list[str]:
-    """The ``n_lolo`` largest clusters of one species (size desc, then id)."""
+    """The ``n_lolo`` largest clusters of one species (size desc, then id).
+
+    :func:`build_splits` reserves these *before* choosing test clusters, so they
+    are always ``train`` and their LOLO fit leaves the lineage out of a training
+    set that would otherwise include it.
+    """
     counts = lineages_sp["lineage_cluster"].astype(str).value_counts()
     ordered = sorted(counts.index, key=lambda c: (-int(counts[c]), c))
     return ordered[: max(0, int(n_lolo))]
@@ -477,7 +560,9 @@ def build_splits(
         test_range: ``(lo, hi)`` fraction of genomes to hold out per species.
         n_folds: ``GroupKFold`` splits on train rows.
         max_swaps: Bound on cluster-swap attempts for the R/S check.
-        n_lolo: Largest clusters per species to mark for leave-one-lineage-out.
+        n_lolo: Largest clusters per species to reserve for leave-one-lineage-out.
+            They are excluded from test selection (always ``train``) and carry
+            their cluster id in ``lolo_lineage``.
         droplog: Where filter counts go (a fresh ``DropLog("splits")`` if ``None``).
 
     Raises:
@@ -491,14 +576,14 @@ def build_splits(
     lineage_ids = set(lineages["genome_id"].astype(str))
     labels_in = log.keep_where(
         labels,
-        labels["genome_id"].astype(str).isin(lineage_ids).to_numpy(),
+        _true(labels["genome_id"].astype(str).isin(lineage_ids)),
         "label_rows_for_genomes_without_lineage",
         detail="genome failed QC or has no lineage row; excluded from the test-set R/S check",
     )
     species_present = set(lineages["species"].astype(str))
     pairs = log.keep_where(
         pairs_kept,
-        pairs_kept["species"].astype(str).isin(species_present).to_numpy(),
+        _true(pairs_kept["species"].astype(str).isin(species_present)),
         "kept_pairs_for_species_without_lineages",
     )
     meta = genome_metadata(labels_in).set_index("genome_id")
@@ -510,14 +595,23 @@ def build_splits(
         gids = sorted(lin_sp["genome_id"].astype(str).tolist())
         cluster_of = dict(zip(lin_sp["genome_id"].astype(str), lin_sp["lineage_cluster"].astype(str)))
         sizes = {c: int(n) for c, n in lin_sp["lineage_cluster"].astype(str).value_counts().items()}
-        drugs = sorted(set(pairs.loc[(pairs["species"].astype(str) == species_key).to_numpy(), "drug"].astype(str)))
-        labels_sp = labels_in[(labels_in["species"].astype(str) == species_key).to_numpy()]
+        drugs = sorted(set(pairs.loc[_true(pairs["species"] == species_key), "drug"].dropna().astype(str)))
+        labels_sp = labels_in[_true(labels_in["species"] == species_key)]
 
-        test_clusters = greedy_test_clusters(sizes, rng, lo, hi)
+        # Decision 1 (LOLO): reserve the largest clusters first; they never enter test.
+        lolo = set(lolo_clusters(lin_sp, n_lolo))
+        test_clusters = greedy_test_clusters(sizes, rng, lo, hi, reserved=lolo)
         test_clusters, still_failing = repair_test_clusters(
-            test_clusters, cluster_of, labels_sp, drugs, rng, lo=lo, hi=hi, max_swaps=max_swaps, species=species_key
+            test_clusters, cluster_of, labels_sp, drugs, rng, lo=lo, hi=hi, max_swaps=max_swaps, species=species_key,
+            reserved=lolo,
         )
         test_genomes = {g for g, c in cluster_of.items() if c in test_clusters}
+        if not test_genomes:
+            logger.warning(
+                "[%s] %s: no test cluster could be chosen (%d cluster(s), %d reserved for LOLO); "
+                "this species has no held-out test set",
+                STAGE, species_key, len(sizes), len(lolo),
+            )
 
         split = [SPLIT_TEST if g in test_genomes else SPLIT_TRAIN for g in gids]
         train_positions = [i for i, s in enumerate(split) if s == SPLIT_TRAIN]
@@ -533,7 +627,6 @@ def build_splits(
         external = [ext.get(g) if g in test_genomes else None for g in gids]
         external = [None if (v is None or pd.isna(v)) else str(v) for v in external]
 
-        lolo = set(lolo_clusters(lin_sp, n_lolo))
         lolo_values = [cluster_of[g] if cluster_of[g] in lolo else None for g in gids]
 
         frames.append(
@@ -552,7 +645,7 @@ def build_splits(
         n_test = len(test_ids)
         logger.info(
             "[%s] %s: %d genomes, %d clusters -> test %d genomes (%.1f%%) in %d clusters, "
-            "train %d genomes in %d clusters over %d fold(s); lolo clusters %s; R/S checks failing: %d",
+            "train %d genomes in %d clusters over %d fold(s); lolo clusters (train, reserved) %s; R/S checks failing: %d",
             STAGE,
             species_key,
             len(gids),
@@ -628,6 +721,7 @@ def check_invariants(splits: pd.DataFrame, lineages: pd.DataFrame, n_folds: int 
     ``split`` in {train, test}; ``fold`` null exactly on test rows and in
     ``0..n_folds-1`` on train rows; no cluster in two splits; no cluster in two
     folds; ``external_set`` only on test rows with known values; ``lolo_lineage``
+    only on train rows (LOLO clusters are reserved before test selection) and
     equal to the row's own cluster when set.
     """
     if list(splits.columns) != list(COLUMNS):
@@ -641,12 +735,14 @@ def check_invariants(splits: pd.DataFrame, lineages: pd.DataFrame, n_folds: int 
         extra = sorted(set(gid) - lineage_ids)[:5]
         raise ContractViolation(f"splits/lineages genome sets differ (missing {missing}, extra {extra})", stage=STAGE)
 
+    if splits["split"].isna().any():
+        raise ContractViolation("null split values", stage=STAGE)
     split = splits["split"].astype(str)
     bad_split = sorted(set(split) - {SPLIT_TRAIN, SPLIT_TEST})
     if bad_split:
         raise ContractViolation(f"unknown split values {bad_split}", stage=STAGE)
 
-    is_test = (split == SPLIT_TEST).to_numpy(dtype=bool)
+    is_test = _true(split == SPLIT_TEST)
     fold_na = splits["fold"].isna().to_numpy(dtype=bool)
     if not np.array_equal(fold_na, is_test):
         raise ContractViolation("fold must be null exactly on test rows", stage=STAGE)
@@ -655,13 +751,13 @@ def check_invariants(splits: pd.DataFrame, lineages: pd.DataFrame, n_folds: int 
         raise ContractViolation(f"train folds must lie in 0..{int(n_folds) - 1}", stage=STAGE)
 
     merged = splits.merge(lineages[["genome_id", "species", "lineage_cluster"]], on="genome_id", suffixes=("", "_lin"))
-    if (merged["species"].astype(str) != merged["species_lin"].astype(str)).any():
+    if _true(merged["species"].astype(str) != merged["species_lin"].astype(str)).any():
         raise ContractViolation("species differs between splits and lineages for some genomes", stage=STAGE)
     per_cluster_split = merged.groupby("lineage_cluster")["split"].nunique()
     spanning = per_cluster_split[per_cluster_split > 1].index.tolist()
     if spanning:
         raise ContractViolation(f"{len(spanning)} cluster(s) appear in both train and test: {spanning[:5]}", stage=STAGE)
-    train_rows = merged[(merged["split"].astype(str) == SPLIT_TRAIN).to_numpy()]
+    train_rows = merged[_true(merged["split"].astype(str) == SPLIT_TRAIN)]
     per_cluster_fold = train_rows.groupby("lineage_cluster")["fold"].nunique()
     spanning_folds = per_cluster_fold[per_cluster_fold > 1].index.tolist()
     if spanning_folds:
@@ -677,8 +773,15 @@ def check_invariants(splits: pd.DataFrame, lineages: pd.DataFrame, n_folds: int 
 
     lolo = merged["lolo_lineage"]
     has_lolo = lolo.notna().to_numpy(dtype=bool)
-    if np.any(has_lolo & (lolo.astype(str) != merged["lineage_cluster"].astype(str)).to_numpy(dtype=bool)):
+    if np.any(has_lolo & _true(lolo.astype(str) != merged["lineage_cluster"].astype(str))):
         raise ContractViolation("lolo_lineage must equal the row's own lineage_cluster when set", stage=STAGE)
+    merged_test = _true(merged["split"].astype(str) == SPLIT_TEST)
+    if np.any(has_lolo & merged_test):
+        on_test = sorted(set(lolo[has_lolo & merged_test].astype(str)))
+        raise ContractViolation(
+            f"lolo_lineage must be null on test rows (LOLO clusters are reserved for train); found {on_test[:5]}",
+            stage=STAGE,
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -735,7 +838,7 @@ def run(
 
     if config is not None:
         known = {str(k).upper() for k in getattr(config, "species", {})}
-        in_config = lineages["species"].astype(str).isin(known).to_numpy()
+        in_config = _true(lineages["species"].astype(str).isin(known))
         unknown = sorted(set(lineages.loc[~in_config, "species"].astype(str)))
         lineages = droplog.keep_where(
             lineages, in_config, "lineage_rows_species_not_in_config", detail=", ".join(unknown) if unknown else None

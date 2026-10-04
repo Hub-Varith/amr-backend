@@ -55,11 +55,12 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
+from genome2mic import parallel
 from genome2mic import sketch as sk
 from genome2mic.config import Config
 from genome2mic.droplog import DropLog
@@ -348,7 +349,9 @@ def species_from_mash(
     returning one (built lazily on first use), or ``None``.
     """
     keys = tuple(species_keys)
-    if mash_tsv is not None and Path(mash_tsv).is_file():
+    # An empty mash.tsv is the Snakefile's placeholder when `mash` is not installed:
+    # fall back to the sketch quietly instead of warning once per genome.
+    if mash_tsv is not None and Path(mash_tsv).is_file() and Path(mash_tsv).stat().st_size > 0:
         species, distance = species_from_mash_tsv(Path(mash_tsv), keys)
         if species is not None:
             return SpeciesCall(species, distance, BACKEND_MASH_TSV)
@@ -552,18 +555,47 @@ def validate_qc(frame: pd.DataFrame) -> None:
             raise ContractViolation(f"QC-passing rows must have non-null {column}", stage=STAGE)
 
 
+# Per-process state for QC workers (set by _init_qc_worker; also used in-process).
+_QC_STATE: dict[str, Any] = {}
+_UNBUILT = object()
+
+
+def _init_qc_worker(paths: Paths, config: Config, k: int, sketch_size: int) -> None:
+    _QC_STATE.clear()
+    _QC_STATE.update(paths=paths, config=config, k=int(k), sketch_size=int(sketch_size), refs=_UNBUILT)
+
+
+def _qc_references() -> ReferenceSketches | None:
+    """This process's reference sketches, built on first use (only when a genome needs them)."""
+    if _QC_STATE["refs"] is _UNBUILT:
+        _QC_STATE["refs"] = build_reference_sketches(
+            _QC_STATE["paths"], _QC_STATE["config"], k=_QC_STATE["k"], sketch_size=_QC_STATE["sketch_size"]
+        )
+    return _QC_STATE["refs"]
+
+
+def _qc_task(item: tuple[str, str | None]) -> dict[str, object]:
+    """Worker task: :func:`qc_genome` for ``(genome_id, label_species)``."""
+    genome_id, label = item
+    return qc_genome(genome_id, _QC_STATE["paths"], _QC_STATE["config"], label_species=label, references=_qc_references)
+
+
 def run(
     paths: Paths,
     config: Config,
     *,
     k: int = sk.K,
     sketch_size: int = sk.SKETCH_SIZE,
+    threads: int | None = None,
 ) -> pd.DataFrame:
     """Build and write ``qc.parquet`` plus ``drop_log_qc.csv``; return the table.
 
     Covers every genome in ``labels.parquet`` or ``data/raw/genomes``. Reference
-    sketches for the fallback backend are built lazily, only if some genome lacks a
-    usable ``mash.tsv``.
+    sketches for the fallback backend are built lazily (per worker process), only
+    if some genome lacks a usable ``mash.tsv``. Genomes are processed in
+    ``threads`` worker processes (``None`` = all cores; small inputs stay
+    in-process); rows come back in ``genome_id`` order, so the table does not
+    depend on ``threads``.
     """
     log = DropLog(STAGE)
     label_species = read_label_species(paths)
@@ -584,17 +616,23 @@ def run(
         len(set(label_species) - set(fasta_ids)),
     )
 
-    cache: dict[str, ReferenceSketches | None] = {}
-
-    def references() -> ReferenceSketches | None:
-        if "refs" not in cache:
-            cache["refs"] = build_reference_sketches(paths, config, k=k, sketch_size=sketch_size)
-        return cache["refs"]
-
-    rows = [
-        qc_genome(gid, paths, config, label_species=label_species.get(gid), references=references)
-        for gid in genome_ids
-    ]
+    items = [(gid, label_species.get(gid)) for gid in genome_ids]
+    workers = parallel.worker_count(threads, len(items))
+    if workers > 1:
+        logger.info("QC: %d genome(s) on %d worker process(es)", len(items), workers)
+    try:
+        rows = list(
+            parallel.ordered_map(
+                _qc_task,
+                items,
+                workers=workers,
+                initializer=_init_qc_worker,
+                initargs=(paths, config, k, sketch_size),
+                chunksize=16 if workers > 1 else 1,
+            )
+        )
+    finally:
+        _QC_STATE.clear()
     backends = Counter(str(row.pop("backend")) for row in rows)
     frame = _to_frame(rows)
 

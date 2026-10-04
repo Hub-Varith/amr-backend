@@ -26,6 +26,11 @@ Off-grid values are placed in the grid cell that contains them: ``= 6`` lies in
 narrowed, so an interval is always a true statement about the lab result.
 ``< X`` is read as "at most the step below X" (``< 0.5`` -> ``(0, 0.25]``), which is
 how dilution panels and gradient strips use the sign.
+
+Decimal renderings of powers of two (``0.016`` for ``2**-6``, ``0.008`` for ``2**-7``,
+``0.12`` for ``2**-3``) are not off-grid values: the ingest stage passes every reported
+number through :func:`snap_reported_mic` first, so ``= 0.016`` is ``(2**-7, 2**-6]``,
+not the cell above.
 """
 
 from __future__ import annotations
@@ -80,6 +85,17 @@ _SIR_ALIASES: dict[str, str] = {
 # 1e-9 in log2 space is ~7e-10 relative, far above IEEE drift (~1e-16) and far
 # below any real panel spacing, so 8.000000000000002 -> 8 but 8.001 -> 16.
 _GRID_TOL = 1e-9
+
+SNAP_TOL_LOG2 = 0.1
+"""Ingest-only tolerance (log2 units) of :func:`snap_reported_mic`.
+
+Panels and gradient strips print small powers of two as rounded decimals that sit on
+either side of the grid: ``0.016, 0.032, 0.064, 0.008, 0.004, 0.002, 0.001`` are
+``|log2| ~ 0.034`` above ``2**-6 .. 2**-10``; ``0.015, 0.03, 0.06, 0.12`` are ~0.059 below
+``2**-6 .. 2**-3``. Gradient half steps (0.023, 0.047, 0.094, 0.19, 0.38, 0.75, 1.5,
+3, 6, 12, 24, 48, ...) are at least 0.39 from the grid, so 0.1 separates the two
+families with a wide margin. This is *not* ``_GRID_TOL``: the rounding functions stay
+exact, only reported lab values are snapped."""
 
 
 class BreakpointLike(Protocol):
@@ -222,6 +238,28 @@ def normalize_sir(sir: str) -> str:
         raise ValueError(f"unknown S/I/R value {sir!r}") from None
 
 
+def snap_reported_mic(value: float) -> float:
+    """Snap a decimal rendering of a power of two to that power; leave anything else as is.
+
+    Labs print ``2**-6`` as ``0.016`` or ``0.015``, ``2**-7`` as ``0.008`` and ``2**-3``
+    as ``0.12``. Fed straight into :func:`interval_from_result`, ``0.016`` would land in
+    the cell above (``(2**-6, 2**-5]``) and ``> 0.03`` would widen to ``(2**-6, inf)``.
+    Returns ``2**k`` when ``|log2(value) - k| <= SNAP_TOL_LOG2`` for an integer ``k``,
+    else ``value`` unchanged (gradient half steps such as ``0.19`` or ``6`` keep their
+    own grid cell). Ingest calls this before the interval rule; nothing else should.
+
+    Raises ``ValueError`` for a missing, non-positive or non-finite value.
+    """
+    number = _as_positive_float(value, "MIC value")
+    if math.isinf(number):
+        raise ValueError("MIC value must be finite")
+    l2 = math.log2(number)
+    k = round(l2)
+    if abs(l2 - k) <= SNAP_TOL_LOG2:
+        return math.ldexp(1.0, k)
+    return number
+
+
 def interval_from_result(sign: str | None, value: float | None) -> tuple[float, float, str]:
     """Interval ``(lo, hi]`` and censor type for a numeric MIC result.
 
@@ -359,6 +397,40 @@ def exact_interval_mask(lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
         ok = (low > 0) & np.isfinite(high) & (high > low)
         width = np.where(ok, np.log2(np.where(ok, high, 1.0)) - np.log2(np.where(ok, low, 0.5)), np.nan)
     return ok & np.isclose(width, 1.0, atol=1e-6, rtol=0.0)
+
+
+METHOD_DISK = "disk"
+"""``labels.method`` value of disk-diffusion results (zone diameter -> S/I/R, never an MIC)."""
+
+
+def lab_exact_mask(lo: np.ndarray, hi: np.ndarray, method: Any = None) -> np.ndarray:
+    """Rows whose lab result is an **exact measured MIC**: one doubling step and not disk diffusion.
+
+    :func:`exact_interval_mask` judges the interval alone. A disk-diffusion result
+    reaches stage 2 through the S/I/R path, so its interval is a breakpoint range,
+    not a reading; when the ``I`` range happens to be one doubling step (CLSI
+    meropenem ``I`` = ``(1, 2]``) the interval looks exact but no MIC was measured
+    (contract stage 2, method filter: disk -> "MIC not usable"). Training (B2,
+    conformal residuals), the ``lab_exact`` preds column and the count table use
+    this mask.
+
+    Args:
+        lo, hi: Lab interval bounds (mg/L).
+        method: ``labels.method`` per row (``dilution`` / ``gradient`` / ``disk``;
+            compared case-insensitively, surrounding blanks ignored). Null entries
+            are not disk. ``None`` (no method information) applies the interval
+            rule alone.
+    """
+    exact = exact_interval_mask(lo, hi)
+    if method is None:
+        return exact
+    values = np.asarray(method, dtype=object).ravel()
+    if values.size != exact.size:
+        raise ValueError(f"method must have the same length as the bounds ({values.size} != {exact.size})")
+    disk = np.fromiter(
+        (isinstance(v, str) and v.strip().lower() == METHOD_DISK for v in values), dtype=bool, count=values.size
+    )
+    return exact & ~disk
 
 
 def round_up_to_step_array(mic: np.ndarray) -> np.ndarray:

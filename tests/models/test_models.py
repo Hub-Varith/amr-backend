@@ -327,6 +327,19 @@ class TestB2XgbSteps:
         assert log.total() == int((~data.exact).sum())
         assert "censored" in log.records[0].reason
 
+    def test_exact_rows_mask_drops_one_step_rows_that_are_not_mics(self, data: Synthetic) -> None:
+        """train passes lab_exact: a one-step disk-diffusion interval is not an exact MIC."""
+        not_mic = np.zeros(N_ROWS, dtype=bool)
+        not_mic[np.flatnonzero(data.exact)[:7]] = True  # e.g. disk I-only rows with a one-step I range
+        log = DropLog("b2_test")
+        m = B2XgbSteps(seed=0).fit(data.X, data.lo, data.hi, FEATURE_NAMES, droplog=log, exact_rows=~not_mic)
+        assert m.n_exact_ == int(data.exact.sum()) - 7
+        reasons = {r.reason: r.n_dropped for r in log.records}
+        assert reasons["censored row (B2 trains on exact MICs only)"] == int((~data.exact).sum())
+        assert [n for reason, n in reasons.items() if "not a measured MIC" in reason] == [7]
+        with pytest.raises(ValueError, match="exact_rows"):
+            B2XgbSteps(seed=0).fit(data.X, data.lo, data.hi, FEATURE_NAMES, exact_rows=np.ones(3, dtype=bool))
+
     def test_classes_are_integer_steps_from_exact_rows(self, b2_fitted: B2XgbSteps, data: Synthetic) -> None:
         want = np.unique(np.rint(np.log2(data.hi[data.exact])).astype(int))
         np.testing.assert_array_equal(b2_fitted.classes_, want)

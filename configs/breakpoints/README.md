@@ -2,9 +2,12 @@
 
 One CSV per standard and version: `eucast_<year>.csv`, `clsi_<year>.csv`. The
 filename is the lookup key: `genome2mic.config.Config.breakpoint()` matches
-`(standard, version)` exactly and, when a row's `standard_year` is missing or has
-no table, falls back to the **latest** table for that standard. A null standard
-never matches (DATA_CONTRACT.md: "If the standard is unknown, drop the row").
+`(standard, version)` **exactly**. There is no fallback. An S/I/R-only label row whose
+`standard_year` is missing or has no table here is dropped by the ingest stage and
+counted in `drop_log_ingest.csv` (`S/I/R-only row with null standard_year`,
+`no breakpoint table for standard_year`). A null standard never matches
+(DATA_CONTRACT.md: "If the standard is unknown, drop the row"). The prediction call
+uses `call_standard` from `drugs.yaml`, whose table must exist.
 
 ## Columns
 
@@ -58,11 +61,11 @@ re-verify every row against the current tables and record the check here.
 
 Breakpoints change between versions (CLSI cephalosporins and carbapenems in
 2010, fluoroquinolones in 2019, aminoglycosides in 2023; EUCAST
-susceptible-increased-exposure redefinition in 2019). Historical AST rows labelled
-with an older `standard_year` fall back to these 2024 tables, which can
-misclassify S/I/R-only rows from older years. Add `clsi_<year>.csv` /
-`eucast_<year>.csv` files for the years present in the data when exact mapping
-matters.
+susceptible-increased-exposure redefinition in 2019). Historical S/I/R-only rows
+are dropped (and counted) until a table for their year is added here. Check the
+`no breakpoint table for standard_year` detail in `drop_log_ingest.csv` to see which
+`<standard> <year>` tables the data needs, then add `clsi_<year>.csv` /
+`eucast_<year>.csv` files for them.
 
 These tables support predictions of in-vitro susceptibility. They are not
 prescribing advice.

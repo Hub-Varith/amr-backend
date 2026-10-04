@@ -452,6 +452,96 @@ class TestExecution:
         assert "SECRETTOKEN" not in (paths.raw_dir / fetch.SUMMARY_NAME).read_text()  # or the disk.
 
 
+class TestAwsProfile:
+    """``aws_profile`` sets ``AWS_PROFILE`` for the ``aws s3 sync`` subprocess only."""
+
+    @staticmethod
+    def fake_run_recording(paths: Paths, seen: dict[str, object]):
+        def fake_run(command: list[str], check: bool = False, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            seen["command"] = list(command)
+            seen["env"] = kwargs.get("env")
+            write(paths.raw_dir / "ast_bvbrc.csv", AST_CSV)
+            write(paths.genomes_dir / "573.2002.fasta", FASTA_A)
+            return subprocess.CompletedProcess(command, 0)
+
+        return fake_run
+
+    def test_profile_reaches_the_subprocess_environment_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        paths = make_paths(tmp_path)
+        seen: dict[str, object] = {}
+        monkeypatch.setattr(shutil, "which", lambda name, *a, **k: f"/usr/bin/{name}")
+        monkeypatch.setattr(subprocess, "run", self.fake_run_recording(paths, seen))
+        monkeypatch.delenv("AWS_PROFILE", raising=False)
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "SUPERSECRETKEY")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLEKEYID")
+
+        with caplog.at_level(logging.DEBUG, logger="genome2mic"):
+            summary = fetch.run(paths, "s3://bucket/prefix", include=None, dry_run=False, aws_profile="amr-reader")
+
+        env = seen["env"]
+        assert isinstance(env, dict)
+        assert env["AWS_PROFILE"] == "amr-reader"
+        assert env["AWS_SECRET_ACCESS_KEY"] == "SUPERSECRETKEY"  # the rest of the environment is inherited
+        assert "AWS_PROFILE" not in os.environ  # ... and this process's environment is untouched
+        assert seen["command"] == ["aws", "s3", "sync", "s3://bucket/prefix", str(paths.raw_dir)]
+        assert summary.aws_profile == "amr-reader"
+        assert summary.command_line().startswith("AWS_PROFILE=amr-reader aws s3 sync ")
+        # credentials never reach logs, the summary or the disk; the profile name is not a secret
+        on_disk = (paths.raw_dir / fetch.SUMMARY_NAME).read_text()
+        for secret in ("SUPERSECRETKEY", "AKIAEXAMPLEKEYID"):
+            assert secret not in caplog.text
+            assert secret not in json.dumps(summary.to_dict())
+            assert secret not in on_disk
+        assert "amr-reader" in caplog.text and json.loads(on_disk)["aws_profile"] == "amr-reader"
+        # environment keys win over AWS_PROFILE in the AWS CLI: warn, naming the variables only
+        assert "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set in the environment" in caplog.text
+
+    def test_without_a_profile_the_environment_is_inherited_unchanged(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        paths = make_paths(tmp_path)
+        seen: dict[str, object] = {}
+        monkeypatch.setattr(shutil, "which", lambda name, *a, **k: f"/usr/bin/{name}")
+        monkeypatch.setattr(subprocess, "run", self.fake_run_recording(paths, seen))
+        summary = fetch.run(paths, "s3://bucket/prefix", include=None, dry_run=False)
+        assert seen["env"] is None
+        assert fetch.subprocess_env(None) is None
+        assert summary.aws_profile is None
+        assert summary.command_line().startswith("aws s3 sync ")
+
+    def test_dry_run_shows_the_profile(self, tmp_path: Path, no_tools: None, forbid_subprocess: None) -> None:
+        summary = fetch.run(make_paths(tmp_path), "s3://bucket/prefix", include=["ast_*.csv"], dry_run=True,
+                            aws_profile="amr-reader")
+        assert summary.command_line().startswith("AWS_PROFILE=amr-reader aws s3 sync s3://bucket/prefix ")
+        assert summary.command[0] == "aws"  # argv itself never carries the profile
+        assert not (tmp_path / "root").exists()
+
+    @pytest.mark.parametrize("uri", ["gs://bucket/prefix", "az://acct/container/prefix"])
+    def test_profile_is_rejected_for_other_cloud_providers(
+        self, tmp_path: Path, uri: str, monkeypatch: pytest.MonkeyPatch, forbid_subprocess: None
+    ) -> None:
+        monkeypatch.setattr(shutil, "which", lambda name, *a, **k: f"/usr/bin/{name}")
+        with pytest.raises(ValueError, match="s3://"):
+            fetch.run(make_paths(tmp_path), uri, dry_run=True, aws_profile="amr-reader")
+
+    def test_profile_is_rejected_for_a_local_source(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="s3://"):
+            fetch.run(make_paths(tmp_path), str(canonical_source(tmp_path)), aws_profile="amr-reader")
+
+    @pytest.mark.parametrize("profile", ["", "   ", "two words", "bad\nname", "x=y", "-leading-dash"])
+    def test_malformed_profile_names_are_rejected(
+        self, tmp_path: Path, profile: str, no_tools: None, forbid_subprocess: None
+    ) -> None:
+        with pytest.raises(ValueError, match="profile"):
+            fetch.run(make_paths(tmp_path), "s3://bucket/prefix", dry_run=True, aws_profile=profile)
+
+    @pytest.mark.parametrize("profile", ["default", "amr-reader", "team.prod_ro", "user@example"])
+    def test_ordinary_profile_names_are_accepted(self, profile: str) -> None:
+        assert fetch.validate_aws_profile(profile) == profile
+
+
 # --------------------------------------------------------------------------- #
 # CLI wiring
 # --------------------------------------------------------------------------- #
@@ -484,6 +574,21 @@ class TestCli:
         assert "3 genomes, 1 AST file(s) ['ast_bvbrc.csv']" in out
         assert "manifest ->" in out and "LAYOUT WARNING" in out
         assert (root / "data" / "raw" / "genomes" / "573.2002.fasta").is_symlink()
+
+    def test_fetch_subcommand_passes_aws_profile(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], forbid_subprocess: None
+    ) -> None:
+        argv = ["fetch", "--root", str(tmp_path / "root"), "--source-uri", "s3://bucket/prefix",
+                "--aws-profile", "amr-reader", "--dry-run", "-q"]
+        try:
+            cli.build_parser().parse_args(argv)
+        except SystemExit:
+            pytest.skip("cli.py does not expose --aws-profile yet (cli.py wiring is owned by the splits-train group)")
+        capsys.readouterr()
+        monkeypatch.setattr(shutil, "which", lambda name, *a, **k: f"/usr/bin/{name}")
+        assert cli.main(argv) == 0
+        out = capsys.readouterr().out
+        assert "AWS_PROFILE=amr-reader aws s3 sync s3://bucket/prefix" in out
 
     def test_source_uri_is_required(self) -> None:
         with pytest.raises(SystemExit):

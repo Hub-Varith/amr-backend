@@ -8,18 +8,28 @@ Backends, tried in this order by :func:`detect` (``.context/DESIGN.md`` predict 
 3. :class:`MarkerScan` -- exact substring search for the marker sequences in
    ``models/markers.fasta`` (written by the synthetic run). Headers are
    AMRFinder-style: ``>blaKPC-2 BETA-LACTAM CARBAPENEM AMR`` =
-   ``symbol class subclass subtype``.
+   ``symbol class subclass subtype``, or ``key=value`` tokens
+   (``type=AMR subtype=AMR class=... subclass=...``). The prediction pipeline only
+   passes ``markers.fasta`` for bundles whose ``manifest.json`` says
+   ``synthetic: true``: an exact full-length substring match misses any marker
+   split across contigs or carrying one SNP, so a real bundle never falls back to it.
 4. Otherwise :class:`genome2mic.errors.ToolNotAvailable`.
 
 Every backend returns the same table (:data:`DETECTION_COLUMNS`), one row per hit,
 so the rest of the pipeline never knows which backend ran.
 
-Feature naming must match training (``features/known_amr.py``): ``family_of`` collapses
-a symbol to its gene family unless its prefix is in ``keep_variant.csv``, and
-``column_name`` turns ``prefix + family`` into a column such as ``gene_blactx_m``.
-Those helpers are imported from ``genome2mic.features.known_amr`` when that module
-exists; until it lands, local implementations of the same documented rule are used
-(a warning is logged once).
+Rows must match training exactly (``features/known_amr.py``):
+
+* AMRFinderPlus tables are read by the training parser itself, so the row filter is
+  identical: ``Type == AMR`` (exact; blank, ``STRESS`` and ``VIRULENCE`` are dropped),
+  ``Subtype`` in ``{AMR, POINT}`` (``AMR-SUSCEPTIBLE`` etc. are dropped), a non-null
+  symbol; ``NA`` cells are null. Each drop is counted in the ``DropLog``.
+* ``markers.fasta`` records honour ``type=`` / ``subtype=`` the same way.
+* ``family_of`` collapses a symbol to its gene family unless its prefix is in
+  ``keep_variant.csv``, and ``column_name`` turns ``prefix + family`` into a column
+  such as ``gene_blactx_m``. Those helpers are imported from
+  ``genome2mic.features.known_amr``; local implementations of the same documented
+  rule remain as a fallback (a warning is logged once if the import fails).
 """
 
 from __future__ import annotations
@@ -40,6 +50,7 @@ import pandas as pd
 from genome2mic.config import Config
 from genome2mic.droplog import DropLog
 from genome2mic.errors import ToolNotAvailable
+from genome2mic.features import known_amr as _training_amr
 from genome2mic.io import read_fasta
 
 logger = logging.getLogger(__name__)
@@ -68,6 +79,9 @@ __all__ = [
 SUBTYPE_AMR = "AMR"
 SUBTYPE_POINT = "POINT"
 TYPE_AMR = "AMR"
+RESISTANCE_SUBTYPES: frozenset[str] = frozenset({SUBTYPE_AMR, SUBTYPE_POINT})
+"""Subtypes that become ``gene_`` / ``point_`` features (training drops every other one)."""
+NON_AMR_TYPES: frozenset[str] = frozenset({"STRESS", "VIRULENCE"})
 
 DETECTION_COLUMNS: tuple[str, ...] = (
     "symbol",
@@ -88,26 +102,14 @@ PREFIX_GENE = "gene_"
 PREFIX_POINT = "point_"
 PREFIX_CLASS = "n_class_"
 
-_AMRFINDER_SYMBOL_COLUMNS = ("Element symbol", "Gene symbol")
-_AMRFINDER_RENAME = {
-    "Type": "type",
-    "Subtype": "subtype",
-    "Class": "class",
-    "Subclass": "subclass",
-    "Method": "method",
-    "% Coverage of reference": "coverage",
-    "% Identity to reference": "identity",
-    # AMRFinderPlus 3.x spelled these differently.
-    "Element type": "type",
-    "Element subtype": "subtype",
-    "% Coverage of reference sequence": "coverage",
-    "% Identity to reference sequence": "identity",
-}
-
 _RC_TABLE = str.maketrans("ACGTacgt", "TGCAtgca")
 _VARIANT_SUFFIX_RE = re.compile(r"-\d+$")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _POINT_SYMBOL_RE = re.compile(r"^[A-Za-z0-9()'\-]+_[A-Za-z]\d+[A-Za-z]+$")
+# Header tokens: ``key="value with spaces"`` or any run of non-space characters
+# (``aac(6')-Ib-cr`` contains a quote, so shlex cannot be used).
+_HEADER_TOKEN_RE = re.compile(r'[^\s=]+="[^"]*"|\S+')
+_HEADER_NULLS = frozenset({"", "NA", "N/A", "-", ".", "NAN", "NONE", "<NA>"})
 
 
 # --------------------------------------------------------------------------- #
@@ -121,12 +123,15 @@ class Marker:
 
     Attributes:
         symbol: AMRFinder element symbol (``blaKPC-2``, ``gyrA_S83L``).
-        subtype: ``AMR`` (acquired gene) or ``POINT`` (resistance mutation).
+        subtype: ``AMR`` (acquired gene) or ``POINT`` (resistance mutation). A
+            ``markers.fasta`` header may carry another subtype (``VIRULENCE``,
+            ``AMR-SUSCEPTIBLE``); such markers are never features.
         amr_class: AMRFinder ``Class`` (``BETA-LACTAM``), or ``None`` if unreported.
         subclass: AMRFinder ``Subclass`` (``CARBAPENEM``), or ``None``.
         method: AMRFinder method (``EXACTX``) or the scan method.
         backend: Which detector produced the hit.
         column: Known-AMR feature column (``gene_blakpc_2``); set by :func:`known_amr_row`.
+        element_type: AMRFinder ``Type`` (``AMR``, ``STRESS``, ``VIRULENCE``).
     """
 
     symbol: str
@@ -136,6 +141,12 @@ class Marker:
     method: str | None = None
     backend: str | None = None
     column: str | None = None
+    element_type: str = TYPE_AMR
+
+    @property
+    def is_resistance_feature(self) -> bool:
+        """True if training would turn this hit into a ``gene_`` / ``point_`` feature."""
+        return self.element_type == TYPE_AMR and self.subtype in RESISTANCE_SUBTYPES
 
 
 def _clean_text(value: object) -> str | None:
@@ -154,23 +165,36 @@ def _clean_text(value: object) -> str | None:
 
 
 def markers_from_frame(frame: pd.DataFrame) -> tuple[Marker, ...]:
-    """Convert a detection table into :class:`Marker` records (one per row)."""
+    """Convert a detection table into :class:`Marker` records (one per kept row).
+
+    The built-in backends already apply the training row filter; rows from a custom
+    detector are held to the same rule here: a non-null ``type`` other than ``AMR`` or
+    a non-null ``subtype`` outside ``{AMR, POINT}`` is skipped (and counted in the log).
+    A null ``subtype`` is read as ``AMR`` (hand-built tables).
+    """
     out: list[Marker] = []
+    n_skipped = 0
     for record in frame.to_dict("records"):
         symbol = _clean_text(record.get("symbol"))
         if symbol is None:
             continue
+        element_type = (_clean_text(record.get("type")) or TYPE_AMR).upper()
         subtype = (_clean_text(record.get("subtype")) or SUBTYPE_AMR).upper()
+        if element_type != TYPE_AMR or subtype not in RESISTANCE_SUBTYPES:
+            n_skipped += 1
+            continue
         out.append(
             Marker(
                 symbol=symbol,
-                subtype=SUBTYPE_POINT if subtype == SUBTYPE_POINT else SUBTYPE_AMR,
+                subtype=subtype,
                 amr_class=_clean_text(record.get("class")),
                 subclass=_clean_text(record.get("subclass")),
                 method=_clean_text(record.get("method")),
                 backend=_clean_text(record.get("backend")),
             )
         )
+    if n_skipped:
+        logger.info("Skipped %d detection row(s) that are not Type AMR with Subtype AMR/POINT", n_skipped)
     return tuple(out)
 
 
@@ -202,36 +226,46 @@ def parse_amrfinder_tsv(
 ) -> pd.DataFrame:
     """Parse an AMRFinderPlus 4.x (or 3.x) TSV into :data:`DETECTION_COLUMNS`.
 
-    Handles the ``Element symbol`` / ``Gene symbol`` header variants and keeps only
-    ``Type == AMR`` rows (STRESS / VIRULENCE hits are not resistance features); the
-    dropped count goes to ``droplog`` under ``amrfinder_type_not_amr``.
+    The rows are read by the stage-5 training parser (``features.known_amr``), so the
+    filter is exactly the one the models were trained with: ``Type == AMR`` (exact
+    match; blank, ``STRESS``, ``VIRULENCE`` dropped), ``Subtype`` in ``{AMR, POINT}``
+    (``AMR-SUSCEPTIBLE`` etc. dropped) and a non-null symbol; ``NA`` cells are null.
+    Both header variants are accepted. Drop counts go to ``droplog`` under
+    ``amrfinder_type_not_amr``, ``amrfinder_subtype_not_amr_or_point`` and
+    ``amrfinder_no_symbol``.
+
+    Raises:
+        ValueError: empty file or a header that is not an AMRFinderPlus header.
     """
     source = Path(path)
-    raw = pd.read_csv(source, sep="\t", dtype="str", keep_default_na=False)
-    symbol_column = next((c for c in _AMRFINDER_SYMBOL_COLUMNS if c in raw.columns), None)
-    if symbol_column is None:
-        raise ValueError(
-            f"{source}: no symbol column; expected one of {_AMRFINDER_SYMBOL_COLUMNS}, "
-            f"found {list(raw.columns)}"
-        )
-    table = raw.rename(columns={symbol_column: "symbol", **_AMRFINDER_RENAME})
-    table = table.loc[:, ~table.columns.duplicated()]
-    for column in DETECTION_COLUMNS:
-        if column not in table.columns:
-            table[column] = ""
-    table["type"] = table["type"].astype("str").str.strip().str.upper()
-    table["type"] = table["type"].where(table["type"] != "", TYPE_AMR)
-    n_before = len(table)
-    table = table[table["type"] == TYPE_AMR]
-    n_dropped = int(n_before - len(table))
-    if droplog is not None:
-        droplog.drop("amrfinder_type_not_amr", n_dropped, detail=str(source))
-    elif n_dropped:
-        logger.info("Dropped %d non-AMR AMRFinder rows from %s", n_dropped, source)
-    table = table.assign(backend=backend)
-    frame = _frame_from_markers(table[list(DETECTION_COLUMNS)].to_dict("records"))
-    frame["subtype"] = frame["subtype"].str.upper().where(frame["subtype"].str.upper() == SUBTYPE_POINT, SUBTYPE_AMR)
-    logger.info("Parsed %d AMR hit(s) from %s", len(frame), source)
+    # The private row reader is used on purpose: it is the single definition of the
+    # training row filter and it returns the per-reason counts the drop log needs.
+    hits, counts = _training_amr._parse_rows(source)
+    drops = (
+        ("amrfinder_type_not_amr", counts.n_non_amr),
+        ("amrfinder_subtype_not_amr_or_point", counts.n_other_subtype),
+        ("amrfinder_no_symbol", counts.n_no_symbol),
+    )
+    for reason, n_dropped in drops:
+        if droplog is not None:
+            droplog.drop(reason, n_dropped, detail=str(source))
+        elif n_dropped:
+            logger.info("Dropped %d AMRFinder row(s) from %s: %s", n_dropped, source, reason)
+    frame = _frame_from_markers(
+        {
+            "symbol": hit.symbol,
+            "type": TYPE_AMR,
+            "subtype": hit.subtype,
+            "class": hit.amr_class,
+            "subclass": hit.subclass,
+            "method": hit.method,
+            "coverage": hit.coverage,
+            "identity": hit.identity,
+            "backend": backend,
+        }
+        for hit in hits
+    )
+    logger.info("Parsed %d AMR hit(s) from %d row(s) of %s", len(frame), counts.n_rows, source)
     return frame
 
 
@@ -312,15 +346,30 @@ class PrecomputedAmrFinder:
         return parse_amrfinder_tsv(path, droplog, backend=self.name)
 
 
+def _header_value(value: str | None) -> str | None:
+    """Upper-cased header value, ``None`` for ``NA`` / blank placeholders."""
+    if value is None:
+        return None
+    text = value.strip().strip('"').strip()
+    return None if text.upper() in _HEADER_NULLS else text.upper()
+
+
 def parse_marker_header(header: str) -> Marker:
     """Parse a ``markers.fasta`` header into a :class:`Marker`.
 
     Whitespace-separated positional form ``symbol [class [subclass [subtype]]]``, e.g.
     ``blaKPC-2 BETA-LACTAM CARBAPENEM AMR`` or ``gyrA_S83L QUINOLONE QUINOLONE POINT``.
-    ``key=value`` tokens (``class=BETA-LACTAM``, ``subtype=POINT``) are also accepted.
-    Without an explicit subtype, a ``gene_Mutation``-shaped symbol is ``POINT``.
+    ``key=value`` tokens (``type=AMR``, ``class=BETA-LACTAM``, ``subtype=POINT``,
+    ``name="quoted text"``) are also accepted and win over positional ones.
+
+    * ``type=`` sets :attr:`Marker.element_type` (default ``AMR``). A positional
+      subtype slot holding ``STRESS`` / ``VIRULENCE`` is read as the type.
+    * Without an explicit subtype, a ``gene_Mutation``-shaped symbol is ``POINT``,
+      anything else ``AMR``. An explicit other subtype (``AMR-SUSCEPTIBLE``) is kept
+      as is, so :attr:`Marker.is_resistance_feature` is False, as in training.
+    * ``NA`` class / subclass values are null; a missing subclass defaults to the class.
     """
-    tokens = header.strip().lstrip(">").split()
+    tokens = _HEADER_TOKEN_RE.findall(header.strip().lstrip(">"))
     if not tokens:
         raise ValueError("empty marker header")
     symbol = tokens[0]
@@ -329,25 +378,28 @@ def parse_marker_header(header: str) -> Marker:
     for token in tokens[1:]:
         if "=" in token:
             key, _, value = token.partition("=")
-            keyed[key.strip().lower()] = value.strip()
+            keyed[key.strip().lower()] = value
         else:
             positional.append(token)
-    amr_class = keyed.get("class") or (positional[0] if len(positional) > 0 else None)
-    subclass = keyed.get("subclass") or (positional[1] if len(positional) > 1 else amr_class)
-    subtype = keyed.get("subtype") or (positional[2] if len(positional) > 2 else None)
+    amr_class = _header_value(keyed["class"]) if "class" in keyed else _header_value(positional[0] if positional else None)
+    if "subclass" in keyed:
+        subclass = _header_value(keyed["subclass"])
+    else:
+        subclass = _header_value(positional[1]) if len(positional) > 1 else amr_class
+    element_type = _header_value(keyed.get("type"))
+    subtype = _header_value(keyed["subtype"]) if "subtype" in keyed else _header_value(positional[2] if len(positional) > 2 else None)
+    if element_type is None and subtype in NON_AMR_TYPES:
+        element_type = subtype  # the Type was written in the subtype slot
     if subtype is None:
-        subtype = SUBTYPE_POINT if _POINT_SYMBOL_RE.match(symbol) else SUBTYPE_AMR
-    subtype = subtype.upper()
-    if subtype not in (SUBTYPE_AMR, SUBTYPE_POINT):
-        # Headers may carry the Type (AMR/STRESS/VIRULENCE) in that slot instead.
         subtype = SUBTYPE_POINT if _POINT_SYMBOL_RE.match(symbol) else SUBTYPE_AMR
     return Marker(
         symbol=symbol,
         subtype=subtype,
-        amr_class=amr_class.upper() if amr_class else None,
-        subclass=subclass.upper() if subclass else None,
+        amr_class=amr_class,
+        subclass=subclass,
         method="EXACT_SUBSTRING",
         backend=MarkerScan.name,
+        element_type=element_type or TYPE_AMR,
     )
 
 
@@ -360,8 +412,11 @@ class MarkerScan:
 
     A marker is present when its sequence (or its reverse complement) occurs
     verbatim in any contig. Contigs are joined with ``N`` so a match cannot span two
-    of them. This is the fallback for environments without AMRFinderPlus; it only
-    knows the markers the bundle ships.
+    of them. This is the fallback for SYNTHETIC bundles only (the pipeline passes
+    ``markers.fasta`` only when ``manifest.json`` has ``synthetic: true``); it only
+    knows the markers the bundle ships and misses any marker split across contigs or
+    carrying a single SNP. Records that training would drop (``type`` other than
+    ``AMR``, ``subtype`` outside ``{AMR, POINT}``) are skipped and counted.
     """
 
     name = "marker_scan"
@@ -369,15 +424,21 @@ class MarkerScan:
     def __init__(self, markers_fasta: Path) -> None:
         self.markers_fasta = Path(markers_fasta)
         self._markers: list[tuple[Marker, str, str]] | None = None
+        self._skipped: tuple[int, tuple[str, ...]] = (0, ())
 
     def available(self, fasta: Path) -> bool:
         return self.markers_fasta.is_file()
 
     def markers(self, droplog: DropLog | None = None) -> list[tuple[Marker, str, str]]:
-        """``(marker, sequence, reverse_complement)`` for every usable record (cached)."""
+        """``(marker, sequence, reverse_complement)`` for every usable AMR record (cached).
+
+        The skip counts are written to ``droplog`` every call (``marker_records_unusable``,
+        ``marker_records_not_amr``) so each prediction's drop log shows them.
+        """
         if self._markers is None:
             loaded: list[tuple[Marker, str, str]] = []
             n_bad = 0
+            not_amr: list[str] = []
             for header, seq in read_fasta(self.markers_fasta):
                 clean = "".join(seq.split()).upper()
                 if not clean or not header.strip():
@@ -388,13 +449,25 @@ class MarkerScan:
                 except ValueError:
                     n_bad += 1
                     continue
+                if not marker.is_resistance_feature:
+                    not_amr.append(marker.symbol)
+                    continue
                 loaded.append((marker, clean, _revcomp(clean)))
-            if droplog is not None:
-                droplog.drop("marker_records_unusable", n_bad, detail=str(self.markers_fasta))
-            elif n_bad:
+            if n_bad:
                 logger.warning("Skipped %d unusable record(s) in %s", n_bad, self.markers_fasta)
+            if not_amr:
+                logger.info("Skipped %d non-AMR marker record(s) in %s: %s", len(not_amr), self.markers_fasta, not_amr)
             logger.info("Loaded %d marker sequence(s) from %s", len(loaded), self.markers_fasta)
             self._markers = loaded
+            self._skipped = (n_bad, tuple(not_amr))
+        if droplog is not None:
+            n_bad, not_amr_symbols = self._skipped
+            droplog.drop("marker_records_unusable", n_bad, detail=str(self.markers_fasta))
+            droplog.drop(
+                "marker_records_not_amr",
+                len(not_amr_symbols),
+                detail=", ".join(not_amr_symbols) if not_amr_symbols else None,
+            )
         return self._markers
 
     def detect(self, fasta: Path, species: str | None, config: Config, droplog: DropLog | None = None) -> pd.DataFrame:
@@ -405,7 +478,7 @@ class MarkerScan:
                 rows.append(
                     {
                         "symbol": marker.symbol,
-                        "type": TYPE_AMR,
+                        "type": marker.element_type,
                         "subtype": marker.subtype,
                         "class": marker.amr_class,
                         "subclass": marker.subclass,
@@ -415,7 +488,7 @@ class MarkerScan:
                         "backend": self.name,
                     }
                 )
-        logger.info("MarkerScan found %d marker(s) in %s", len(rows), fasta)
+        logger.info("MarkerScan (exact-match fallback, not AMRFinderPlus) found %d marker(s) in %s", len(rows), fasta)
         return _frame_from_markers(rows)
 
 
@@ -433,8 +506,9 @@ def detect(
 
     Order: an explicitly given ``amrfinder_tsv`` wins; otherwise ``amrfinder`` on
     ``PATH``, then a sidecar ``<fasta>.amrfinder.tsv``, then :class:`MarkerScan` on
-    ``markers_fasta``. ``detectors`` replaces that list entirely (tests, custom
-    deployments). Raises :class:`ToolNotAvailable` when no backend can run.
+    ``markers_fasta`` (pass it only for synthetic bundles). ``detectors`` replaces
+    that list entirely (tests, custom deployments). Raises :class:`ToolNotAvailable`
+    with the ways to provide a backend when none can run.
     """
     fasta = Path(fasta)
     if detectors is None:
@@ -451,13 +525,17 @@ def detect(
             logger.info("Known-AMR detection for %s via %s", fasta.name, detector.name)
             frame = detector.detect(fasta, species, config, droplog)
             return frame.reset_index(drop=True)
-    raise ToolNotAvailable(
-        "amrfinder",
-        hint=(
-            "No known-AMR backend: install AMRFinderPlus, provide "
-            f"{sidecar_path(fasta).name}, or ship models/markers.fasta."
-        ),
+    hint = (
+        "No known-AMR backend for this genome. Install AMRFinderPlus so `amrfinder` is on PATH, "
+        "or provide a precomputed AMRFinderPlus TSV (`genome2mic predict --amrfinder-tsv FILE`, "
+        f"or {sidecar_path(fasta).name} next to the genome)."
     )
+    if markers_fasta is None:
+        hint += (
+            " The markers.fasta exact-match fallback is only used for synthetic model bundles "
+            "(manifest.json synthetic: true)."
+        )
+    raise ToolNotAvailable("amrfinder", hint=hint)
 
 
 # --------------------------------------------------------------------------- #

@@ -157,8 +157,6 @@ class TestStandards:
         [
             (2016, 0.5),  # the 2016 table: S <= 0.5
             (2024, 0.25),
-            (None, 0.25),  # missing year -> latest table
-            (2019, 0.25),  # year without a table -> latest table
             ("2016", 0.5),  # string year from a CSV
             ("2016.0", 0.5),
         ],
@@ -172,10 +170,54 @@ class TestStandards:
         )
         row = only(labels)
         assert interval(row) == (0.0, expected_upper, "left")
-        if year is None:
-            assert pd.isna(row["standard_year"])
-        else:
-            assert row["standard_year"] == 2016 or row["standard_year"] == int(float(str(year)))
+        assert row["standard_year"] == int(float(str(year)))
+
+    @pytest.mark.parametrize("year", [None, "", "unknown"])
+    def test_sir_only_row_with_null_year_is_dropped(self, config: Config, year: object) -> None:
+        """No year -> the matching table is unknown; never assume the latest one (decision 2)."""
+        labels, log = run(
+            [raw_row(antibiotic_raw="ciprofloxacin", sir_raw="S", sign=None, value=None, standard_year=year)],
+            config,
+        )
+        assert labels.empty
+        counts = log_counts(log)
+        assert counts[hz.Reason.NULL_YEAR] == 1
+        assert counts[hz.Reason.NO_TABLE_FOR_YEAR] == 0 and counts[hz.Reason.NO_BREAKPOINT] == 0
+
+    def test_sir_only_row_whose_year_has_no_table_is_dropped(self, config: Config) -> None:
+        rows = [
+            raw_row(genome_id="a", antibiotic_raw="ciprofloxacin", sir_raw="S", sign=None, value=None,
+                    standard="EUCAST", standard_year=2019),
+            raw_row(genome_id="b", antibiotic_raw="ciprofloxacin", sir_raw="R", sign=None, value=None,
+                    standard="EUCAST", standard_year=2019),
+            raw_row(genome_id="c", antibiotic_raw="meropenem", sir_raw="R", sign=None, value=None,
+                    method_raw="Disk diffusion", standard="CLSI", standard_year=2016),
+        ]
+        labels, log = run(rows, config)
+        assert labels.empty
+        assert log_counts(log)[hz.Reason.NO_TABLE_FOR_YEAR] == 3
+        assert log_counts(log)[hz.Reason.NULL_YEAR] == 0
+        detail = [r.detail for r in log.records if r.reason == hz.Reason.NO_TABLE_FOR_YEAR][0]
+        assert "EUCAST 2019 (2)" in detail and "CLSI 2016 (1)" in detail
+
+    def test_year_with_a_table_but_no_pair_row_is_no_breakpoint(self, config: Config) -> None:
+        # The EUCAST 2016 test table has no ceftriaxone row.
+        labels, log = run(
+            [raw_row(antibiotic_raw="ceftriaxone", sir_raw="S", sign=None, value=None, standard_year=2016)],
+            config,
+        )
+        assert labels.empty
+        assert log_counts(log)[hz.Reason.NO_BREAKPOINT] == 1
+        assert log_counts(log)[hz.Reason.NO_TABLE_FOR_YEAR] == 0
+
+    @pytest.mark.parametrize("year", [None, 2019])
+    def test_numeric_rows_do_not_need_a_table_for_their_year(self, config: Config, year: int | None) -> None:
+        labels, log = run([raw_row(sign="=", value="8", sir_raw="R", standard_year=year)], config)
+        row = only(labels)
+        assert interval(row) == (4.0, 8.0, "interval")
+        assert (pd.isna(row["standard_year"]) if year is None else row["standard_year"] == year)
+        assert log_counts(log)[hz.Reason.NULL_YEAR] == 0
+        assert log_counts(log)[hz.Reason.NO_TABLE_FOR_YEAR] == 0
 
     def test_null_standard_sir_only_row_is_dropped(self, config: Config) -> None:
         labels, log = run([raw_row(sir_raw="S", sign=None, value=None, standard=None)], config)
@@ -289,7 +331,11 @@ class TestFilters:
             hz.Reason.UNKNOWN_METHOD,
             hz.Reason.UNKNOWN_UNIT,
             hz.Reason.NULL_STANDARD,
+            hz.Reason.NULL_YEAR,
+            hz.Reason.NO_TABLE_FOR_YEAR,
             hz.Reason.NO_BREAKPOINT,
+            hz.Reason.COMBINATION,
+            hz.Reason.SNAPPED,
             hz.Reason.DUP_SR,
             hz.Reason.DUP_FAR,
         ):
@@ -382,11 +428,91 @@ class TestUnitsAndValues:
         assert labels.empty
         assert log_counts(log)[hz.Reason.UNKNOWN_UNIT] == 1
 
-    @pytest.mark.parametrize("value", ["abc", "N/A", "0", "-2", "8/4"])
+    @pytest.mark.parametrize("value", ["abc", "N/A", "0", "-2", "8/abc", "8/", "/4", "8/4/2", "0/4"])
     def test_bad_numeric_values_drop_the_row(self, config: Config, value: str) -> None:
         labels, log = run([raw_row(value=value)], config)
         assert labels.empty
         assert log_counts(log)[hz.Reason.BAD_VALUE] == 1
+
+    @pytest.mark.parametrize(
+        ("sign", "value", "expected", "raw_result"),
+        [
+            ("=", "16/4", (8.0, 16.0, "interval"), "=16/4"),
+            (None, "16/4", (8.0, 16.0, "interval"), "=16/4"),
+            (None, "<=8/4", (0.0, 8.0, "left"), "<=8/4"),
+            ("<=", "8/4", (0.0, 8.0, "left"), "<=8/4"),
+            (None, ">4/76", (4.0, INF, "right"), ">4/76"),
+            ("=", "8 / 4", (4.0, 8.0, "interval"), "=8 / 4"),
+        ],
+    )
+    def test_combination_mic_uses_the_primary_agent(
+        self, config: Config, sign: str | None, value: str, expected: tuple, raw_result: str
+    ) -> None:
+        """Beta-lactam/inhibitor exports print ``piperacillin/tazobactam`` MICs as ``16/4``."""
+        labels, log = run([raw_row(antibiotic_raw="TZP", sign=sign, value=value)], config)
+        row = only(labels)
+        assert row["drug"] == "piperacillin-tazobactam"
+        assert interval(row) == expected
+        assert row["raw_result"] == raw_result  # the full original text is kept for audit
+        assert log_counts(log)[hz.Reason.COMBINATION] == 1
+        assert log_counts(log)[hz.Reason.BAD_VALUE] == 0
+
+    def test_combination_count_detail_and_plain_values(self, config: Config) -> None:
+        rows = [
+            raw_row(genome_id="a", antibiotic_raw="TZP", value="16/4"),
+            raw_row(genome_id="b", antibiotic_raw="TZP", value="16/4"),
+            raw_row(genome_id="c", antibiotic_raw="TZP", value="16"),
+        ]
+        labels, log = run(rows, config)
+        assert len(labels) == 3
+        assert log_counts(log)[hz.Reason.COMBINATION] == 2
+        detail = [r.detail for r in log.records if r.reason == hz.Reason.COMBINATION][0]
+        assert "16/4 (2)" in detail
+
+    @pytest.mark.parametrize(
+        ("sign", "value", "expected"),
+        [
+            ("=", "0.016", (2.0**-7, 2.0**-6, "interval")),
+            ("=", "0.008", (2.0**-8, 2.0**-7, "interval")),
+            ("<=", "0.008", (0.0, 2.0**-7, "left")),
+            (">", "0.03", (2.0**-5, INF, "right")),
+            (">", "0.032", (2.0**-5, INF, "right")),
+            (">=", "0.064", (2.0**-5, INF, "right")),
+            (">", "0.12", (0.125, INF, "right")),
+            ("=", 0.016, (2.0**-7, 2.0**-6, "interval")),  # numeric value, not a string
+        ],
+    )
+    def test_decimal_renderings_of_powers_of_two_are_snapped(
+        self, config: Config, sign: str, value: object, expected: tuple
+    ) -> None:
+        labels, log = run([raw_row(antibiotic_raw="ciprofloxacin", sign=sign, value=value)], config)
+        row = only(labels)
+        assert interval(row) == expected
+        assert row["raw_result"] == f"{sign}{value}"  # the reported text is kept
+        assert log_counts(log)[hz.Reason.SNAPPED] == 1
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("0.19", (0.125, 0.25)), ("0.75", (0.5, 1.0)), ("6", (4.0, 8.0)), ("0.047", (2.0**-5, 2.0**-4)),
+         ("0.25", (0.125, 0.25)), ("8", (4.0, 8.0))],
+    )
+    def test_half_steps_and_exact_powers_are_not_snapped(
+        self, config: Config, value: str, expected: tuple
+    ) -> None:
+        labels, log = run([raw_row(sign="=", value=value)], config)
+        assert interval(only(labels)) == (*expected, "interval")
+        assert log_counts(log)[hz.Reason.SNAPPED] == 0
+
+    def test_snapped_count_has_a_value_detail(self, config: Config) -> None:
+        rows = [
+            raw_row(genome_id="a", antibiotic_raw="ciprofloxacin", sign="<=", value="0.016"),
+            raw_row(genome_id="b", antibiotic_raw="ciprofloxacin", sign="<=", value="0.016"),
+            raw_row(genome_id="c", antibiotic_raw="ciprofloxacin", sign="=", value="0.12"),
+        ]
+        _, log = run(rows, config)
+        record = [r for r in log.records if r.reason == hz.Reason.SNAPPED][0]
+        assert record.n_dropped == 3
+        assert "0.016 (2)" in record.detail and "0.12 (1)" in record.detail
 
     def test_unknown_sign_drops_the_row(self, config: Config) -> None:
         labels, log = run([raw_row(sign="~")], config)
@@ -566,6 +692,136 @@ class TestDuplicates:
         ]
         labels, _ = run(rows, config)
         assert labels["drug"].tolist() == ["ciprofloxacin"]
+
+
+class TestMergedRowProvenance:
+    """The merged row's method / standard / standard_year / source describe a row that
+    actually supports the merged bounds (finding #3)."""
+
+    @staticmethod
+    def disk_s() -> dict:
+        # EUCAST 2024 ciprofloxacin S <= 0.25 -> (0, 0.25]
+        return raw_row(antibiotic_raw="ciprofloxacin", method_raw="Disk diffusion", sir_raw="S", sign=None,
+                       value="25", unit="mm", standard="EUCAST", standard_year=2024, source="BVBRC")
+
+    @staticmethod
+    def dilution(sign: str, value: str, **overrides: object) -> dict:
+        row = {"standard": "CLSI", "standard_year": None, "source": "NCBI", "genome_id": "573.1"}
+        row.update(overrides)
+        return raw_row(antibiotic_raw="ciprofloxacin", method_raw="broth microdilution", sign=sign, value=value,
+                       sir_raw=None, **row)
+
+    @pytest.mark.parametrize("order", ["disk_first", "dilution_first"])
+    def test_exact_mic_merged_with_disk_s_carries_the_dilution_provenance(self, config: Config, order: str) -> None:
+        rows = [self.disk_s(), self.dilution("=", "0.125")]
+        if order == "dilution_first":
+            rows.reverse()
+        labels, log = run(rows, config)
+        row = only(labels)
+        assert interval(row) == (0.0625, 0.125, "interval")
+        assert row["method"] == "dilution"
+        assert row["source"] == "NCBI" and row["standard"] == "CLSI"
+        # provenance is taken as a block: the disk row's year is not borrowed
+        assert pd.isna(row["standard_year"])
+        assert row["sir"] == "S"  # the only reported category
+        assert "S zone=25" in row["raw_result"] and "=0.125" in row["raw_result"]
+        assert log_counts(log)[hz.Reason.DUP_MERGED] == 1
+
+    def test_left_censored_mic_tighter_than_disk_s_wins(self, config: Config) -> None:
+        labels, _ = run([self.disk_s(), self.dilution("<=", "0.03")], config)
+        row = only(labels)
+        assert interval(row) == (0.0, 0.03125, "left")
+        assert row["method"] == "dilution" and row["source"] == "NCBI"
+
+    def test_equal_intervals_prefer_an_mic_method_over_disk(self, config: Config) -> None:
+        # Both rows give (0, 0.25]: the gradient row is preferred over the disk row.
+        gradient = raw_row(antibiotic_raw="ciprofloxacin", method_raw="Etest", sign="<=", value="0.25",
+                           standard="CLSI", standard_year=2024, source="NCBI")
+        labels, _ = run([self.disk_s(), gradient], config)
+        row = only(labels)
+        assert interval(row) == (0.0, 0.25, "left")
+        assert row["method"] == "gradient" and row["source"] == "NCBI" and row["standard"] == "CLSI"
+
+    def test_disk_s_alone_with_a_wider_mic_keeps_the_disk_provenance(self, config: Config) -> None:
+        # (0, 0.25] disk S  vs  (0, 1] '<=1': the merged interval is the disk row's own.
+        labels, _ = run([self.disk_s(), self.dilution("<=", "1")], config)
+        row = only(labels)
+        assert interval(row) == (0.0, 0.25, "left")
+        assert row["method"] == "disk" and row["standard"] == "EUCAST" and row["standard_year"] == 2024
+
+    def test_partial_overlap_one_step_result_is_never_disk(self, config: Config) -> None:
+        # disk S (0, 0.25] and '>0.125' (0.125, inf) intersect to (0.125, 0.25]: one step,
+        # equal to neither row -> the MIC-bearing row describes it.
+        labels, _ = run([self.disk_s(), self.dilution(">", "0.125")], config)
+        row = only(labels)
+        assert interval(row) == (0.125, 0.25, "interval")
+        assert row["method"] == "dilution"
+
+    def test_one_step_disk_i_and_equal_exact_mic_prefer_dilution(self, config: Config) -> None:
+        # CLSI meropenem I is (1, 2]: one step, and '=2' gives the same interval.
+        disk_i = raw_row(method_raw="Disk diffusion", sir_raw="I", sign=None, value=None, standard="CLSI",
+                         standard_year=2024, source="BVBRC")
+        mic_row = raw_row(sign="=", value="2", sir_raw=None, standard="EUCAST", standard_year=2024, source="NCBI")
+        labels, _ = run([disk_i, mic_row], config)
+        row = only(labels)
+        assert interval(row) == (1.0, 2.0, "interval")
+        assert row["method"] == "dilution" and row["source"] == "NCBI" and row["sir"] == "I"
+
+    def test_adjacent_steps_take_provenance_from_the_higher_row(self, config: Config) -> None:
+        rows = [
+            raw_row(sign="=", value="16", standard="CLSI", standard_year=2024, source="BVBRC"),
+            raw_row(sign="=", value="8", standard="EUCAST", standard_year=2024, source="NCBI"),
+        ]
+        labels, _ = run(rows, config)
+        row = only(labels)
+        assert interval(row) == (8.0, 16.0, "interval")
+        assert row["standard"] == "CLSI" and row["source"] == "BVBRC"
+
+    def test_mixed_categories_and_a_silent_representative_keep_the_highest_reported_sir(
+        self, config: Config
+    ) -> None:
+        # S (disk) and I (gradient '<=0.5') disagree; the representative '=0.25' reported nothing.
+        gradient_i = raw_row(antibiotic_raw="ciprofloxacin", method_raw="Etest", sign="<=", value="0.5",
+                             sir_raw="I", source="BVBRC")
+        labels, _ = run([self.disk_s(), gradient_i, self.dilution("=", "0.25")], config)
+        row = only(labels)
+        assert interval(row) == (0.125, 0.25, "interval")
+        assert row["method"] == "dilution" and row["source"] == "NCBI"
+        assert row["sir"] == "I"  # same as before the provenance fix: highest reported step
+
+    def test_genome_metadata_is_still_filled_from_other_rows(self, config: Config) -> None:
+        rows = [self.disk_s() | {"country": "USA", "year": 2019}, self.dilution("=", "0.125")]
+        labels, _ = run(rows, config)
+        row = only(labels)
+        assert row["method"] == "dilution"
+        assert row["country"] == "USA" and row["year"] == 2019
+
+    def test_merged_exact_rows_are_disk_only_when_the_disk_row_alone_supports_them(self, config: Config) -> None:
+        """Exhaustive small check over disk S/I/R x MIC results (EUCAST ciprofloxacin S<=0.25, R>0.5).
+
+        A one-step merged interval is labelled ``disk`` only when it is exactly the disk
+        ``I`` range (0.25, 0.5] and no MIC row reported that cell (e.g. '=0.25' is the
+        adjacent lower step, '>0.125' does not tighten it). Whenever an MIC row reported
+        the merged cell or contributed one of its bounds, the row is not ``disk``.
+        """
+        mic_results = [("=", "0.125"), ("=", "0.25"), ("<=", "0.125"), (">", "0.125"), (">=", "0.25"), ("=", "0.5")]
+        rows = []
+        for i, (sign, value) in enumerate(mic_results):
+            for sir in ("S", "I", "R"):
+                gid = f"g{i}_{sir}"
+                rows.append(raw_row(genome_id=gid, antibiotic_raw="ciprofloxacin", method_raw="Disk diffusion",
+                                    sir_raw=sir, sign=None, value=None, source="BVBRC"))
+                rows.append(raw_row(genome_id=gid, antibiotic_raw="ciprofloxacin", sign=sign, value=value,
+                                    sir_raw=None, source="NCBI", standard=None, standard_year=None))
+        labels, _ = run(rows, config)
+        exact = labels[(labels["mic_lower"] > 0) & (labels["mic_upper"] == 2 * labels["mic_lower"])]
+        assert len(exact) >= 5
+        disk = exact[exact["method"] == "disk"]
+        assert set(disk["genome_id"]) == {"g1_I", "g3_I", "g4_I"}
+        assert (disk["sir"] == "I").all() and (disk["mic_lower"] == 0.25).all() and (disk["mic_upper"] == 0.5).all()
+        by = exact.set_index("genome_id")
+        for gid in ("g0_S", "g1_S", "g3_S", "g4_S", "g5_S", "g5_I"):
+            assert by.loc[gid, "method"] == "dilution", gid
 
 
 # --------------------------------------------------------------------------- #
@@ -793,11 +1049,31 @@ class TestCountTable:
         mero = counts.set_index(["species", "drug"]).loc[("KPNEU", "meropenem")]
         assert mero["n"] == 6
         assert mero["n_R"] == 2 and mero["n_S"] == 2 and mero["n_I"] == 1
-        assert mero["n_exact"] == 3 and mero["n_censored"] == 3
+        # exact = one doubling step: (4,8] and (8,16]. The I-only (2,8] spans two steps,
+        # so it is counted with the censored rows (n_censored = n - n_exact).
+        assert mero["n_exact"] == 2 and mero["n_censored"] == 4
         # reported steps: 8, 16, 0.25, 2, 8 (I-only (2,8] reports 8), 64 (>32) -> 5 distinct
         assert mero["n_distinct_mic"] == 5
         cipro = counts.set_index(["species", "drug"]).loc[("KPNEU", "ciprofloxacin")]
         assert cipro["n"] == 1 and cipro["n_S"] == 1 and cipro["n_distinct_mic"] == 1
+
+    def test_n_exact_uses_the_one_step_definition(self) -> None:
+        rows = [
+            label("g1", "meropenem", 1, 2, "I"),  # one-step I-only (CLSI): exact
+            label("g2", "meropenem", 2, 8, "I"),  # two-step I-only (EUCAST): not exact
+            label("g3", "meropenem", 2.0**-10, 16, "I"),  # placeholder S<=0.001 I range: not exact
+            label("g4", "meropenem", 0.0625, 0.125, "S"),  # exact
+        ]
+        counts = hz.count_table(labels_frame(rows))
+        row = counts.iloc[0]
+        assert row["n_exact"] == 2 and row["n_censored"] == 2 and row["n"] == 4
+
+    def test_disk_one_step_interval_is_not_an_exact_mic(self) -> None:
+        """Contract method filter: disk diffusion gives S/I/R, never an MIC -- even a one-step I range."""
+        disk_i = {**label("g1", "meropenem", 1, 2, "I"), "method": "disk", "standard": "CLSI"}
+        rows = [disk_i, label("g2", "meropenem", 1, 2, "I"), label("g3", "meropenem", 4, 8, "R")]
+        row = hz.count_table(labels_frame(rows)).iloc[0]
+        assert row["n_exact"] == 2 and row["n_censored"] == 1 and row["n"] == 3
 
     def test_empty_labels_give_empty_counts_with_schema(self) -> None:
         counts = hz.count_table(labels_frame([]))
@@ -910,12 +1186,20 @@ class TestHelpers:
             (">", 32, (">", 32.0)),
             (None, None, ("=", None)),
             (None, "", ("=", None)),
+            # combination drugs: the first (primary agent) component
+            ("=", "16/4", ("=", 16.0)),
+            (None, "<=8/4", ("<=", 8.0)),
+            (None, ">4/76", (">", 4.0)),
+            ("=", "8 / 4", ("=", 8.0)),
+            # the reported number is returned as is; snapping happens in the interval step
+            ("=", "0.016", ("=", 0.016)),
         ],
     )
     def test_parse_measurement(self, sign: str | None, value: object, expected: tuple) -> None:
         assert hz.parse_measurement(sign, value) == expected
 
-    @pytest.mark.parametrize("value", ["abc", "8/4", "0", "-1", "inf", "nan"])
+    @pytest.mark.parametrize("value", ["abc", "8/abc", "abc/4", "8/", "/4", "8/4/2", "0/4", "N/A", "0", "-1",
+                                       "inf", "nan", "inf/4"])
     def test_parse_measurement_rejects_bad_values(self, value: str) -> None:
         with pytest.raises(ValueError):
             hz.parse_measurement("=", value)

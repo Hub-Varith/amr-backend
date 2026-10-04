@@ -17,9 +17,18 @@ Overrides, applied by the pipeline after the model, both force ``likely_inactive
 
 1. ``natural_resistance`` -- the species is intrinsically resistant
    (``configs/natural_resistance.csv``); the model is skipped and the MIC fields are null.
-2. ``strong_marker`` -- a known-AMR column listed under ``strong_markers`` in
-   ``drugs.yaml`` is present (matched as a column-name prefix so kept variants such as
-   ``gene_blakpc_2`` match ``gene_blakpc``); the model MIC fields are kept.
+2. ``strong_marker`` -- the model MIC fields are kept and the call is forced when
+   either
+
+   * a known-AMR column listed under ``strong_markers`` in ``drugs.yaml`` is present
+     (matched as a column-name prefix so kept variants such as ``gene_blakpc_2`` match
+     ``gene_blakpc``), or
+   * a detected **acquired gene** (Subtype ``AMR``; never a ``POINT`` mutation such as
+     a porin change) carries an AMRFinderPlus ``Subclass`` listed under the drug's
+     ``strong_subclasses`` (``CARBAPENEM`` for the carbapenems). This catches
+     carbapenemases whose family column is shared with non-carbapenemases
+     (``blaOXA-23`` and ``blaOXA-1`` both map to ``gene_blaoxa``; ``blaGES-5`` and
+     ``blaGES-1`` to ``gene_blages``) or that are not in any prefix list.
 
 Ranking: likely-active drugs sorted by ``spectrum_tier`` ascending (narrowest first),
 then ``margin_steps`` descending, then drug name.
@@ -36,7 +45,7 @@ import numpy as np
 
 from genome2mic.config import SPECTRUM_TIERS, Breakpoint, Config, DrugConfig
 from genome2mic.models import conformal
-from genome2mic.predict.amr_detect import SUBTYPE_POINT, Marker
+from genome2mic.predict.amr_detect import SUBTYPE_AMR, SUBTYPE_POINT, TYPE_AMR, Marker
 
 logger = logging.getLogger(__name__)
 
@@ -228,24 +237,48 @@ def call_from_band(
 def strong_marker_hits(
     symbols_by_column: Mapping[str, Sequence[str]],
     drug_cfg: DrugConfig | None,
+    markers: Iterable[Marker] = (),
 ) -> list[str]:
-    """Symbols of present known-AMR columns that match a ``strong_markers`` prefix.
+    """Symbols of the detected markers that trigger the strong-marker override (override 2).
+
+    A symbol hits when its known-AMR column matches a ``strong_markers`` prefix, or
+    when it is an acquired gene (Subtype ``AMR``, never ``POINT``) whose AMRFinderPlus
+    ``Subclass`` (``/``-separated tokens) is in ``strong_subclasses``. The subclass
+    comes from the detection itself, never from the training-time column metadata: a
+    family column such as ``gene_blaoxa`` mixes carbapenemases and narrow-spectrum
+    enzymes, so only the detected variant's own subclass can tell them apart.
 
     Args:
         symbols_by_column: present ``gene_`` / ``point_`` column -> detected symbols.
         drug_cfg: the drug's config (``strong_markers`` are column-name prefixes).
+        markers: the detections (:attr:`KnownAmrRow.markers`); needed for the subclass rule.
 
     Returns:
-        Marker symbols in detection order, de-duplicated. Empty when nothing matches.
+        Marker symbols, de-duplicated, in detection order when ``markers`` is given.
+        Empty when nothing matches.
     """
-    if drug_cfg is None or not drug_cfg.strong_markers:
+    if drug_cfg is None or not (drug_cfg.strong_markers or drug_cfg.strong_subclasses):
         return []
+    markers = tuple(markers)
     hits: list[str] = []
     for column, symbols in symbols_by_column.items():
         if any(column == prefix or column.startswith(prefix) for prefix in drug_cfg.strong_markers):
             for symbol in symbols:
                 if symbol not in hits:
                     hits.append(symbol)
+    wanted = frozenset(drug_cfg.strong_subclasses)
+    if wanted:
+        for marker in markers:
+            acquired_gene = marker.subtype == SUBTYPE_AMR and marker.element_type == TYPE_AMR
+            if not acquired_gene or marker.symbol in hits:
+                continue
+            if not class_tokens(marker.subclass).isdisjoint(wanted):
+                hits.append(marker.symbol)
+    if markers:
+        first_seen: dict[str, int] = {}
+        for index, marker in enumerate(markers):
+            first_seen.setdefault(marker.symbol, index)
+        hits.sort(key=lambda symbol: first_seen.get(symbol, len(first_seen)))
     return hits
 
 

@@ -31,13 +31,26 @@ Build procedure (order matters, contract stage 8)
 3. Frequency filter: keep k-mers present in ``>= min_freq`` and ``<= max_freq`` of
    the training genomes (defaults 1 % / 99 %; the contract's "drop < 1 % or
    > 99 %" is the inclusive form, which is what is implemented).
-4. CSR training matrix (genomes x kept k-mers, int8), then **collapse identical
-   presence/absence columns into patterns**: every column is hashed from its
-   row-index set (two independent 64-bit splitmix64 sums plus the column count,
-   so a false merge needs a 128-bit collision). Patterns are numbered in order of
-   their first (smallest) member k-mer: ``u_000000, u_000001, ...``.
+4. **Collapse identical presence/absence columns into patterns**: every kept
+   k-mer column is keyed by its row-index set (two independent 64-bit splitmix64
+   sums plus the column count, so a false merge needs a 128-bit collision).
+   The keys are sums, so the k-mer backend accumulates them genome by genome
+   (O(kept k-mers) memory) and never materialises the ``genomes x kept k-mers``
+   matrix; a third pass then reads each training genome's pattern row from the
+   pattern's first k-mer. Patterns are numbered in order of their first
+   (smallest) member k-mer: ``u_000000, u_000001, ...``.
 5. Every other QC-passing genome is **queried** against the frozen set and its
    row appended. The set is never rebuilt to include them.
+
+Scale
+-----
+Per-genome work (k-mer extraction, set membership, queries) runs in ``threads``
+worker processes (:mod:`genome2mic.parallel`; results in genome order, so the
+output does not depend on ``threads``). The pure-Python k-mer backend still
+re-encodes each training FASTA up to three times and keeps a global k-mer count
+table, so it refuses more than ``max_genomes`` training genomes (default
+:data:`DEFAULT_MAX_KMER_GENOMES`); use ``--unitig-backend unitig-caller`` (or
+``auto`` with unitig-caller installed) on real data.
 
 Pattern presence in a queried genome
 ------------------------------------
@@ -64,10 +77,10 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -75,6 +88,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import scipy.sparse as sp
 
+from genome2mic import parallel
 from genome2mic.droplog import DropLog
 from genome2mic.errors import ContractViolation, ToolNotAvailable
 from genome2mic.io import iter_fasta, read_parquet, write_parquet
@@ -87,9 +101,13 @@ __all__ = [
     "MIN_FREQ",
     "MAX_FREQ",
     "PRESENCE_FRACTION",
+    "DEFAULT_MAX_KMER_GENOMES",
+    "INDEX_COLUMNS",
+    "LOAD_INDEX_COLUMNS",
     "ROLE_BUILT",
     "ROLE_QUERIED",
     "STAGE",
+    "TooManyGenomesForKmerBackend",
     "KmerSet",
     "BuildResult",
     "UnitigBuild",
@@ -104,6 +122,7 @@ __all__ = [
     "pattern_id",
     "save_kmer_set",
     "load_kmer_set",
+    "read_kmer_set_sha1",
     "query_kmer_set",
     "query_genome",
     "make_backend",
@@ -129,6 +148,18 @@ MAX_FREQ: float = 0.99
 
 PRESENCE_FRACTION: float = 0.5
 """Share of a pattern's member k-mers that must be present to call the pattern present."""
+
+DEFAULT_MAX_KMER_GENOMES: int = 1000
+"""Training genomes above which :class:`KmerBackend` refuses to run (CLI ``--unitig-max-kmer-genomes``)."""
+
+INDEX_COLUMNS: tuple[str, ...] = ("col_index", "pattern_id", "n_unitigs", "unitig_sequences", "train_frequency")
+"""Columns of ``unitigs_<SPECIES>_index.parquet`` (contract stage 8)."""
+
+LOAD_INDEX_COLUMNS: tuple[str, ...] = ("col_index", "pattern_id", "n_unitigs", "train_frequency")
+"""What :func:`load_unitigs` reads by default: everything except the (large) member sequences."""
+
+INDEX_BATCH_KMERS: int = 10_000_000
+"""Member k-mers decoded per index row group (bounds writer memory, ~0.3 GB of letters)."""
 
 ROLE_BUILT: str = "built"
 ROLE_QUERIED: str = "queried"
@@ -241,16 +272,23 @@ def encode_kmers(seq: str | bytes, k: int = K) -> np.ndarray:
     return codes
 
 
+def _decode_letters(codes: np.ndarray, k: int) -> np.ndarray:
+    """``(n, k)`` ``uint8`` ASCII letters of 2-bit codes (no Python strings)."""
+    arr = np.asarray(codes, dtype=np.uint64).ravel()
+    letters = np.empty((arr.size, k), dtype=np.uint8)
+    for t in range(k):
+        shift = np.uint64(2 * (k - 1 - t))
+        letters[:, t] = _DECODE[((arr >> shift) & _THREE).astype(np.intp)]
+    return letters
+
+
 def decode_kmers(codes: np.ndarray, k: int = K) -> list[str]:
     """Decode 2-bit codes back to upper-case strings of length ``k`` (vectorised)."""
     _check_k(k)
     arr = np.asarray(codes, dtype=np.uint64).ravel()
     if arr.size == 0:
         return []
-    letters = np.empty((arr.size, k), dtype=np.uint8)
-    for t in range(k):
-        shift = np.uint64(2 * (k - 1 - t))
-        letters[:, t] = _DECODE[((arr >> shift) & _THREE).astype(np.intp)]
+    letters = _decode_letters(arr, k)
     return [s.decode("ascii") for s in letters.view(f"S{k}").ravel()]
 
 
@@ -345,14 +383,24 @@ class KmerSet:
         object.__setattr__(self, "kmers", kmers)
         object.__setattr__(self, "pattern_col", cols)
         object.__setattr__(self, "n_patterns", int(self.n_patterns))
+        object.__setattr__(self, "_sizes", None)  # pattern_sizes() cache (not a dataclass field)
 
     @property
     def n_kmers(self) -> int:
         return int(self.kmers.size)
 
     def pattern_sizes(self) -> np.ndarray:
-        """Member k-mer count per pattern (``int64``, length ``n_patterns``)."""
-        return np.bincount(self.pattern_col, minlength=self.n_patterns).astype(np.int64)
+        """Member k-mer count per pattern (``int64``, length ``n_patterns``).
+
+        Computed once and cached (the set is immutable); the returned array is
+        read-only so the cache cannot be corrupted by a caller.
+        """
+        sizes = self._sizes  # type: ignore[attr-defined]
+        if sizes is None:
+            sizes = np.bincount(self.pattern_col, minlength=self.n_patterns).astype(np.int64)
+            sizes.flags.writeable = False
+            object.__setattr__(self, "_sizes", sizes)
+        return sizes
 
     def pattern_ids(self) -> list[str]:
         return [pattern_id(i) for i in range(self.n_patterns)]
@@ -365,8 +413,19 @@ class KmerSet:
         h.update(self.pattern_col.tobytes())
         return h.hexdigest()
 
+    def member_order(self) -> tuple[np.ndarray, np.ndarray]:
+        """``(order, bounds)``: ``kmers[order[bounds[p]:bounds[p + 1]]]`` are pattern ``p``'s members."""
+        order = np.argsort(self.pattern_col, kind="stable")
+        bounds = np.zeros(self.n_patterns + 1, dtype=np.int64)
+        np.cumsum(self.pattern_sizes(), out=bounds[1:])
+        return order, bounds
+
     def member_sequences(self) -> list[list[str]]:
-        """Decoded member k-mers per pattern, in pattern order."""
+        """Decoded member k-mers per pattern, in pattern order.
+
+        Builds one Python string per k-mer: fine for small sets and tests; the
+        stage writes the index with :func:`_write_index`, which never does.
+        """
         order = np.argsort(self.pattern_col, kind="stable")
         bounds = np.searchsorted(self.pattern_col[order], np.arange(self.n_patterns + 1))
         decoded = decode_kmers(self.kmers[order], self.k)
@@ -456,13 +515,57 @@ def load_kmer_set(path: Path | str) -> KmerSet:
     return ks
 
 
+def read_kmer_set_sha1(path: Path | str) -> str:
+    """:meth:`KmerSet.sha1` of a set written by :func:`save_kmer_set`, without loading the arrays.
+
+    Reads the ``sha1`` scalar :func:`save_kmer_set` stores (one small npz member);
+    a file without it (written before the scalar existed) is loaded and hashed.
+    Training records this value in every unitig model's ``features.json``
+    (``unitig_kmer_set_sha1``) so a bundle can prove which set its columns index.
+    """
+    src = Path(path)
+    with np.load(src, allow_pickle=False) as z:
+        if "sha1" in z.files:
+            value = str(z["sha1"])
+            if value:
+                return value
+    return load_kmer_set(src).sha1()
+
+
+def _present_positions(sorted_set: np.ndarray, sorted_query: np.ndarray) -> np.ndarray:
+    """Positions in ``sorted_set`` of the elements that also occur in ``sorted_query``.
+
+    Binary-searches the (small, one genome) query into the (large, frozen) set:
+    ``O(|query| log |set|)`` and no ``|set|``-sized temporary. Both inputs must be
+    sorted and unique; the output (``int64``) is then strictly increasing.
+    """
+    if sorted_query.size == 0 or sorted_set.size == 0:
+        return np.empty(0, dtype=np.int64)
+    pos = np.searchsorted(sorted_set, sorted_query)
+    inside = pos < sorted_set.size
+    pos = pos[inside]
+    hit = sorted_set[pos] == sorted_query[inside]
+    return pos[hit].astype(np.int64, copy=False)
+
+
 def _present_mask(sorted_set: np.ndarray, sorted_query: np.ndarray) -> np.ndarray:
     """Boolean mask over ``sorted_set``: which elements occur in ``sorted_query``."""
-    if sorted_query.size == 0 or sorted_set.size == 0:
-        return np.zeros(sorted_set.size, dtype=bool)
-    pos = np.searchsorted(sorted_query, sorted_set)
-    pos_c = np.minimum(pos, sorted_query.size - 1)
-    return (pos < sorted_query.size) & (sorted_query[pos_c] == sorted_set)
+    mask = np.zeros(sorted_set.size, dtype=bool)
+    mask[_present_positions(sorted_set, sorted_query)] = True
+    return mask
+
+
+def _called_patterns(
+    kmers: np.ndarray,
+    pattern_col: np.ndarray,
+    sizes: np.ndarray,
+    presence_fraction: float,
+    genome: np.ndarray,
+) -> tuple[np.ndarray, int]:
+    """Boolean pattern calls for one genome's sorted unique k-mers, plus the k-mer hit count."""
+    pos = _present_positions(kmers, genome)
+    hits = np.bincount(np.asarray(pattern_col)[pos], minlength=sizes.size)
+    return (sizes > 0) & (hits >= presence_fraction * sizes), int(pos.size)
 
 
 def query_kmer_set(kmer_set: KmerSet, fasta_path: Path | str) -> np.ndarray:
@@ -472,13 +575,12 @@ def query_kmer_set(kmer_set: KmerSet, fasta_path: Path | str) -> np.ndarray:
     member k-mers occur in the genome; see the module docstring for why.
     """
     km = genome_kmers(fasta_path, kmer_set.k)
-    present = _present_mask(kmer_set.kmers, km)
-    hits = np.bincount(kmer_set.pattern_col[present], minlength=kmer_set.n_patterns)
-    sizes = kmer_set.pattern_sizes()
-    called = (sizes > 0) & (hits >= kmer_set.presence_fraction * sizes)
+    called, n_present = _called_patterns(
+        kmer_set.kmers, kmer_set.pattern_col, kmer_set.pattern_sizes(), kmer_set.presence_fraction, km
+    )
     logger.debug(
         "query %s: %d/%d k-mers present, %d/%d patterns called",
-        fasta_path, int(present.sum()), kmer_set.n_kmers, int(called.sum()), kmer_set.n_patterns,
+        fasta_path, n_present, kmer_set.n_kmers, int(called.sum()), kmer_set.n_patterns,
     )
     return called.astype(np.int8)
 
@@ -556,8 +658,31 @@ def collapse_patterns(matrix: sp.spmatrix) -> tuple[np.ndarray, np.ndarray]:
     nnz = np.diff(csc.indptr).astype(np.uint64)
     h1 = _segment_sums(_splitmix64(rows), csc.indptr)
     h2 = _segment_sums(_splitmix64(rows ^ _SALT2), csc.indptr)
-    keys = np.stack([h1, h2, nnz], axis=1)
+    return _patterns_from_keys(h1, h2, nnz)
+
+
+def _row_salts(n_rows: int) -> tuple[np.ndarray, np.ndarray]:
+    """Per-row contributions to the two column set-hashes of :func:`collapse_patterns`."""
+    rows = np.arange(n_rows, dtype=np.uint64)
+    return _splitmix64(rows), _splitmix64(rows ^ _SALT2)
+
+
+def _patterns_from_keys(h1: np.ndarray, h2: np.ndarray, nnz: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Pattern ids from per-column ``(set-hash 1, set-hash 2, count)`` keys.
+
+    Columns with equal keys share a pattern; patterns are numbered by their first
+    column. Shared by :func:`collapse_patterns` (keys from a matrix) and the
+    streaming k-mer build (keys accumulated genome by genome), so both give
+    identical patterns for the same presence/absence data.
+    """
+    n_cols = int(np.asarray(h1).size)
+    if n_cols == 0:
+        return np.empty(0, dtype=np.int32), np.empty(0, dtype=np.int64)
+    keys = np.stack(
+        [np.asarray(h1, dtype=np.uint64), np.asarray(h2, dtype=np.uint64), np.asarray(nnz).astype(np.uint64)], axis=1
+    )
     _uniq, first_idx, inverse = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    del keys, _uniq
     inverse = np.asarray(inverse).ravel()
     order = np.argsort(first_idx, kind="stable")
     rank = np.empty(order.size, dtype=np.int64)
@@ -655,17 +780,95 @@ class _KmerCounter:
         return self._kmers, self._counts
 
 
+class TooManyGenomesForKmerBackend(ValueError):
+    """The pure-Python k-mer backend was asked to build from more genomes than it allows."""
+
+
+# --------------------------------------------------------------------------- #
+# Worker-process tasks (genome2mic.parallel). State is per process.
+# --------------------------------------------------------------------------- #
+_WORKER_STATE: dict[str, Any] = {}
+
+
+def _init_worker(spec: Mapping[str, Any], scalars: Mapping[str, Any] | None = None) -> None:
+    """Load shared arrays (memory-mapped in worker processes) and scalars into this process."""
+    _WORKER_STATE.clear()
+    _WORKER_STATE.update(parallel.load_shared(spec))
+    if scalars:
+        _WORKER_STATE.update(scalars)
+
+
+def _genome_kmers_task(task: tuple[str, int]) -> np.ndarray:
+    """Sorted unique canonical k-mers of one FASTA."""
+    path, k = task
+    return genome_kmers(path, k)
+
+
+def _present_task(task: tuple[str, int]) -> np.ndarray:
+    """Positions of one genome's k-mers in the shared sorted set ``_WORKER_STATE['set']``."""
+    path, k = task
+    return _present_positions(_WORKER_STATE["set"], genome_kmers(path, k))
+
+
+def _query_task(task: tuple[str, int]) -> np.ndarray:
+    """Called pattern columns (``int32``) of one genome against the shared frozen k-mer set."""
+    path, k = task
+    state = _WORKER_STATE
+    called, _ = _called_patterns(
+        state["kmers"], state["pattern_col"], state["sizes"], state["presence_fraction"], genome_kmers(path, k)
+    )
+    return np.flatnonzero(called).astype(np.int32)
+
+
+def _iter_present_positions(
+    sorted_set: np.ndarray,
+    fastas: Sequence[str],
+    k: int,
+    cache: Sequence[np.ndarray] | None,
+    threads: int | None,
+) -> Iterator[np.ndarray]:
+    """Per genome (in order): positions in ``sorted_set`` of its k-mers.
+
+    Uses the in-memory per-genome k-mer arrays when ``cache`` is given, else
+    re-reads each FASTA in worker processes sharing a memory-mapped ``sorted_set``.
+    """
+    if cache is not None:
+        for km in cache:
+            yield _present_positions(sorted_set, km)
+        return
+    workers = parallel.worker_count(threads, len(fastas))
+    try:
+        with parallel.share_arrays({"set": sorted_set}, enabled=workers > 1) as spec:
+            yield from parallel.ordered_map(
+                _present_task, [(p, k) for p in fastas], workers=workers, initializer=_init_worker, initargs=(spec,)
+            )
+    finally:
+        _WORKER_STATE.clear()
+
+
 class KmerBackend:
     """Pure-numpy canonical k-mer backend (default).
+
+    Three passes over the training genomes, none of which materialises the
+    ``genomes x kept k-mers`` matrix:
+
+    1. per-genome unique k-mers -> global counts -> frequency filter;
+    2. per kept k-mer, the order-independent set-hash of the genomes carrying it
+       (``O(kept k-mers)`` memory) -> patterns (identical to
+       :func:`collapse_patterns` on the explicit matrix);
+    3. per genome, presence of each pattern's first k-mer -> the pattern row.
 
     Args:
         k: k-mer length (31).
         min_freq, max_freq: Inclusive training-frequency window for keeping a k-mer.
         presence_fraction: Majority rule stored in the :class:`KmerSet` for querying.
-        max_cached_elements: Per-genome k-mer arrays are kept in memory for the
-            second (matrix) pass while their total stays below this; beyond it
-            they are recomputed from FASTA, bounding memory on real genomes.
+        max_cached_elements: Per-genome k-mer arrays are kept in memory for
+            passes 2-3 while their total stays below this; beyond it they are
+            recomputed from FASTA (in worker processes), bounding memory.
         buffer_elements: Flush threshold of the count merger.
+        max_genomes: Refuse to build from more training genomes than this
+            (:class:`TooManyGenomesForKmerBackend`); ``None`` disables the guard.
+        threads: Worker processes for the per-genome passes (``None`` = all cores).
     """
 
     name = "kmer"
@@ -678,45 +881,72 @@ class KmerBackend:
         presence_fraction: float = PRESENCE_FRACTION,
         max_cached_elements: int = 100_000_000,
         buffer_elements: int = 50_000_000,
+        max_genomes: int | None = DEFAULT_MAX_KMER_GENOMES,
+        threads: int | None = None,
     ) -> None:
         _check_k(k)
         if not 0.0 <= min_freq <= max_freq <= 1.0:
             raise ValueError("need 0 <= min_freq <= max_freq <= 1")
+        if max_genomes is not None and int(max_genomes) < 1:
+            raise ValueError("max_genomes must be >= 1 (or None to disable the guard)")
         self.k = int(k)
         self.min_freq = float(min_freq)
         self.max_freq = float(max_freq)
         self.presence_fraction = float(presence_fraction)
         self.max_cached_elements = int(max_cached_elements)
         self.buffer_elements = int(buffer_elements)
+        self.max_genomes = None if max_genomes is None else int(max_genomes)
+        self.threads = threads
+
+    def check_size(self, n_train: int) -> None:
+        """Raise :class:`TooManyGenomesForKmerBackend` when ``n_train`` exceeds ``max_genomes``."""
+        if self.max_genomes is not None and n_train > self.max_genomes:
+            raise TooManyGenomesForKmerBackend(
+                f"{n_train} training genomes exceed the pure-Python k-mer backend limit of {self.max_genomes} "
+                "(it re-encodes every FASTA up to three times and holds a global k-mer count table). "
+                "Use `--unitig-backend unitig-caller` (or `auto` with unitig-caller on PATH), or raise "
+                "`--unitig-max-kmer-genomes` if this machine has the RAM and time for it (docs/VM_RUNBOOK.md)."
+            )
 
     def build(self, fastas: Mapping[str, Path], droplog: DropLog) -> BuildResult:
-        """Build the k-mer set, frequency filter, CSR matrix and patterns from training FASTAs.
+        """Build the k-mer set, frequency filter, patterns and pattern matrix from training FASTAs.
 
         Args:
             fastas: Ordered ``genome_id -> FASTA path`` of the **training** genomes
                 only. The caller is responsible for that selection.
             droplog: Receives the frequency-filter counts.
+
+        Raises:
+            TooManyGenomesForKmerBackend: more than ``max_genomes`` training genomes.
         """
         genome_ids = list(fastas)
         n_train = len(genome_ids)
         if n_train == 0:
             raise ValueError("cannot build a k-mer set from zero training genomes")
-        logger.info("k-mer build: %d training genomes, k=%d", n_train, self.k)
+        self.check_size(n_train)
+        paths_in_order = [str(fastas[g]) for g in genome_ids]
+        workers = parallel.worker_count(self.threads, n_train)
+        logger.info("k-mer build: %d training genomes, k=%d, %d process(es)", n_train, self.k, workers)
 
-        # Pass 1: per-genome unique k-mers -> global counts (one genome at a time).
+        # Pass 1: per-genome unique k-mers -> global counts (merged in genome order).
         counter = _KmerCounter(self.buffer_elements)
-        cache: dict[str, np.ndarray] | None = {}
+        cache: list[np.ndarray] | None = []
         cached = 0
-        for i, gid in enumerate(genome_ids, start=1):
-            km = genome_kmers(fastas[gid], self.k)
+        pass1 = parallel.ordered_map(
+            _genome_kmers_task,
+            [(p, self.k) for p in paths_in_order],
+            workers=workers,
+            max_pending=workers + 2,  # each result is one genome's k-mer array; keep few in flight
+        )
+        for i, km in enumerate(pass1, start=1):
             counter.add(km)
             if cache is not None:
                 cached += int(km.size)
                 if cached > self.max_cached_elements:
-                    logger.info("k-mer cache limit reached; pass 2 will re-read FASTAs")
+                    logger.info("k-mer cache limit reached; passes 2-3 will re-read FASTAs")
                     cache = None
                 else:
-                    cache[gid] = km
+                    cache.append(km)
             if i % 100 == 0 or i == n_train:
                 logger.info("k-mer pass 1: %d/%d genomes", i, n_train)
         all_kmers, counts = counter.finish()
@@ -740,25 +970,39 @@ class KmerBackend:
         logger.info("frequency filter: %d of %d distinct k-mers kept", n_kept, n_total)
         del all_kmers, counts, freq, below, above, keep
 
-        # Pass 2: CSR genomes x kept k-mers.
+        # Pass 2: per kept k-mer, accumulate the set-hash keys of collapse_patterns
+        # (sums over carrying genomes, so order-free) -- O(n_kept), no k-mer matrix.
+        salt1, salt2 = _row_salts(n_train)
+        h1 = np.zeros(n_kept, dtype=np.uint64)
+        h2 = np.zeros(n_kept, dtype=np.uint64)
+        nnz = np.zeros(n_kept, dtype=np.int64)
+        with np.errstate(over="ignore"):
+            for r, cols in enumerate(_iter_present_positions(kept, paths_in_order, self.k, cache, self.threads)):
+                h1[cols] += salt1[r]  # cols are unique per genome, so fancy += is exact
+                h2[cols] += salt2[r]
+                nnz[cols] += 1
+                if (r + 1) % 100 == 0 or r + 1 == n_train:
+                    logger.info("k-mer pass 2 (pattern keys): %d/%d genomes", r + 1, n_train)
+        pattern_col, rep_cols = _patterns_from_keys(h1, h2, nnz)
+        del h1, h2, nnz
+
+        # Pass 3: pattern rows. All members of a pattern co-occur in every training
+        # genome, so a genome carries pattern p iff it carries p's first k-mer.
+        # rep_cols is increasing, so the representatives stay sorted.
+        representatives = kept[rep_cols]
         indptr = np.zeros(n_train + 1, dtype=np.int64)
         index_parts: list[np.ndarray] = []
-        for r, gid in enumerate(genome_ids):
-            km = cache[gid] if cache is not None else genome_kmers(fastas[gid], self.k)
-            present = _present_mask(kept, km)
-            cols = np.flatnonzero(present).astype(np.int32)
-            index_parts.append(cols)
+        for r, cols in enumerate(_iter_present_positions(representatives, paths_in_order, self.k, cache, self.threads)):
+            index_parts.append(cols.astype(np.int32))
             indptr[r + 1] = indptr[r] + cols.size
+        del cache
         indices = np.concatenate(index_parts) if index_parts else np.empty(0, dtype=np.int32)
-        data = np.ones(indices.size, dtype=np.int8)
-        kmer_matrix = sp.csr_matrix((data, indices, indptr), shape=(n_train, n_kept), dtype=np.int8)
-        kmer_matrix.has_sorted_indices = True
-
-        # Collapse identical columns into patterns.
-        pattern_col, rep_cols = collapse_patterns(kmer_matrix)
-        pattern_matrix = sp.csr_matrix(kmer_matrix[:, rep_cols], dtype=np.int8)
-        pattern_matrix.sort_indices()
-        train_frequency = np.asarray(pattern_matrix.sum(axis=0)).ravel().astype(np.float64) / n_train
+        pattern_matrix = sp.csr_matrix(
+            (np.ones(indices.size, dtype=np.int8), indices, indptr), shape=(n_train, int(rep_cols.size)), dtype=np.int8
+        )
+        pattern_matrix.has_sorted_indices = True
+        counts_per_pattern = np.bincount(indices, minlength=int(rep_cols.size))
+        train_frequency = counts_per_pattern.astype(np.float64) / n_train
         kmer_set = KmerSet(
             kmers=kept,
             pattern_col=pattern_col,
@@ -782,7 +1026,7 @@ class UnitigCallerBackend:
 
     Args:
         executable: Program name or path.
-        threads: ``--threads`` value.
+        threads: ``--threads`` value (``None`` = all usable cores).
         k, min_freq, max_freq, presence_fraction: As for :class:`KmerBackend`.
     """
 
@@ -791,14 +1035,14 @@ class UnitigCallerBackend:
     def __init__(
         self,
         executable: str = "unitig-caller",
-        threads: int = 1,
+        threads: int | None = None,
         k: int = K,
         min_freq: float = MIN_FREQ,
         max_freq: float = MAX_FREQ,
         presence_fraction: float = PRESENCE_FRACTION,
     ) -> None:
         self.executable = executable
-        self.threads = int(threads)
+        self.threads = parallel.resolve_threads(threads)
         self.k = int(k)
         self.min_freq = float(min_freq)
         self.max_freq = float(max_freq)
@@ -1034,19 +1278,32 @@ def parse_pyseer(
     return sequences, ordered, presence
 
 
-def make_backend(name: str = "kmer", **kwargs: object) -> KmerBackend | UnitigCallerBackend:
-    """Backend factory: ``kmer`` (default), ``unitig-caller``, or ``auto`` (CLI if on PATH)."""
+def make_backend(
+    name: str = "kmer",
+    *,
+    threads: int | None = None,
+    max_kmer_genomes: int | None = DEFAULT_MAX_KMER_GENOMES,
+    **kwargs: object,
+) -> KmerBackend | UnitigCallerBackend:
+    """Backend factory: ``kmer`` (default), ``unitig-caller``, or ``auto``.
+
+    ``auto`` picks unitig-caller when it is on ``PATH`` and the k-mer backend
+    otherwise. ``threads`` goes to both backends (worker processes /
+    ``--threads``); ``max_kmer_genomes`` is the k-mer backend's size guard;
+    other keyword arguments (``k``, ``min_freq``, ...) go to both.
+    """
     key = name.strip().lower().replace("_", "-")
     if key == "kmer":
-        return KmerBackend(**kwargs)  # type: ignore[arg-type]
+        return KmerBackend(max_genomes=max_kmer_genomes, threads=threads, **kwargs)  # type: ignore[arg-type]
     if key in ("unitig-caller", "unitigcaller"):
-        return UnitigCallerBackend(**kwargs)  # type: ignore[arg-type]
+        return UnitigCallerBackend(threads=threads, **kwargs)  # type: ignore[arg-type]
     if key == "auto":
-        cli = UnitigCallerBackend(**kwargs)  # type: ignore[arg-type]
+        cli = UnitigCallerBackend(threads=threads, **kwargs)  # type: ignore[arg-type]
         if cli.available():
+            logger.info("unitig-caller found on PATH; using it")
             return cli
         logger.info("unitig-caller not on PATH; using the pure-Python k-mer backend")
-        return KmerBackend(**kwargs)  # type: ignore[arg-type]
+        return KmerBackend(max_genomes=max_kmer_genomes, threads=threads, **kwargs)  # type: ignore[arg-type]
     raise ValueError(f"unknown unitig backend {name!r}; expected kmer, unitig-caller or auto")
 
 
@@ -1139,18 +1396,129 @@ def _rows_frame(train_ids: Sequence[str], query_ids: Sequence[str], split_of: Ma
     )
 
 
-def _index_table(kmer_set: KmerSet, train_frequency: np.ndarray) -> pa.Table:
+def _index_schema() -> pa.Schema:
+    """Arrow schema of ``unitigs_<SPECIES>_index.parquet`` (:data:`INDEX_COLUMNS`)."""
+    return pa.schema(
+        [
+            pa.field("col_index", pa.int64()),
+            pa.field("pattern_id", pa.string()),
+            pa.field("n_unitigs", pa.int64()),
+            pa.field("unitig_sequences", pa.list_(pa.string())),
+            pa.field("train_frequency", pa.float64()),
+        ]
+    )
+
+
+def _iter_index_batches(
+    kmer_set: KmerSet, train_frequency: np.ndarray, batch_kmers: int = INDEX_BATCH_KMERS
+) -> Iterator[pa.RecordBatch]:
+    """Index rows in pattern order, in record batches of about ``batch_kmers`` member k-mers.
+
+    Member sequences are decoded straight into an Arrow string buffer (``k``
+    ASCII bytes per k-mer) -- no Python ``str`` per k-mer -- so memory per batch
+    is about ``batch_kmers x (k + 16)`` bytes whatever the size of the set.
+    """
     n = kmer_set.n_patterns
+    freq = np.asarray(train_frequency, dtype=np.float64).ravel()
+    if freq.size != n:
+        raise ValueError(f"train_frequency has {freq.size} values for {n} patterns")
+    if batch_kmers < 1:
+        raise ValueError("batch_kmers must be positive")
+    schema = _index_schema()
     sizes = kmer_set.pattern_sizes()
-    seqs = kmer_set.member_sequences()
-    return pa.table(
+    order, bounds = kmer_set.member_order()
+    k = kmer_set.k
+    p0 = 0
+    while p0 < n:
+        p1 = int(np.searchsorted(bounds, bounds[p0] + batch_kmers, side="right")) - 1
+        p1 = min(max(p1, p0 + 1), n)  # at least one pattern per batch
+        lo, hi = int(bounds[p0]), int(bounds[p1])
+        m = hi - lo
+        if m * k >= 2**31:  # pragma: no cover - one pattern with > 69M k-mers
+            raise ValueError(f"pattern batch of {m} k-mers is too large for one Arrow string array")
+        letters = _decode_letters(kmer_set.kmers[order[lo:hi]], k).reshape(-1)
+        offsets = np.arange(m + 1, dtype=np.int32) * np.int32(k)
+        strings = pa.Array.from_buffers(pa.string(), m, [None, pa.py_buffer(offsets), pa.py_buffer(letters)])
+        member_offsets = (bounds[p0 : p1 + 1] - lo).astype(np.int32)
+        sequences = pa.ListArray.from_arrays(pa.array(member_offsets, pa.int32()), strings)
+        yield pa.record_batch(
+            [
+                pa.array(np.arange(p0, p1, dtype=np.int64), pa.int64()),
+                pa.array([pattern_id(i) for i in range(p0, p1)], pa.string()),
+                pa.array(np.asarray(sizes[p0:p1], dtype=np.int64), pa.int64()),
+                sequences,
+                pa.array(freq[p0:p1], pa.float64()),
+            ],
+            schema=schema,
+        )
+        p0 = p1
+
+
+def _write_index(path: Path, kmer_set: KmerSet, train_frequency: np.ndarray, batch_kmers: int = INDEX_BATCH_KMERS) -> None:
+    """Write the pattern index parquet batch by batch (see :func:`_iter_index_batches`)."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    schema = _index_schema()
+    with pq.ParquetWriter(target, schema) as writer:
+        n_batches = 0
+        for batch in _iter_index_batches(kmer_set, train_frequency, batch_kmers):
+            writer.write_batch(batch)
+            n_batches += 1
+        if n_batches == 0:
+            writer.write_table(schema.empty_table())
+
+
+def _light_index(kmer_set: KmerSet, train_frequency: np.ndarray) -> pd.DataFrame:
+    """The pattern index without member sequences (:data:`LOAD_INDEX_COLUMNS`), built in memory."""
+    n = kmer_set.n_patterns
+    return pd.DataFrame(
         {
-            "col_index": pa.array(np.arange(n, dtype=np.int64), pa.int64()),
-            "pattern_id": pa.array(kmer_set.pattern_ids(), pa.string()),
-            "n_unitigs": pa.array(sizes, pa.int64()),
-            "unitig_sequences": pa.array(seqs, pa.list_(pa.string())),
-            "train_frequency": pa.array(np.asarray(train_frequency, dtype=np.float64), pa.float64()),
-        }
+            "col_index": np.arange(n, dtype=np.int64),
+            "pattern_id": pd.array(kmer_set.pattern_ids(), dtype="str"),
+            "n_unitigs": np.array(kmer_set.pattern_sizes(), dtype=np.int64),
+            "train_frequency": np.asarray(train_frequency, dtype=np.float64),
+        },
+        columns=list(LOAD_INDEX_COLUMNS),
+    )
+
+
+def _query_rows(
+    kmer_set: KmerSet, fastas: Sequence[str], threads: int | None, species: str
+) -> sp.csr_matrix:
+    """CSR ``int8`` pattern rows of ``fastas`` queried against the frozen set (in input order).
+
+    Same calls as :func:`query_kmer_set`, computed in worker processes that share
+    one memory-mapped copy of the set. Only non-zero columns are kept, so the
+    block is assembled directly as CSR (never a dense ``n x patterns`` array).
+    """
+    n_patterns = kmer_set.n_patterns
+    indptr = np.zeros(len(fastas) + 1, dtype=np.int64)
+    parts: list[np.ndarray] = []
+    workers = parallel.worker_count(threads, len(fastas))
+    shared = {
+        "kmers": kmer_set.kmers,
+        "pattern_col": kmer_set.pattern_col,
+        "sizes": np.asarray(kmer_set.pattern_sizes()),
+    }
+    try:
+        with parallel.share_arrays(shared, enabled=workers > 1) as spec:
+            results = parallel.ordered_map(
+                _query_task,
+                [(p, kmer_set.k) for p in fastas],
+                workers=workers,
+                initializer=_init_worker,
+                initargs=(spec, {"presence_fraction": kmer_set.presence_fraction}),
+            )
+            for i, cols in enumerate(results, start=1):
+                parts.append(cols)
+                indptr[i] = indptr[i - 1] + cols.size
+                if i % 100 == 0 or i == len(fastas):
+                    logger.info("%s: queried %d/%d genomes", species, i, len(fastas))
+    finally:
+        _WORKER_STATE.clear()
+    indices = np.concatenate(parts) if parts else np.empty(0, dtype=np.int32)
+    return sp.csr_matrix(
+        (np.ones(indices.size, dtype=np.int8), indices, indptr), shape=(len(fastas), n_patterns), dtype=np.int8
     )
 
 
@@ -1160,6 +1528,8 @@ def build(
     species: str,
     backend: UnitigBackend | None = None,
     droplog: DropLog | None = None,
+    *,
+    threads: int | None = None,
 ) -> UnitigBuild:
     """Build the unitig/k-mer feature files for one species.
 
@@ -1173,13 +1543,19 @@ def build(
         paths: Project paths.
         config: Loaded ``Config`` (optional; used to validate the species key).
         species: 5-letter species key.
-        backend: Build backend; ``None`` -> :class:`KmerBackend`.
+        backend: Build backend; ``None`` -> :class:`KmerBackend` (with ``threads``).
         droplog: Stage drop log; a local one is created when ``None``.
+        threads: Worker processes for querying the non-training genomes
+            (``None`` = all cores). Results do not depend on it.
+
+    Returns:
+        The build summary; ``index`` holds the pattern index *without* member
+        sequences (read ``index_path`` for those).
     """
     key = species.strip().upper()
     if config is not None and hasattr(config, "species") and key not in config.species:
         raise ValueError(f"unknown species {species!r}; configured: {sorted(config.species)}")
-    be = backend or KmerBackend()
+    be = backend or KmerBackend(threads=threads)
     log = droplog if droplog is not None else DropLog(STAGE)
 
     train_fastas, query_fastas, genomes = training_and_query_genomes(paths, key, log)
@@ -1214,23 +1590,10 @@ def build(
     # Query every other QC-passing genome against the frozen set.
     query_ids = list(query_fastas)
     n_patterns = kmer_set.n_patterns
-    # One pattern vector per genome; only its nonzero columns are kept so the
-    # queried block is assembled directly as CSR (never a dense n x patterns array).
-    q_indptr = np.zeros(len(query_ids) + 1, dtype=np.int64)
-    q_index_parts: list[np.ndarray] = []
-    for i, gid in enumerate(query_ids, start=1):
-        cols = np.flatnonzero(query_kmer_set(kmer_set, query_fastas[gid])).astype(np.int32)
-        q_index_parts.append(cols)
-        q_indptr[i] = q_indptr[i - 1] + cols.size
-        if i % 100 == 0 or i == len(query_ids):
-            logger.info("%s: queried %d/%d genomes", key, i, len(query_ids))
     if query_ids:
-        q_indices = np.concatenate(q_index_parts) if q_index_parts else np.empty(0, dtype=np.int32)
-        queried = sp.csr_matrix(
-            (np.ones(q_indices.size, dtype=np.int8), q_indices, q_indptr),
-            shape=(len(query_ids), n_patterns), dtype=np.int8,
-        )
+        queried = _query_rows(kmer_set, [str(query_fastas[g]) for g in query_ids], threads, key)
         matrix = sp.vstack([result.matrix, queried], format="csr", dtype=np.int8)
+        del queried
     else:
         matrix = sp.csr_matrix(result.matrix, dtype=np.int8)
     matrix.sort_indices()
@@ -1243,8 +1606,6 @@ def build(
         raise ContractViolation(
             f"{key}: {len(built_not_train)} non-train genomes were used to build the k-mer set", STAGE
         )
-    index_table = _index_table(kmer_set, result.train_frequency)
-
     matrix_path = paths.unitigs(key)
     rows_path = paths.unitig_rows(key)
     index_path = paths.unitig_index(key)
@@ -1252,7 +1613,7 @@ def build(
     with matrix_path.open("wb") as fh:
         sp.save_npz(fh, matrix, compressed=True)
     write_parquet(rows, rows_path)
-    pq.write_table(index_table, index_path)
+    _write_index(index_path, kmer_set, result.train_frequency)
     save_kmer_set(kmers_path, kmer_set)
     logger.info(
         "%s: wrote unitig matrix %s (%d built + %d queried rows x %d patterns; %d/%d k-mers kept; sha1 %s)",
@@ -1273,7 +1634,7 @@ def build(
         index_path=index_path,
         kmers_path=kmers_path,
         rows=rows,
-        index=index_table.to_pandas(),
+        index=_light_index(kmer_set, result.train_frequency),
     )
 
 
@@ -1282,6 +1643,9 @@ def run(
     config: object | None,
     species: Iterable[str] | None = None,
     backend: str | UnitigBackend = "kmer",
+    *,
+    max_kmer_genomes: int = DEFAULT_MAX_KMER_GENOMES,
+    threads: int | None = None,
 ) -> pd.DataFrame:
     """Stage entry point: build unitig features for every species with training genomes.
 
@@ -1290,6 +1654,11 @@ def run(
         config: Loaded ``Config`` (restricts species to configured keys when given).
         species: Species keys to build; default = every species in ``splits.parquet``.
         backend: Backend name (``kmer``, ``unitig-caller``, ``auto``) or instance.
+        max_kmer_genomes: Size guard of the pure-Python k-mer backend: a species
+            with more training genomes raises :class:`TooManyGenomesForKmerBackend`
+            (CLI ``--unitig-max-kmer-genomes``). Ignored for a backend instance.
+        threads: Worker processes for per-genome work and ``unitig-caller
+            --threads`` (``None`` = all cores; CLI ``--unitig-threads``).
 
     Returns:
         One summary row per species (``species, backend, n_train, n_queried,
@@ -1297,7 +1666,10 @@ def run(
         training genomes are skipped with a warning. Writes
         ``drop_log_unitigs.csv``.
     """
-    be = make_backend(backend) if isinstance(backend, str) else backend
+    if isinstance(backend, str):
+        be = make_backend(backend, threads=threads, max_kmer_genomes=max_kmer_genomes)
+    else:
+        be = backend
     log = DropLog(STAGE)
     if species is None:
         found = read_parquet(paths.splits, columns=["species"])["species"].dropna().unique().tolist()
@@ -1320,7 +1692,9 @@ def run(
             records.append({"species": key, "backend": be.name, "n_train": 0, "n_queried": 0,
                             "n_kmers_total": 0, "n_kmers_kept": 0, "n_patterns": 0, "kmer_set_sha1": None})
             continue
-        summary = build(paths, config, key, backend=be, droplog=log)
+        if isinstance(be, KmerBackend):
+            be.check_size(len(train))  # fail before any FASTA is read
+        summary = build(paths, config, key, backend=be, droplog=log, threads=threads)
         records.append(summary.as_record())
     log.write(paths.drop_log(STAGE))
     frame = pd.DataFrame.from_records(
@@ -1332,12 +1706,25 @@ def run(
     return frame
 
 
-def load_unitigs(paths: Paths, species: str) -> tuple[sp.csr_matrix, pd.DataFrame, pd.DataFrame]:
-    """Load ``(matrix, rows, index)`` for a species (matrix stays sparse CSR int8)."""
+def load_unitigs(
+    paths: Paths,
+    species: str,
+    *,
+    index_columns: Sequence[str] | None = LOAD_INDEX_COLUMNS,
+) -> tuple[sp.csr_matrix, pd.DataFrame, pd.DataFrame]:
+    """Load ``(matrix, rows, index)`` for a species (matrix stays sparse CSR int8).
+
+    Args:
+        paths: Project paths.
+        species: Species key.
+        index_columns: Index columns to read. The default skips
+            ``unitig_sequences`` (one decoded string per member k-mer -- by far
+            the largest column, and not needed for training); ``None`` reads all.
+    """
     key = species.strip().upper()
     matrix = sp.csr_matrix(sp.load_npz(paths.unitigs(key)), dtype=np.int8)
     rows = read_parquet(paths.unitig_rows(key))
-    index = read_parquet(paths.unitig_index(key))
+    index = read_parquet(paths.unitig_index(key), columns=None if index_columns is None else list(index_columns))
     if matrix.shape[0] != len(rows):
         raise ContractViolation(f"{key}: matrix has {matrix.shape[0]} rows but rows.parquet has {len(rows)}", STAGE)
     if matrix.shape[1] != len(index):

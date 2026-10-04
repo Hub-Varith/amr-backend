@@ -30,11 +30,20 @@ class ModelRegistry:
         return self.configs_parsed and self.models_loaded
 
     def load(self) -> None:
-        """Parse configs and load models. Failures leave the service up but not ready."""
+        """Parse configs and load models. Failures leave the service up but not ready.
+
+        Any ``Exception`` from bundle loading is caught and logged (a truncated
+        ``model.ubj`` raises ``XGBoostError``, a garbage ``.npz`` ``ValueError``, a
+        malformed ``params.json`` ``KeyError``, ...): ``/health`` keeps answering and
+        ``/ready`` reports 503. ``BaseException`` (``KeyboardInterrupt``, ``SystemExit``)
+        is not caught.
+        """
         logger.info(
             "Registry loading",
             extra={"configs_dir": str(self.settings.configs_dir), "models_dir": str(self.settings.models_dir)},
         )
+        self.models_loaded = False
+        self.drugs_by_species = {}
         self.configs_parsed = self._parse_configs()
         try:
             self.pipeline.load()
@@ -47,6 +56,15 @@ class ModelRegistry:
         except (Genome2MicError, ConfigError) as error:
             # A present-but-malformed bundle or config must not crash startup; stay up but not ready.
             logger.warning("Models not loaded: bundle or config malformed", extra={"error": str(error)})
+        except Exception as error:
+            # Any other loader failure (corrupt binary, missing key, out of memory, ...): same
+            # outcome, logged at ERROR with the traceback so the operator can find the bad file.
+            logger.exception(
+                "Models not loaded: unexpected error while loading the model bundle",
+                extra={"error": f"{type(error).__name__}: {error}"},
+            )
+        if not self.models_loaded:
+            self.drugs_by_species = {}
         logger.info(
             "Registry loaded",
             extra={"configs_parsed": self.configs_parsed, "models_loaded": self.models_loaded},

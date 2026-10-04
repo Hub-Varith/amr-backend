@@ -405,7 +405,87 @@ def test_module_exports_everything_design_lists() -> None:
         assert hasattr(mic, name), name
 
 
+# --------------------------------------------------------- snap_reported_mic
+# Panels and gradient strips print 2**-6 .. 2**-10 as 0.016, 0.032, 0.064, 0.008, 0.004,
+# 0.002, 0.001 (about 2.4% ABOVE the power of two) and 2**-3 .. 2**-6 as 0.12, 0.06,
+# 0.03, 0.015 (about 4% below). Ingest snaps those renderings before the interval rule.
+SNAPPED_RENDERINGS = [
+    (0.016, -6), (0.015, -6),
+    (0.032, -5), (0.03, -5),
+    (0.064, -4), (0.06, -4),
+    (0.12, -3), (0.125, -3),
+    (0.008, -7), (0.004, -8), (0.002, -9), (0.001, -10),
+]
+GRADIENT_HALF_STEPS = [0.023, 0.047, 0.094, 0.19, 0.38, 0.75, 1.5, 3, 6, 12, 24, 48]
+
+
+class TestSnapReportedMic:
+    @pytest.mark.parametrize("value, k", SNAPPED_RENDERINGS)
+    def test_decimal_renderings_snap_to_the_power_of_two(self, value: float, k: int) -> None:
+        snapped = mic.snap_reported_mic(value)
+        assert snapped == 2.0**k
+        assert type(snapped) is float
+
+    @pytest.mark.parametrize("value", GRADIENT_HALF_STEPS)
+    def test_gradient_half_steps_are_unchanged(self, value: float) -> None:
+        assert mic.snap_reported_mic(value) == value
+
+    @pytest.mark.parametrize("value", DOUBLING_GRID)
+    def test_exact_powers_are_unchanged(self, value: float) -> None:
+        assert mic.snap_reported_mic(value) == value
+
+    def test_numeric_strings_are_accepted(self) -> None:
+        assert mic.snap_reported_mic("0.016") == 2.0**-6
+
+    @pytest.mark.parametrize("bad", [0, -1, float("nan"), None, "abc", INF])
+    def test_invalid_values_raise(self, bad: object) -> None:
+        with pytest.raises(ValueError):
+            mic.snap_reported_mic(bad)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("value, k", SNAPPED_RENDERINGS)
+    @pytest.mark.parametrize("sign", ["=", "<=", ">=", ">"])
+    def test_interval_rule_after_snapping_uses_the_intended_step(self, sign: str, value: float, k: int) -> None:
+        g = 2.0**k
+        expected = {
+            "=": (g / 2, g, "interval"),
+            "<=": (0.0, g, "left"),
+            ">=": (g / 2, INF, "right"),
+            ">": (g, INF, "right"),
+        }[sign]
+        assert interval_from_result(sign, mic.snap_reported_mic(value)) == expected
+
+    @pytest.mark.parametrize("value", GRADIENT_HALF_STEPS)
+    def test_half_steps_keep_their_grid_cell(self, value: float) -> None:
+        assert interval_from_result("=", mic.snap_reported_mic(value)) == interval_from_result("=", value)
+
+    def test_grid_tolerance_is_not_loosened_globally(self) -> None:
+        # The snap is an ingest-only step; the rounding functions stay exact.
+        assert round_up_to_step(0.016) == 2.0**-5
+        assert interval_from_result("=", 0.016) == (2.0**-6, 2.0**-5, "interval")
+
+
 def test_exact_interval_mask_requires_one_doubling_step():
     lo = np.array([4.0, 2.0, 0.0, 32.0, np.nan, 0.0625])
     hi = np.array([8.0, 8.0, 0.25, np.inf, 8.0, 0.125])
     assert mic.exact_interval_mask(lo, hi).tolist() == [True, False, False, False, False, True]
+
+
+def test_lab_exact_mask_excludes_disk_diffusion():
+    """A one-step interval from disk diffusion (CLSI meropenem I = (1, 2]) is not a measured MIC."""
+    lo = np.array([4.0, 1.0, 1.0, 1.0, 0.0, 2.0, 1.0])
+    hi = np.array([8.0, 2.0, 2.0, 2.0, 2.0, 8.0, 2.0])
+    method = np.array(["dilution", "disk", "gradient", None, "disk", "dilution", " Disk "], dtype=object)
+    assert mic.lab_exact_mask(lo, hi, method).tolist() == [True, False, True, True, False, False, False]
+    # No method information: the interval rule alone.
+    assert mic.lab_exact_mask(lo, hi).tolist() == mic.exact_interval_mask(lo, hi).tolist()
+
+
+def test_lab_exact_mask_accepts_pandas_nullable_strings():
+    import pandas as pd
+
+    method = pd.array(["disk", pd.NA, "dilution"], dtype="string")
+    lo = np.array([1.0, 1.0, 1.0])
+    hi = np.array([2.0, 2.0, 2.0])
+    assert mic.lab_exact_mask(lo, hi, method).tolist() == [False, True, True]
+    with pytest.raises(ValueError, match="same length"):
+        mic.lab_exact_mask(lo, hi, ["disk"])

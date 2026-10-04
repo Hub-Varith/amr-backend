@@ -9,13 +9,19 @@ crash):
 * ``results/metrics_by_distance.parquet`` EA / VME by nearest-training-distance bin
 * ``data/processed/label_counts.csv``, ``pairs_kept.csv``, ``drop_log_*.csv``,
   ``lineages.parquet``, ``splits.parquet``, ``known_amr_columns.csv``,
-  ``unitigs_<SPECIES>_index.parquet``, ``labels.parquet`` (fallback for counts)
+  ``labels.parquet`` (fallback for counts)
+* ``data/processed/unitigs_<SPECIES>_index.parquet`` -- read with pyarrow column
+  selection and a ``pattern_id`` filter, so only the patterns the report labels (the
+  top-:data:`~genome2mic.eval.figures.TOP_K_FEATURES` importances) are ever
+  materialised; the full ``list<string>`` index can be many GB at scale.
 * ``models/<SPECIES>/<drug>/importance.json``  ``[{feature, gain}, ...]``
 
 Report layout: synthetic-data banner (when ``data/raw/SYNTHETIC_DATA.md`` exists),
 the verbatim API disclaimer, how to read the tables, the data counts, per species x
-drug metrics tables (test, then CV, then external / LOLO; VME column first), the
-figures, and the automated leakage checklist from :mod:`genome2mic.eval.leakage`.
+drug metrics tables (test, then CV, then external / LOLO; VME column first; the
+categorical metrics as reported, then re-derived under the call breakpoint), the
+figures (stamped ``SYNTHETIC DATA`` on a synthetic run), and the automated leakage
+checklist from :mod:`genome2mic.eval.leakage`.
 
 Wording rules: the metric targets are *figures commonly used in AST device
 evaluation*, not thresholds met and not regulatory limits; nothing here implies a
@@ -35,10 +41,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from genome2mic.api.constants import DISCLAIMER
 from genome2mic.droplog import DropLog
 from genome2mic.eval import figures, leakage
+from genome2mic.mic import lab_exact_mask
 from genome2mic.paths import Paths
 
 logger = logging.getLogger(__name__)
@@ -74,6 +82,53 @@ SYNTHETIC_BANNER = (
     "real-world performance and must not be quoted as such."
 )
 
+EXACT_ROWS_TEXT = (
+    "**EA**, **exact agreement** and **band coverage** are computed only on rows whose lab result "
+    "is one exact doubling step (e.g. `8` = (4, 8] mg/L); censored results (`<=`, `>`), "
+    "multi-step S/I/R-only intervals and disk-diffusion results (a zone diameter, never an MIC, even "
+    "when the I range is one step such as CLSI meropenem (1, 2]) are left out, and the `n` shown next "
+    "to each of these rates is that number of exact rows. Band coverage is therefore measured on the "
+    "same kind of rows the conformal band is calibrated on."
+)
+"""How-to-read text for the exact-row rule behind EA / exact agreement / band coverage."""
+
+CV_COVERAGE_NOTE = (
+    "CV coverage is the conformal calibration set (in-sample by construction); only test/external/LOLO "
+    "coverage is an evaluation."
+)
+"""Footnote under every cross-validation metrics table: the conformal ``q`` is the quantile of
+exactly these out-of-fold residuals, so CV band coverage is ~90 % by construction."""
+
+CV_BAND_HEADER = "Band coverage % (90% band; exact lab MICs; in-sample, see note)"
+"""Band-coverage header of the CV tables (marks the column the footnote refers to)."""
+
+REDERIVED_TEXT = (
+    "VME, ME, minor error and CA are shown twice: **as reported** compares the predicted category "
+    "with the lab's own S/I/R, assigned under the lab's standard and year (which may differ from "
+    "the call breakpoint); **re-derived** compares it with the lab MIC re-classified under the same "
+    "call breakpoint as the prediction (rows whose lab interval straddles a breakpoint are left out)."
+)
+"""How-to-read sentence for the as-reported vs re-derived categorical metrics."""
+
+UNITIG_BUILD_NOTE = (
+    "Unitig patterns are built from every train genome, including the genomes held out within CV "
+    "folds and LOLO runs; only test genomes are queried against the frozen set. No labels enter the "
+    "build and per-fold selection recomputes frequency filters and ranking on the fit rows only, so "
+    "this is not label leakage, but CV and LOLO rows use the build-time encoding rather than the "
+    "query path a new genome takes and may read slightly optimistic."
+)
+"""Leakage-checklist note on the unitig build set (review finding 10)."""
+
+LEDGER_NOTE = (
+    "Rule 8 (test set touched once) is checked against `results/test_ledger.csv`, which `train` "
+    "appends to every time it scores the test rows of a pair: each species x drug must carry one "
+    "run_id (training parameters + splits) and one inputs_sha1 (labels, features, unitig set, "
+    "drug/breakpoint configs, model code). This shows the test rows were only ever scored by one "
+    "configuration on one set of inputs; it cannot show that nobody looked at test metrics before "
+    "settling on that configuration."
+)
+"""Leakage-checklist note on what the test-ledger check does and does not prove (finding 12)."""
+
 
 # --------------------------------------------------------------------------- #
 # Loaded inputs
@@ -94,6 +149,7 @@ class ReportInputs:
     splits: pd.DataFrame | None = None
     known_columns: pd.DataFrame | None = None
     unitig_index: dict[str, pd.DataFrame] = field(default_factory=dict)
+    """Per species: only the index rows of the unitig patterns the report labels (not the full index)."""
     importances: dict[tuple[str, str], list[dict[str, Any]]] = field(default_factory=dict)
     synthetic: bool = False
     found: dict[str, bool] = field(default_factory=dict)
@@ -175,7 +231,8 @@ def _counts_from_labels(labels: pd.DataFrame) -> pd.DataFrame:
     sir = labels["sir"].astype("str") if "sir" in labels.columns else pd.Series([None] * len(labels), index=labels.index, dtype="str")
     lower = pd.to_numeric(labels["mic_lower"], errors="coerce")
     upper = pd.to_numeric(labels["mic_upper"], errors="coerce")
-    exact = (lower > 0) & np.isfinite(upper)
+    method = labels["method"].to_numpy(dtype=object) if "method" in labels.columns else None
+    exact = pd.Series(lab_exact_mask(lower.to_numpy(dtype=float), upper.to_numpy(dtype=float), method), index=labels.index)
     work = labels.assign(
         _r=(sir == "R").astype(int),
         _s=(sir == "S").astype(int),
@@ -193,6 +250,45 @@ def _counts_from_labels(labels: pd.DataFrame) -> pd.DataFrame:
         n_distinct_mic=("_mic", "nunique"),
     ).reset_index()
     return counts.assign(n_censored=counts["n"] - counts["n_exact"])
+
+
+UNITIG_INDEX_COLUMNS: tuple[str, ...] = ("pattern_id", "n_unitigs", "train_frequency", "unitig_sequences")
+"""Unitig index columns :func:`genome2mic.eval.figures.feature_label` uses (``col_index`` is never read)."""
+
+
+def displayed_unitig_patterns(importances: Mapping[tuple[str, str], Sequence[Mapping[str, Any]]]) -> dict[str, set[str]]:
+    """Per species, the ``u_*`` ids among the top-:data:`figures.TOP_K_FEATURES` gains of any drug.
+
+    These are the only unitig patterns the report labels, so the only index rows it reads.
+    """
+    out: dict[str, set[str]] = {}
+    for (species, _drug), importance in importances.items():
+        top = figures.top_features(importance, figures.TOP_K_FEATURES)
+        ids = {str(f) for f in top["feature"] if str(f).startswith("u_")}
+        out.setdefault(species, set()).update(ids)
+    return out
+
+
+def read_unitig_index(path: Path, pattern_ids: Iterable[str]) -> pd.DataFrame:
+    """The index rows of ``pattern_ids`` only, with only :data:`UNITIG_INDEX_COLUMNS`.
+
+    Uses ``pq.read_table(columns=..., filters=[("pattern_id", "in", ...)])``: the scan
+    streams batches and keeps only matching rows (row groups whose ``pattern_id``
+    statistics exclude every wanted id are skipped), so ``unitig_sequences`` is
+    materialised for the displayed patterns alone. With no wanted ids only the schema
+    is read. Raises ``ValueError`` when the file has no ``pattern_id`` column.
+    """
+    names = pq.read_schema(path).names
+    if "pattern_id" not in names:
+        raise ValueError(f"{path.name} has no pattern_id column")
+    columns = [c for c in UNITIG_INDEX_COLUMNS if c in names]
+    wanted = sorted({str(p) for p in pattern_ids})
+    if not wanted:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in columns})
+    table = pq.read_table(path, columns=columns, filters=[("pattern_id", "in", wanted)])
+    frame = table.to_pandas()
+    logger.info("read %d of the requested %d unitig pattern(s) from %s", len(frame), len(wanted), path.name)
+    return frame
 
 
 def load_inputs(paths: Paths) -> ReportInputs:
@@ -236,12 +332,6 @@ def load_inputs(paths: Paths) -> ReportInputs:
     inputs.lineages = _load(inputs, "lineages.parquet", paths.lineages, _read_parquet)
     inputs.splits = _load(inputs, "splits.parquet", paths.splits, _read_parquet)
     inputs.known_columns = _load(inputs, "known_amr_columns.csv", paths.known_amr_columns, _read_csv)
-    if paths.processed_dir.is_dir():
-        for file in sorted(paths.processed_dir.glob("unitigs_*_index.parquet")):
-            species = file.stem.removeprefix("unitigs_").removesuffix("_index")
-            frame = _load(inputs, file.name, file, _read_parquet)
-            if frame is not None:
-                inputs.unitig_index[species] = frame
     if paths.models_dir.is_dir():
         for file in sorted(paths.models_dir.glob("*/*/importance.json")):
             species, drug = file.parent.parent.name, file.parent.name
@@ -250,6 +340,15 @@ def load_inputs(paths: Paths) -> ReportInputs:
                 inputs.importances[(species, drug)] = content
     if not inputs.importances:
         inputs.notes.append("No `models/<SPECIES>/<drug>/importance.json` found; feature-importance figures omitted.")
+    # The index is read after the importances: only the patterns they display are loaded.
+    displayed = displayed_unitig_patterns(inputs.importances)
+    if paths.processed_dir.is_dir():
+        for file in sorted(paths.processed_dir.glob("unitigs_*_index.parquet")):
+            species = file.stem.removeprefix("unitigs_").removesuffix("_index")
+            wanted = displayed.get(species, set())
+            frame = _load(inputs, file.name, file, lambda p, w=wanted: read_unitig_index(p, w))
+            if frame is not None:
+                inputs.unitig_index[species] = frame
     return inputs
 
 
@@ -263,6 +362,7 @@ def build_figures(paths: Paths, inputs: ReportInputs, droplog: DropLog | None = 
     out: dict[str, Path] = {}
     notes: list[str] = []
     figures_dir = paths.figures_dir
+    syn = inputs.synthetic  # stamp every figure of a synthetic run
 
     def attempt(stem: str, func: Callable[[], Path | None]) -> None:
         try:
@@ -278,11 +378,11 @@ def build_figures(paths: Paths, inputs: ReportInputs, droplog: DropLog | None = 
 
     for species, drug in inputs.pairs():
         stem = f"vme_me_by_model_{species}_{drug}"
-        attempt(stem, lambda s=stem, sp=species, d=drug: figures.vme_me_by_model(inputs.metrics, sp, d, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species, d=drug: figures.vme_me_by_model(inputs.metrics, sp, d, figures_dir / f"{s}.png", synthetic=syn))
         stem = f"ea_ca_by_model_{species}_{drug}"
-        attempt(stem, lambda s=stem, sp=species, d=drug: figures.ea_ca_by_model(inputs.metrics, sp, d, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species, d=drug: figures.ea_ca_by_model(inputs.metrics, sp, d, figures_dir / f"{s}.png", synthetic=syn))
         stem = f"mic_confusion_{species}_{drug}"
-        attempt(stem, lambda s=stem, sp=species, d=drug: figures.mic_confusion(inputs.preds, sp, d, figures_dir / f"{s}.png", droplog=droplog))
+        attempt(stem, lambda s=stem, sp=species, d=drug: figures.mic_confusion(inputs.preds, sp, d, figures_dir / f"{s}.png", droplog=droplog, synthetic=syn))
         stem = f"feature_importance_{species}_{drug}"
         attempt(
             stem,
@@ -293,17 +393,18 @@ def build_figures(paths: Paths, inputs: ReportInputs, droplog: DropLog | None = 
                 figures_dir / f"{s}.png",
                 unitig_index=inputs.unitig_index.get(sp),
                 known_columns=inputs.known_columns,
+                synthetic=syn,
             ),
         )
     for species in inputs.species():
         stem = f"band_coverage_{species}"
-        attempt(stem, lambda s=stem, sp=species: figures.band_coverage(inputs.metrics, sp, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species: figures.band_coverage(inputs.metrics, sp, figures_dir / f"{s}.png", synthetic=syn))
         stem = f"accuracy_vs_distance_{species}"
-        attempt(stem, lambda s=stem, sp=species: figures.accuracy_vs_distance(inputs.metrics_by_distance, sp, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species: figures.accuracy_vs_distance(inputs.metrics_by_distance, sp, figures_dir / f"{s}.png", synthetic=syn))
         stem = f"label_counts_{species}"
-        attempt(stem, lambda s=stem, sp=species: figures.label_counts(inputs.label_counts, sp, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species: figures.label_counts(inputs.label_counts, sp, figures_dir / f"{s}.png", synthetic=syn))
         stem = f"lineage_clusters_{species}"
-        attempt(stem, lambda s=stem, sp=species: figures.lineage_clusters(inputs.lineages, inputs.splits, sp, figures_dir / f"{s}.png"))
+        attempt(stem, lambda s=stem, sp=species: figures.lineage_clusters(inputs.lineages, inputs.splits, sp, figures_dir / f"{s}.png", synthetic=syn))
     return out, notes
 
 
@@ -379,22 +480,53 @@ METRICS_HEADERS: tuple[str, ...] = (
     "ME % (predicted R, lab S; of lab S)",
     "Minor error % (of categorised)",
     "CA % (same S/I/R)",
-    "EA % (within +/-1 step; exact MICs)",
-    "Exact agreement %",
+    "EA % (within +/-1 step; exact lab MICs)",
+    "Exact agreement % (exact lab MICs)",
     "AUROC (R vs S)",
-    "Band coverage % (90% band)",
+    "Band coverage % (90% band; exact lab MICs)",
     "Band width (doubling steps)",
 )
-"""Column order of every metrics table: VME first after the key columns."""
+"""Column order of every metrics table: VME first after the key columns. Categorical
+columns use the lab S/I/R as reported; EA / exact agreement / band coverage use exact
+lab MICs and print that count (``n_exact`` / ``n_band``) as their ``n``."""
+
+REDERIVED_HEADERS: tuple[str, ...] = (
+    "Model",
+    "VME % re-derived (of lab R)",
+    "ME % re-derived (of lab S)",
+    "Minor error % re-derived",
+    "CA % re-derived",
+)
+"""Column order of the re-derived categorical table (lab MIC re-classified under the call breakpoint)."""
+
+_REDERIVED_RATE_COLUMNS: tuple[str, ...] = (
+    "vme_rate_rederived",
+    "me_rate_rederived",
+    "mine_rate_rederived",
+    "categorical_agreement_rederived",
+)
 
 
-def metrics_table(metrics: pd.DataFrame) -> str:
-    """One Markdown table for the rows of one species x drug x split, VME first, rates as % with n."""
+def _by_model_order(metrics: pd.DataFrame) -> pd.DataFrame:
     frame = metrics.copy()
     if "model" in frame.columns:
         order = figures.order_models(frame["model"])
         rank = {m: i for i, m in enumerate(order)}
         frame = frame.assign(_rank=frame["model"].astype("str").map(rank)).sort_values("_rank").drop(columns="_rank")
+    return frame
+
+
+def metrics_table(metrics: pd.DataFrame, *, in_sample_coverage: bool = False) -> str:
+    """One Markdown table for the rows of one species x drug x split, VME first, rates as % with n.
+
+    Every rate carries its own denominator: VME ``n_lab_r``, ME ``n_lab_s``, minor
+    error / CA ``n_cat``, EA / exact agreement ``n_exact``, band coverage ``n_band``
+    (``n`` for older metrics tables without ``n_band``). ``in_sample_coverage``
+    (cross-validation tables) marks the band-coverage header as in-sample
+    (:data:`CV_BAND_HEADER`); the caller prints :data:`CV_COVERAGE_NOTE` under the table.
+    """
+    frame = _by_model_order(metrics)
+    band_n = "n_band" if "n_band" in frame.columns else "n"
     rows = []
     for record in frame.to_dict(orient="records"):
         rows.append(
@@ -408,11 +540,60 @@ def metrics_table(metrics: pd.DataFrame) -> str:
                 fmt_pct(_get(record, "essential_agreement"), _get(record, "n_exact")),
                 fmt_pct(_get(record, "exact_agreement"), _get(record, "n_exact")),
                 _fmt_float(_get(record, "auroc"), 3),
-                fmt_pct(_get(record, "band_coverage"), _get(record, "n")),
+                fmt_pct(_get(record, "band_coverage"), _get(record, band_n)),
                 _fmt_float(_get(record, "band_width_steps"), 2),
             ]
         )
-    return md_table(METRICS_HEADERS, rows)
+    headers = METRICS_HEADERS
+    if in_sample_coverage:
+        headers = tuple(CV_BAND_HEADER if h.startswith("Band coverage") else h for h in METRICS_HEADERS)
+    return md_table(headers, rows)
+
+
+def rederived_metrics_table(metrics: pd.DataFrame) -> str | None:
+    """Categorical metrics against the re-derived lab S/I/R (VME first), or ``None``.
+
+    ``None`` when the metrics table predates the re-derived columns. When the columns
+    exist but no row could be re-derived (``n_cat_rederived == 0`` everywhere) a short
+    note is returned instead of a table of dashes.
+    """
+    if not set(_REDERIVED_RATE_COLUMNS).issubset(metrics.columns):
+        return None
+    frame = _by_model_order(metrics)
+    n_cat = pd.to_numeric(frame.get("n_cat_rederived", pd.Series(dtype=float)), errors="coerce").fillna(0)
+    if len(frame) and not (n_cat > 0).any():
+        return (
+            "_No lab S/I/R could be re-derived under the call breakpoint for these rows "
+            "(preds lack `lab_sir_rederived`, or every lab interval straddles a breakpoint)._"
+        )
+    rows = []
+    for record in frame.to_dict(orient="records"):
+        rows.append(
+            [
+                _get(record, "model"),
+                fmt_pct(_get(record, "vme_rate_rederived"), _get(record, "n_lab_r_rederived")),
+                fmt_pct(_get(record, "me_rate_rederived"), _get(record, "n_lab_s_rederived")),
+                fmt_pct(_get(record, "mine_rate_rederived"), _get(record, "n_cat_rederived")),
+                fmt_pct(_get(record, "categorical_agreement_rederived"), _get(record, "n_cat_rederived")),
+            ]
+        )
+    return md_table(REDERIVED_HEADERS, rows)
+
+
+def _metrics_tables(metrics: pd.DataFrame, *, in_sample_coverage: bool = False) -> list[str]:
+    """As-reported table, then (when available) the re-derived categorical table.
+
+    ``in_sample_coverage`` (the cross-validation tables) marks band coverage as
+    in-sample and adds :data:`CV_COVERAGE_NOTE` under the table: the conformal ``q``
+    is calibrated on those same out-of-fold rows.
+    """
+    parts = [metrics_table(metrics, in_sample_coverage=in_sample_coverage), ""]
+    if in_sample_coverage:
+        parts += [f"_Note: {CV_COVERAGE_NOTE}_", ""]
+    rederived = rederived_metrics_table(metrics)
+    if rederived is not None:
+        parts += ["Categorical metrics with the lab S/I/R re-derived from the lab MIC under the call breakpoint:", "", rederived, ""]
+    return parts
 
 
 def _image(report_path: Path, figure: Path, caption: str) -> str:
@@ -467,11 +648,15 @@ def render_markdown(
         "- **ME** (major error: predicted R, lab S) uses the lab-S rows as denominator; "
         "**minor error** has exactly one side I; **CA** is same S/I/R; **EA** is within +/-1 doubling step "
         "of an exact lab MIC; **exact agreement** is the same doubling step.",
-        "- Rates are shown as percentages with their denominator `n`. Band coverage is the share of lab MICs "
-        "inside the 90 % conformal band; band width is in doubling steps.",
+        f"- {EXACT_ROWS_TEXT}",
+        f"- {REDERIVED_TEXT}",
+        "- Rates are shown as percentages with their denominator `n`. Band coverage is the share of exact "
+        "lab MICs inside the 90 % conformal band; band width is in doubling steps over every row with a band. "
+        f"{CV_COVERAGE_NOTE}",
         f"- {TARGETS_TEXT}",
         "- `test set` = lineage-held-out genomes scored once at the end; `CV` = out-of-fold predictions on "
-        "the train split; external and leave-one-lineage-out (LOLO) sets are listed separately.",
+        "the train split; external and leave-one-lineage-out (LOLO) sets are listed separately. A LOLO "
+        "lineage is a train cluster refitted without that lineage, so its rows never overlap the test set.",
         "",
     ]
     if inputs.synthetic:
@@ -493,6 +678,7 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
     test = figures.subset(metrics, split="test")
     if test.empty:
         return []
+    with_rederived = set(_REDERIVED_RATE_COLUMNS).issubset(test.columns)
     rows = []
     for species, drug in sorted({(str(s), str(d)) for s, d in test[["species", "drug"]].drop_duplicates().itertuples(index=False)}):
         pair = figures.subset(test, species=species, drug=drug)
@@ -500,27 +686,32 @@ def _headline_section(inputs: ReportInputs) -> list[str]:
         if model is None:
             continue
         record = figures.subset(pair, model=model).iloc[0].to_dict()
-        rows.append(
-            [
-                species,
-                drug,
-                model,
-                fmt_pct(_get(record, "vme_rate"), _get(record, "n_lab_r")),
-                fmt_pct(_get(record, "me_rate"), _get(record, "n_lab_s")),
-                fmt_pct(_get(record, "categorical_agreement"), _get(record, "n_cat")),
-                fmt_pct(_get(record, "essential_agreement"), _get(record, "n_exact")),
-                _fmt_value(_get(record, "n")),
+        row = [
+            species,
+            drug,
+            model,
+            fmt_pct(_get(record, "vme_rate"), _get(record, "n_lab_r")),
+            fmt_pct(_get(record, "me_rate"), _get(record, "n_lab_s")),
+            fmt_pct(_get(record, "categorical_agreement"), _get(record, "n_cat")),
+        ]
+        if with_rederived:
+            row += [
+                fmt_pct(_get(record, "vme_rate_rederived"), _get(record, "n_lab_r_rederived")),
+                fmt_pct(_get(record, "me_rate_rederived"), _get(record, "n_lab_s_rederived")),
+                fmt_pct(_get(record, "categorical_agreement_rederived"), _get(record, "n_cat_rederived")),
             ]
-        )
+        row += [fmt_pct(_get(record, "essential_agreement"), _get(record, "n_exact")), _fmt_value(_get(record, "n"))]
+        rows.append(row)
     if not rows:
         return []
+    headers = ["Species", "Drug", "Model", "VME % as reported (of lab R)", "ME % as reported (of lab S)", "CA % as reported"]
+    if with_rederived:
+        headers += ["VME % re-derived (of lab R)", "ME % re-derived (of lab S)", "CA % re-derived"]
+    headers += ["EA % (exact lab MICs)", "n"]
     return [
         "## Headline: main model on the test set (VME first)",
         "",
-        md_table(
-            ["Species", "Drug", "Model", "VME % (of lab R)", "ME % (of lab S)", "CA %", "EA % (exact MICs)", "n"],
-            rows,
-        ),
+        md_table(headers, rows),
         "",
     ]
 
@@ -573,12 +764,15 @@ def _results_sections(
             for split, title in (("test", "Test set (lineage-held-out genomes, scored once)"), ("cv", "Cross-validation (out-of-fold, train split)")):
                 parts += [f"#### {title}", ""]
                 rows = figures.subset(pair, split=split)
-                parts += [metrics_table(rows) if not rows.empty else f"_No `{split}` rows in metrics.parquet for this pair._", ""]
+                if rows.empty:
+                    parts += [f"_No `{split}` rows in metrics.parquet for this pair._", ""]
+                else:
+                    parts += _metrics_tables(rows, in_sample_coverage=split == "cv")
             others = [s for s in pair["split"].astype("str").dropna().unique() if s not in PRIMARY_SPLITS]
             if others:
                 parts += ["#### External and leave-one-lineage-out sets", ""]
                 for split in sorted(others):
-                    parts += [f"**{figures.split_label(split)}** (`{split}`)", "", metrics_table(figures.subset(pair, split=split)), ""]
+                    parts += [f"**{figures.split_label(split)}** (`{split}`)", "", *_metrics_tables(figures.subset(pair, split=split))]
         for stem, caption in (
             (f"vme_me_by_model_{species}_{drug}", "VME and ME by model, test set"),
             (f"ea_ca_by_model_{species}_{drug}", "EA and CA by model, test set"),
@@ -633,6 +827,9 @@ def _leakage_section(checks: Sequence[Mapping[str, object]]) -> list[str]:
         "`NOT RUN` means the input needed for that check is missing. Fold-internal feature "
         "selection and calibration-on-validation-only are enforced in the training code and are "
         "not re-verifiable from outputs.",
+        "",
+        f"- {LEDGER_NOTE}",
+        f"- {UNITIG_BUILD_NOTE}",
         "",
         summary,
         "",
@@ -706,16 +903,25 @@ def run(paths: Paths, config: Any = None, *, make_figures: bool = True) -> Repor
 
 
 __all__ = [
+    "EXACT_ROWS_TEXT",
+    "LEDGER_NOTE",
     "METRICS_HEADERS",
     "RATE_COLUMNS",
+    "REDERIVED_HEADERS",
+    "REDERIVED_TEXT",
     "ReportInputs",
     "ReportOutput",
+    "UNITIG_BUILD_NOTE",
+    "UNITIG_INDEX_COLUMNS",
     "build_figures",
+    "displayed_unitig_patterns",
     "fmt_pct",
     "frame_table",
     "load_inputs",
     "md_table",
     "metrics_table",
+    "read_unitig_index",
+    "rederived_metrics_table",
     "render_markdown",
     "run",
 ]

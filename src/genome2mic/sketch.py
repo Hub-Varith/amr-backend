@@ -26,17 +26,27 @@ with ``j == 0 -> 1.0`` and identical sketches ``-> 0.0``.
 All public functions are pure. Sketches are 1-D ``uint64`` arrays, sorted
 ascending with no duplicates; a sketch collection is a 2-D ``uint64`` array
 of shape ``(n_genomes, s)``.
+
+Scale
+-----
+``pairwise_distances`` returns a dense ``n x n`` matrix and is meant for small
+collections only (``16 n^2`` bytes: 20 GB at n = 50,000). Lineage clustering
+uses :func:`iter_distance_edges` instead: the same all-pairs computation, run
+block-wise (optionally in worker processes) and keeping only the pairs within a
+distance cut, so memory is ``O(n s + edges)``.
 """
 
 from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import Any, NamedTuple, Protocol
 
 import numpy as np
+
+from genome2mic import parallel
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +54,9 @@ __all__ = [
     "K",
     "SKETCH_SIZE",
     "MAX_K",
+    "PARALLEL_MIN_WORK",
     "DropLogLike",
+    "DistanceEdges",
     "splitmix64",
     "kmer_hashes",
     "sketch",
@@ -53,6 +65,8 @@ __all__ = [
     "mash_distance",
     "distances_to",
     "pairwise_distances",
+    "iter_distance_edges",
+    "distance_edges",
     "stack_sketches",
     "save_sketches",
     "load_sketches",
@@ -66,6 +80,12 @@ SKETCH_SIZE: int = 1000
 
 MAX_K: int = 32
 """Largest k whose 2-bit encoding fits in 64 bits."""
+
+PARALLEL_MIN_WORK: float = 1e9
+"""``n_pairs x s`` below which :func:`iter_distance_edges` stays in-process (~1-2 s of work)."""
+
+ROWS_PER_TASK: int = 64
+"""Query rows per worker task in :func:`iter_distance_edges` (load balancing only)."""
 
 # ---------------------------------------------------------------------------
 # splitmix64 constants (Steele, Lea & Flood 2014). Arithmetic wraps mod 2**64.
@@ -453,17 +473,61 @@ def distances_to(query: np.ndarray, sketches: np.ndarray, k: int = K) -> np.ndar
     return _distances_from_common(_common_counts(a, S, s_param), s_param, k)
 
 
+def _dense_ranks(S: np.ndarray) -> tuple[np.ndarray, int]:
+    """Replace every hash by its dense, order-preserving global rank (``int32``).
+
+    Sorted rows stay sorted, so "is x in a" and "how many of a are <= x" become
+    table lookups rather than binary searches. Returns ``(ranks, n_unique)``.
+    """
+    uniq, inverse = np.unique(S, return_inverse=True)
+    if uniq.size >= np.iinfo(np.int32).max:  # pragma: no cover - 2^31 distinct hashes
+        raise ValueError("too many distinct hashes for int32 ranks")
+    return np.ascontiguousarray(inverse.reshape(S.shape), dtype=np.int32), int(uniq.size)
+
+
+def _row_distance_blocks(
+    ranks: np.ndarray, n_unique: int, rows: Iterable[int], k: int, block_rows: int
+) -> Iterator[tuple[int, int, int, np.ndarray]]:
+    """Distances from each row ``i`` in ``rows`` to every later row, block by block.
+
+    Yields ``(i, start, stop, d)`` with ``d[j - start]`` = distance(i, j) for
+    ``start <= j < stop``. Same merged-sketch estimate as ``mash_distance`` (see
+    ``_common_counts`` for the rank identity), vectorised over pairs; ``ranks``
+    comes from :func:`_dense_ranks` (may be a read-only memory map).
+    """
+    n, s = ranks.shape
+    present = np.zeros(n_unique, dtype=bool)  # membership table for the current row
+    cols = np.arange(1, s + 1, dtype=np.int32)  # (c + 1) term of the union rank
+    for i in rows:
+        a = np.asarray(ranks[i])
+        present[a] = True
+        n_a_le = np.cumsum(present, dtype=np.int32)  # n_a_le[r] = |{x in a : rank(x) <= r}|
+        for start in range(i + 1, n, block_rows):
+            stop = min(start + block_rows, n)
+            rest = np.asarray(ranks[start:stop])  # (m, s)
+            in_a = present[rest]
+            union_rank = n_a_le[rest]
+            np.add(union_rank, cols, out=union_rank)
+            np.subtract(union_rank, np.cumsum(in_a, axis=1, dtype=np.int32), out=union_rank)
+            hit = union_rank <= s
+            np.logical_and(hit, in_a, out=hit)
+            yield i, start, stop, _distances_from_common(np.count_nonzero(hit, axis=1), s, k)
+        present[a] = False
+
+
 def pairwise_distances(sketches: np.ndarray, k: int = K, block_rows: int = 512) -> np.ndarray:
     """Symmetric matrix of Mash distances between all pairs of sketches.
 
+    Dense ``(n, n)`` output: use it for small collections only (tests,
+    nearest-neighbour lookups on a few thousand genomes). For lineage
+    clustering at scale use :func:`iter_distance_edges`, which computes the
+    same values block-wise and keeps only pairs within a cut.
+
     Same merged-sketch estimate as ``mash_distance`` (see ``_common_counts``
-    for the rank identity), vectorised over pairs. Every hash is first
-    replaced by its dense, order-preserving global rank, so "is x in a" and
-    "how many of a are <= x" become table lookups rather than binary
-    searches. Each row is compared with all later rows in blocks of
-    ``block_rows`` (a memory knob) and the result is mirrored.
-    Measured: n = 2000, s = 1000 heavily overlapping sketches in about 10 s
-    on a laptop.
+    for the rank identity), vectorised over pairs on dense global hash ranks.
+    Each row is compared with all later rows in blocks of ``block_rows`` (a
+    memory knob) and the result is mirrored. Measured: n = 2000, s = 1000
+    heavily overlapping sketches in about 10 s on a laptop.
 
     Args:
         sketches: 2-D ``(n, s)`` ``uint64`` array with sorted unique rows
@@ -482,32 +546,142 @@ def pairwise_distances(sketches: np.ndarray, k: int = K, block_rows: int = 512) 
     D = np.zeros((n, n), dtype=np.float64)
     if n < 2:
         return D
-
-    # Dense global ranks: order-preserving, so sorted rows stay sorted.
-    uniq, inverse = np.unique(S, return_inverse=True)
-    ranks = np.ascontiguousarray(inverse.reshape(S.shape), dtype=np.int32)
-    present = np.zeros(uniq.size, dtype=bool)  # membership table for the current row
-    cols = np.arange(1, s + 1, dtype=np.int32)  # (c + 1) term of the union rank
-
-    for i in range(n - 1):
-        a = ranks[i]
-        present[a] = True
-        n_a_le = np.cumsum(present, dtype=np.int32)  # n_a_le[r] = |{x in a : rank(x) <= r}|
-        for start in range(i + 1, n, block_rows):
-            stop = min(start + block_rows, n)
-            rest = ranks[start:stop]  # (m, s)
-            in_a = present[rest]
-            union_rank = n_a_le[rest]
-            np.add(union_rank, cols, out=union_rank)
-            np.subtract(union_rank, np.cumsum(in_a, axis=1, dtype=np.int32), out=union_rank)
-            hit = union_rank <= s
-            np.logical_and(hit, in_a, out=hit)
-            d = _distances_from_common(np.count_nonzero(hit, axis=1), s, k)
-            D[i, start:stop] = d
-            D[start:stop, i] = d
-        present[a] = False
+    ranks, n_unique = _dense_ranks(S)
+    for i, start, stop, d in _row_distance_blocks(ranks, n_unique, range(n - 1), k, block_rows):
+        D[i, start:stop] = d
+        D[start:stop, i] = d
     logger.debug("pairwise_distances: %d sketches, s=%d, k=%d", n, s, k)
     return D
+
+
+class DistanceEdges(NamedTuple):
+    """Sparse list of sketch pairs ``i < j`` (row positions) with their Mash distance."""
+
+    rows: np.ndarray
+    """``int64`` row index ``i``."""
+    cols: np.ndarray
+    """``int64`` row index ``j`` (``j > i``)."""
+    distances: np.ndarray
+    """``float64`` Mash distance of each pair."""
+
+    @property
+    def size(self) -> int:
+        return int(self.rows.size)
+
+    @classmethod
+    def empty(cls) -> "DistanceEdges":
+        return cls(np.empty(0, np.int64), np.empty(0, np.int64), np.empty(0, np.float64))
+
+    @classmethod
+    def concat(cls, parts: Sequence["DistanceEdges"]) -> "DistanceEdges":
+        if not parts:
+            return cls.empty()
+        return cls(
+            np.concatenate([p.rows for p in parts]).astype(np.int64, copy=False),
+            np.concatenate([p.cols for p in parts]).astype(np.int64, copy=False),
+            np.concatenate([p.distances for p in parts]).astype(np.float64, copy=False),
+        )
+
+
+# Per-process state for distance-edge workers (set by _init_edge_worker).
+_EDGE_STATE: dict[str, Any] = {}
+
+
+def _init_edge_worker(spec: Mapping[str, Any], n_unique: int, k: int, block_rows: int, max_distance: float) -> None:
+    _EDGE_STATE.clear()
+    _EDGE_STATE.update(parallel.load_shared(spec))
+    _EDGE_STATE.update(n_unique=int(n_unique), k=int(k), block_rows=int(block_rows), max_distance=float(max_distance))
+
+
+def _edge_task(row_range: tuple[int, int]) -> DistanceEdges:
+    """Worker task: every pair ``(i, j > i)`` with ``i`` in ``row_range`` and ``d <= max_distance``."""
+    state = _EDGE_STATE
+    ranks = state["ranks"]
+    cut = state["max_distance"]
+    rows: list[np.ndarray] = []
+    cols: list[np.ndarray] = []
+    dists: list[np.ndarray] = []
+    blocks = _row_distance_blocks(ranks, state["n_unique"], range(*row_range), state["k"], state["block_rows"])
+    for i, start, _stop, d in blocks:
+        near = np.flatnonzero(d <= cut)
+        if near.size:
+            rows.append(np.full(near.size, i, dtype=np.int64))
+            cols.append(near.astype(np.int64) + start)
+            dists.append(d[near])
+    if not rows:
+        return DistanceEdges.empty()
+    return DistanceEdges(np.concatenate(rows), np.concatenate(cols), np.concatenate(dists))
+
+
+def iter_distance_edges(
+    sketches: np.ndarray,
+    k: int = K,
+    max_distance: float = 1.0,
+    *,
+    block_rows: int = 512,
+    rows_per_task: int = ROWS_PER_TASK,
+    threads: int | None = None,
+) -> Iterator[DistanceEdges]:
+    """All pairs ``i < j`` with Mash distance ``<= max_distance``, in blocks of query rows.
+
+    Computes exactly the values of :func:`pairwise_distances` (same kernel) but
+    never holds more than one row block: memory is the ``(n, s)`` rank table
+    plus the edges kept. Blocks of ``rows_per_task`` query rows run in
+    ``threads`` worker processes (``None`` = all cores; small inputs stay
+    in-process, see :data:`PARALLEL_MIN_WORK`). Blocks are yielded in row
+    order, edges within a block ordered by ``(i, j)``, so the output does not
+    depend on ``threads``.
+
+    Args:
+        sketches: ``(n, s)`` sorted-row sketch matrix.
+        k: k-mer length of the sketches.
+        max_distance: Inclusive cut; pairs above it are discarded.
+        block_rows: Inner comparison block (memory knob, no effect on values).
+        rows_per_task: Query rows per worker task (load balancing).
+        threads: Worker processes.
+    """
+    _check_k(k)
+    if block_rows < 1 or rows_per_task < 1:
+        raise ValueError("block_rows and rows_per_task must be positive")
+    if not np.isfinite(max_distance) or max_distance < 0:
+        raise ValueError(f"max_distance must be a finite non-negative number; got {max_distance!r}")
+    S = _as_sketch_matrix(sketches)
+    n, s = S.shape
+    if n < 2:
+        return
+    ranks, n_unique = _dense_ranks(S)
+    tasks = [(start, min(start + rows_per_task, n - 1)) for start in range(0, n - 1, rows_per_task)]
+    work = n * (n - 1) / 2.0 * s
+    workers = parallel.worker_count(threads, len(tasks), min_items=2) if work >= PARALLEL_MIN_WORK else 1
+    logger.info(
+        "distance edges: %d sketches (s=%d, k=%d), cut d <= %g, %d task(s) on %d process(es)",
+        n, s, k, max_distance, len(tasks), workers,
+    )
+    try:
+        with parallel.share_arrays({"ranks": ranks}, enabled=workers > 1) as spec:
+            yield from parallel.ordered_map(
+                _edge_task,
+                tasks,
+                workers=workers,
+                initializer=_init_edge_worker,
+                initargs=(spec, n_unique, k, block_rows, max_distance),
+            )
+    finally:
+        _EDGE_STATE.clear()
+
+
+def distance_edges(
+    sketches: np.ndarray,
+    k: int = K,
+    max_distance: float = 1.0,
+    *,
+    block_rows: int = 512,
+    threads: int | None = None,
+) -> DistanceEdges:
+    """All pairs within ``max_distance`` as one :class:`DistanceEdges` (see :func:`iter_distance_edges`)."""
+    return DistanceEdges.concat(
+        list(iter_distance_edges(sketches, k, max_distance, block_rows=block_rows, threads=threads))
+    )
 
 
 # ---------------------------------------------------------------------------
