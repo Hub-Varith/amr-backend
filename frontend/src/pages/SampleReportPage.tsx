@@ -5,7 +5,7 @@ import { SiteNav } from '../components/intro/SiteNav'
 import { ReportView } from '../components/report/ReportView'
 import { findSample } from '../samples'
 
-/** Output for a precomputed sample genome. */
+/** Output for a sample genome (report stored in src/samples). */
 export function SampleReportPage() {
   const sample = findSample(useParams().key)
   return (
@@ -17,7 +17,7 @@ export function SampleReportPage() {
             report={sample.report}
             source={{
               kind: 'sample',
-              note: `${sample.title} · ${sample.profile}. A held-out test genome, precomputed with the same pipeline that runs on an upload.`,
+              note: `${sample.title} · ${sample.profile}.`,
             }}
           />
         ) : (

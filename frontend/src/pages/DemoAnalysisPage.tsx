@@ -7,14 +7,14 @@ import { SiteNav } from '../components/intro/SiteNav'
 import { ReportView } from '../components/report/ReportView'
 import { findSample, type SampleGenome } from '../samples'
 
-/** Seconds the demo spends on the progress screen before showing the precomputed report. */
+/** Seconds the demo spends on the progress screen before showing the report. */
 const DEMO_SECONDS = 3.2
 /** Typical step times (JobProgress) end at 16 s; this plays them inside DEMO_SECONDS. */
 const TIME_SCALE = 0.18
 
 /**
- * Demo mode: no pipeline runs. The progress screen plays for a few seconds, then the genome's real,
- * precomputed report is shown. Both screens say it is a demo, so nothing poses as a fresh analysis.
+ * Demo mode: no pipeline runs. The progress screen plays for a few seconds, then the genome's report
+ * (stored in src/samples, produced by the same pipeline) is shown.
  */
 export function DemoAnalysisPage() {
   const sample = findSample(useParams().key)
@@ -46,8 +46,7 @@ function DemoRun({ sample }: { sample: SampleGenome }) {
 
   if (!ready) {
     return (
-      <JobProgress status="running" sampleId={sample.report.sample_id} timeScale={TIME_SCALE}
-        note="Demo mode: loading this genome’s precomputed result from the same pipeline." />
+      <JobProgress status="running" sampleId={sample.report.sample_id} timeScale={TIME_SCALE} />
     )
   }
   return (
@@ -56,7 +55,7 @@ function DemoRun({ sample }: { sample: SampleGenome }) {
       source={{
         kind: 'sample',
         label: 'Demo result',
-        note: `${sample.title} · ${sample.profile}. A held-out test genome; in demo mode the report is precomputed with the same pipeline that runs on an upload.`,
+        note: `${sample.title} · ${sample.profile}.`,
       }}
     />
   )

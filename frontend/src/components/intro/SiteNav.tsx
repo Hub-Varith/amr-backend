@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router'
 
+import { BRAND_NAME } from '../../lib/brand'
 import { Logo } from '../brand/Logo'
 
 type NavItem = { label: string; pathname: string; hash?: string }
@@ -16,7 +17,7 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-paper/95 backdrop-blur-sm">
       <nav className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
-        <Link to="/" aria-label="Breakpoint home">
+        <Link to="/" aria-label={`${BRAND_NAME} home`}>
           <Logo />
         </Link>
         <div className="hidden items-center gap-7 md:flex">

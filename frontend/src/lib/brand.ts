@@ -1,5 +1,5 @@
 /** Product name and fixed copy. Change the name here and it changes everywhere. */
-export const BRAND_NAME = 'Breakpoint'
+export const BRAND_NAME = 'DNAGen'
 
 /** Must match DISCLAIMER in src/genome2mic/api/constants.py. */
 export const DISCLAIMER =

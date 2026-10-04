@@ -18,7 +18,7 @@ type Props = {
   sampleId: string
   /** Multiplies the typical step times; demo mode plays the whole timeline in a few seconds. */
   timeScale?: number
-  /** Replaces the footnote, e.g. to say a demo result is precomputed. */
+  /** Replaces the default footnote. */
   note?: string
 }
 

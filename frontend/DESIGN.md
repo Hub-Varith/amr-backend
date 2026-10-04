@@ -1,4 +1,4 @@
-# Breakpoint frontend
+# DNAGen frontend
 
 An editorial research workspace: navy ink (#182f40), warm cream paper (#f5f2e9), muted blue accents. Source Serif 4 for expressive headings, IBM Plex Sans for explanation, IBM Plex Mono for measurements and labels. Retain the existing brand and React/Vite stack.
 

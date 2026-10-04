@@ -1,6 +1,7 @@
 import { ButtonLink } from '../Button'
 import { RuledList, type RuledItem } from './RuledList'
 import { Section } from './Section'
+import { BRAND_NAME } from '../../lib/brand'
 
 const STEPS: RuledItem[] = [
   {
@@ -36,7 +37,7 @@ export function HowItWorks() {
       number="01"
       label="How it works"
       title="A sequence becomes a clearer picture."
-      intro="Breakpoint predicts each antibiotic's MIC: the lowest concentration that stops the bacteria growing in a lab test, in mg/L. Choosing a dose stays with the clinician."
+      intro={`${BRAND_NAME} predicts each antibiotic's MIC: the lowest concentration that stops the bacteria growing in a lab test, in mg/L. Choosing a dose stays with the clinician.`}
     >
       <RuledList items={STEPS} animateOnLoad />
 

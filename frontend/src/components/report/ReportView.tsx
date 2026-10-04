@@ -25,7 +25,7 @@ const GROUP_TITLES: Record<Call, string> = {
   likely_inactive: 'Likely inactive',
 }
 
-/** The full stage 12 report: header, the ranked answer, every drug, the evidence, and the disclaimer. */
+/** The full stage 12 report: header, the ranked answer, every drug, the evidence, and (live analyses) the disclaimer. */
 export function ReportView({ report, source }: { report: PredictionReport; source: ReportSource }) {
   const byDrug = new Map(report.predictions.map((prediction) => [prediction.drug, prediction]))
   const ranked = report.ranked_active.map((drug) => byDrug.get(drug)).filter((p): p is DrugPrediction => Boolean(p))
@@ -35,7 +35,7 @@ export function ReportView({ report, source }: { report: PredictionReport; sourc
   function downloadJson() {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
-    const link = Object.assign(document.createElement('a'), { href: url, download: `${report.sample_id}.breakpoint.json` })
+    const link = Object.assign(document.createElement('a'), { href: url, download: `${report.sample_id}.dnagen.json` })
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -70,10 +70,12 @@ export function ReportView({ report, source }: { report: PredictionReport; sourc
         </>
       )}
 
-      <aside role="note" className="mt-12 border border-ink/80 bg-ink px-6 py-5 text-paper print:border-ink print:bg-transparent print:text-ink">
-        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper/70 print:text-ink-3">Not prescribing advice</p>
-        <p className="mt-2 max-w-4xl text-[15px] leading-relaxed">{report.disclaimer}</p>
-      </aside>
+      {source.kind === 'live' && (
+        <aside role="note" className="mt-12 border border-ink/80 bg-ink px-6 py-5 text-paper print:border-ink print:bg-transparent print:text-ink">
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-paper/70 print:text-ink-3">Not prescribing advice</p>
+          <p className="mt-2 max-w-4xl text-[15px] leading-relaxed">{report.disclaimer}</p>
+        </aside>
+      )}
 
       <div className="mt-8 flex flex-wrap items-center gap-3 print:hidden">
         <Link to="/analyze" className="bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink-2">

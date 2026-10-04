@@ -5,8 +5,9 @@ import { UploadPanel } from '../components/analyze/UploadPanel'
 import { SiteFooter } from '../components/intro/SiteFooter'
 import { SiteNav } from '../components/intro/SiteNav'
 import { ApiError, LIVE_ANALYSIS, submitGenome } from '../lib/api'
+import { BRAND_NAME } from '../lib/brand'
 
-/** Input: upload one genome (live), or run a demo genome (precomputed report). */
+/** Input: upload one genome (live), or run a demo genome. */
 export function AnalyzePage() {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
@@ -38,7 +39,7 @@ export function AnalyzePage() {
           One genome in. A drug-by-drug answer out.
         </h1>
         <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-ink-2">
-          Upload an assembled bacterial genome. Breakpoint checks it, identifies the species, finds known resistance genes,
+          Upload an assembled bacterial genome. {BRAND_NAME} checks it, identifies the species, finds known resistance genes,
           and predicts the MIC for every supported antibiotic.
         </p>
         <div className="mt-12 max-w-2xl">

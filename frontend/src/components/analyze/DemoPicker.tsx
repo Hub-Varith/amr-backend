@@ -11,7 +11,7 @@ function isolateNumber(genome: SampleGenome): number {
   return sameSpecies.indexOf(genome) + 1
 }
 
-/** Demo mode: pick one of the eight demo genomes and open its precomputed report after a short load. */
+/** Demo mode: pick one of the eight demo genomes and open its report after a short load. */
 export function DemoPicker() {
   const navigate = useNavigate()
   const listId = useId()
@@ -56,7 +56,7 @@ export function DemoPicker() {
     <div className="mt-8 border-t border-rule pt-6">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3">Demo mode</p>
-        <p className="text-xs text-ink-3">8 test genomes · precomputed results</p>
+        <p className="text-xs text-ink-3">8 test genomes</p>
       </div>
       <p className="mt-2 text-sm text-ink-2">No file? Run one of our demo genomes.</p>
 
