@@ -166,8 +166,19 @@ genome2mic/
 | `b1_lookup` | known AMR | Median MIC of training genomes with the same known-AMR profile |
 | `b2_xgb_steps` | known AMR | Multi-class over log2 MIC steps, exact MICs only |
 | `aft_known` | known AMR | XGBoost `survival:aft` on intervals |
-| `aft_known_unitig` | known AMR + unitigs | **Main model** |
+| `aft_known_unitig` | known AMR + unitigs | Main AFT model (`aft_known` when a species has no unitigs) |
+| `aft_b2_select` | as the AFT model + B2 | **Shipped model** (v0.6): per drug, the AFT model, B2 or the average of their log2 predictions, chosen inside the training folds (see below) |
 | `multitask_nn` | all | Later. Shared body, per-drug heads, masked censored-normal loss |
+
+`aft_b2_select` ranks the three candidates by call safety ((VME + 1) / (lab R + 1) ≤ 1.5 %
+over the folds that make likely-active calls), then % lab S called likely active (to
+1 pp), then EA, and prefers AFT > average > B2 on ties. CV fold f uses the choice scored
+on the other folds only; the bundle repeats the choice on all folds and ships only the
+component(s) it needs (`params.json` + `aft/` + `b2/`). The bundle's gate certifies the
+shipped candidate on its own out-of-fold calls (the AFT standard); a pick other than AFT
+must also pass on the `aft_b2_select` out-of-fold calls, else the bundle falls back to
+AFT. `train --no-model-select` ships the AFT model instead. `aft_known` stays in the
+preds as the reference.
 
 Main model parameters:
 
@@ -196,9 +207,11 @@ is tuned per species × drug inside the training folds: the narrowest level whos
 cross-validated call VME, counted only over folds that issue likely-active calls, passes
 (n_VME + 1) / (n_R + 1) ≤ 1.5 %. The shipped bundle may only use a level that also
 passed in every CV fold that issues calls, and closes its active-call gate if there is
-none or if its own out-of-fold CV calls fail the same rule. Gate closed → likely-active
-calls are withheld (shown as uncertain) for that drug. Use the band's **upper** end when
-comparing to the breakpoint.
+none or if its own out-of-fold CV calls fail the same rule. It also closes when any
+calling CV fold's call VME is significantly above 1.5 % (one-sided exact binomial
+p < 0.01), and pairs without a breakpoint ship with the gate closed. Gate closed →
+likely-active calls are withheld (shown as uncertain) for that drug. Use the band's
+**upper** end when comparing to the breakpoint.
 
 ---
 
@@ -211,6 +224,11 @@ comparing to the breakpoint.
 | Bundle's `active_gate_open` false and the band says active | Uncertain (reason `likely_active withheld ...`) |
 | Otherwise | Uncertain — wait for lab |
 
+Each drug also carries `prob_works`, the calibrated probability that the drug works
+(isotonic map of the predicted MIC's distance to the S breakpoint onto the share of
+lab-S isolates, fit out-of-fold; `calibration.json`), and its tier. The call stays the
+decision; the probability never changes it.
+
 Overrides applied after the model:
 
 1. Natural resistance for the species → inactive.
@@ -219,7 +237,9 @@ Overrides applied after the model:
    drugs with `strong_subclasses`, any acquired gene whose AMRFinderPlus Subclass is
    listed (CARBAPENEM for the carbapenems). Point mutations never trigger it, and
    neither do the species' intrinsic genes in `configs/intrinsic_markers.csv` (the
-   OXA-51 family for ABAU).
+   OXA-51 family for ABAU) or a `strong_marker_exceptions` prefix (mcr-9 / mcr-10 for
+   colistin and polymyxin B). The 16S rRNA methyltransferases (armA, rmtA-H, npmA) are
+   strong markers for amikacin, gentamicin and tobramycin.
 3. Species not covered, or far from all training genomes → all calls flagged low
    confidence.
 
@@ -274,7 +294,7 @@ All stages below run end to end on the seeded synthetic data
 (`python -m genome2mic run-all --root runs/synthetic`, ~2.5 min; `make demo` copies the
 report to `reports/synthetic_demo/`). Synthetic numbers say nothing about real isolates.
 The only real-data numbers are the cv-only results on the provisional 5-species release
-(see "Real data" below; DATA_CONTRACT v0.5). `runs/synthetic` and
+(see "Real data" below; DATA_CONTRACT v0.6). `runs/synthetic` and
 `reports/synthetic_demo/` were regenerated on 2026-10-03 after the review fixes
 (DATA_CONTRACT v0.3); regenerate with `make clean-synth demo` after later changes.
 
@@ -331,18 +351,21 @@ Since the review fixes (DATA_CONTRACT v0.3):
   Every table was entered from memory; `docs/BREAKPOINT_VERIFICATION.md` and
   `docs/breakpoint_verification_checklist.csv` list what to verify, in priority order.
 
-Real data (DATA_CONTRACT v0.4 and v0.5, 2026-10-03):
+Real data (DATA_CONTRACT v0.4 to v0.6, 2026-10-03/04):
 
 - Root `runs/hackathon5` (gitignored): provisional local release
   `2026-10-04-hackathon+pd5-local` (not an S3 release; its splits are provisional, used as
   given), brought in with `import-release` (SHA256-verified byte copy,
   `IMPORTED_RELEASE.json`). 97 species × drug pairs: KPNEU 29, ECOLI 25, ABAU 17, PAER
   14, SAUR 12. Folds are NCBI SNP clusters. No assemblies, Mash sketches or unitig
-  matrix ship, so QC is not assessed, the main model is `aft_known`, and predictions
-  have a null `nearest_training_distance` and every call flagged low confidence.
+  matrix ship, so QC is not assessed, the AFT model is `aft_known` (shipped through
+  `aft_b2_select`), and predictions have a null `nearest_training_distance` and every
+  call flagged low confidence.
 - `train --cv-only`: out-of-fold CV preds plus the final bundle on all train rows; test
   rows are never loaded or scored, no ledger row. The test split stays untouched until
-  the user asks for the single test run. Current bundle run `07e65644a16d`.
+  the user asks for the single test run. Current bundle run `1b841ac91682` (v0.6,
+  trained with `--amrfinder-db`; the previous run `07e65644a16d` is backed up in
+  `/tmp/g2m_prob_prev`).
 - Panel caps: each raw log2 prediction is clipped to the fit rows' finite-bound range
   ±1 step before rounding up (stored in `conformal.json`, applied at prediction).
 - Call-level metrics (`call_vme_rate` right after `vme_rate`, then `call_me_rate`,
@@ -350,12 +373,28 @@ Real data (DATA_CONTRACT v0.4 and v0.5, 2026-10-03):
   Only the 15 CLSI Enterobacterales drugs Hub checked (KPNEU, ECOLI) are verified; every
   other S/I/R and call metric is provisional.
 - Band: tuned asymmetric cross-conformal band with the active-call gate (default; see
-  "Uncertainty"). Gate open on 69 of 97 bundles. Out of fold, 96 of 97 pairs pass call
-  VME ≤ 1.5 % pooled and 90 over calling folds only. Of the 96, 59 make likely-active
-  calls, 16 pass only because the gate is closed, 21 by natural resistance or no
-  breakpoint (`runs/hackathon5/results/report.md`, call-safety summary). The gate needs
-  ≥ 66 lab-R rows in the calling folds, so rare-resistance drugs (SAUR vancomycin,
-  daptomycin) never get likely-active calls, by design.
+  "Uncertainty"). Gate open on 52 of 97 shipped bundles (run `07e65644a16d`: 69, of which
+  21 were pairs without a call breakpoint or with natural resistance that now ship
+  closed; AFT alone under the v0.6 rules: 49). Out of fold (`aft_b2_select` CV rows, CLSI
+  2024 re-derived), 90 of 97 pairs pass call VME ≤ 1.5 % over the calling folds with no
+  significant fold (96 pooled). 47 of them ship likely-active calls, 22 pass with the shipped
+  gate closed, 21 by natural resistance or no breakpoint. Of the 7 failing pairs, 3 ship an
+  open AFT bundle whose own out-of-fold calls pass (ABAU levofloxacin 0/544, ECOLI
+  ceftazidime 13/1073, KPNEU gentamicin 16/1314). Call VME over all CV rows: 566 / 86,176
+  lab R. The gate needs ≥ 66 lab-R rows in the calling folds, so rare-resistance drugs
+  (SAUR vancomycin, daptomycin) never get likely-active calls, by design.
+- Model choice (`aft_b2_select`, v0.6): bundles ship AFT 45, average 29, B2 23 (3 AFT
+  bundles are fallbacks from an uncertified average). Against AFT alone on the same CV
+  rows, the median EA is 76.1 % vs 69.0 %, and the median % of lab S called likely active
+  is 15.8 % vs 15.1 %. Only 40 of 97 pairs make the same choice in every fold. The KPNEU
+  start drugs ship AFT and are unchanged: ceftriaxone 53.5 % of lab S active, VME 16/2760;
+  ciprofloxacin 4.1 %, 1/3342; meropenem 24.8 %, 21/2452, EA 46.5 %.
+- P(works) (v0.6): out of fold, the pooled calibration tracks closely (0.9-1 bin 97.9 %
+  predicted, 97.8 % observed; 0-0.1 bin 2.1 % vs 2.6 %). The danger columns per species
+  (lab R called likely active / told 'works' at P ≥ 70 %) are in the report section
+  "Probability that the drug works". The worst is SAUR: 21 % of lab R in a works tier,
+  mostly clindamycin (139 of 197 lab R at P ≥ 70 %, none called likely active), although
+  the SAUR call VME is only 0.2 %.
 - Exact-MIC rows weigh 2x in the AFT fit (`--exact-weight 2.0`, default); every row
   still trains, nothing is imputed. Not shipped (no gain beyond fold noise): monotone
   constraints and nested xgboost tuning.
@@ -373,13 +412,17 @@ Real data (DATA_CONTRACT v0.4 and v0.5, 2026-10-03):
 - `configs/intrinsic_markers.csv`: 403 ABAU OXA-51-family symbols that never trigger the
   strong-marker override, at prediction or in training-time calls. They stay features.
 - Caveats: CV numbers are selection-biased (see "Safety and claims"). Cross-conformal
-  tuning is not fully nested (a nested re-check gave the same verdict). Training-time
-  calls apply only the column-prefix half of override 2; the pipeline also applies
-  `strong_subclasses`.
+  tuning and the model choice are not fully nested: the other folds' predictions come from
+  models trained with the scored fold (a nested re-check of the band gave the same
+  verdict). Training-time calls apply `strong_subclasses` only when `train` gets
+  `--amrfinder-db` (or `amrfinder` is on PATH); without it only the column-prefix half of
+  override 2 applies.
 
 Tool wrappers untested because the tools are not on PATH: `resfinder`, `mlst`, `mash`,
 `unitig-caller`, `pyseer`, `poppunk` (the Snakefile skips them on synthetic data).
-`amrfinder` runs from the micromamba env above. Update this list as real data lands. The
+`amrfinder` runs from the micromamba env above. Training needs `--amrfinder-db`
+(AMRFinderPlus DB 2026-08-07.1, `$HOME/micromamba/envs/amrfinder/share/amrfinderplus/data/2026-08-07.1`)
+to apply `strong_subclasses` at training time. Update this list as real data lands. The
 Snakefile's `mash`/`amrfinder` command lines are checked with stand-in executables
 (`tests/qc/test_snakefile.py`), not the real tools.
 

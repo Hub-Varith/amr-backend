@@ -21,6 +21,7 @@ import scipy.sparse as sp
 
 from genome2mic import mic
 from genome2mic.droplog import DropLog
+from genome2mic.models import AftB2Select
 from genome2mic.models import MODEL_CLASSES, B1Lookup, B2XgbSteps, MicModel, XgbAft, make_model
 from genome2mic.models import base
 
@@ -201,6 +202,7 @@ class TestRegistry:
             "b2_xgb_steps": B2XgbSteps,
             "aft_known": XgbAft,
             "aft_known_unitig": XgbAft,
+            "aft_b2_select": AftB2Select,
         }
 
     def test_make_model_sets_name_and_unknown_id_raises(self) -> None:

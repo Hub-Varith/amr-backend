@@ -31,6 +31,10 @@ Steps of :meth:`PredictionPipeline.run` (``.context/DESIGN.md`` predict section)
 6. Overrides: natural resistance (model skipped, MIC fields null) and strong
    markers (``drugs.yaml`` ``strong_markers`` prefixes and ``strong_subclasses`` of
    acquired genes; MIC fields kept).
+   Each drug also gets ``prob_works`` (calibrated P(lab S under the call breakpoint),
+   ``calibration.json``; 0 under natural resistance; the strong-marker rows' own
+   calibration when the override fires; null without a calibration or breakpoint) and
+   ``prob_tier``. The probability is shown next to the call and never changes it.
 7. ``ranked_active`` from :func:`genome2mic.predict.rank.rank_active`. When
    ``in_range`` is False the calls are kept and the flag tells the UI to show them
    as low confidence (override 3).
@@ -47,8 +51,12 @@ Bundle layout (written by ``models/train.py``)::
     models/<SPECIES>/<drug>/features.json  {model_class, known_columns, unitig_cols, class_by_column,
                                             feature_names, unitig_kmer_set_sha1}
     models/<SPECIES>/<drug>/conformal.json {q, [q_up, q_low, active_gate_open], [cap_low_log2, cap_high_log2]}
+    models/<SPECIES>/<drug>/calibration.json  optional (v0.6): isotonic map predicted MIC -> P(drug works)
     models/<SPECIES>/<drug>/meta.json      free-form
     models/<SPECIES>/<drug>/...            whatever MODEL_CLASSES[model_class].load(dir) reads
+                                         (v0.6 ``aft_b2_select``: params.json + aft/ + b2/; its
+                                         predict_log2 applies the bundle's choice of AFT, B2 or
+                                         their average exactly as training did, caps included)
 
 Nothing in a feature matrix may come from ``lineage_cluster``, ``st``, ``country``,
 ``year``, ``source``, ``isolation_source``, ``biosample``, ``split`` or ``fold`` (or the
@@ -85,6 +93,7 @@ from genome2mic.droplog import DropLog
 from genome2mic.errors import Genome2MicError
 from genome2mic.io import read_fasta
 from genome2mic.mic import GRID_MAX_EXPONENT, GRID_MIN_EXPONENT, round_up_to_step
+from genome2mic.models import calibration as prob_cal
 from genome2mic.models.base import FORBIDDEN_FEATURES
 from genome2mic.predict import amr_detect, rank, release_features
 
@@ -111,6 +120,7 @@ UNITIG_KMERS_FILE = "unitig_kmers.npz"
 UNITIG_INDEX_FILE = "unitig_index.parquet"
 FEATURES_FILE = "features.json"
 CONFORMAL_FILE = "conformal.json"
+CALIBRATION_FILE = prob_cal.CALIBRATION_FILE
 META_FILE = "meta.json"
 
 QC_EMPTY_ASSEMBLY = "empty_assembly"
@@ -167,6 +177,9 @@ class DrugBundle:
     active_gate_open: bool = True
     """``conformal.json`` ``active_gate_open``: False means training could not certify
     call-level VME <= 1.5 % for this pair, so ``likely_active`` becomes ``uncertain``."""
+    calibration: prob_cal.PairCalibration | None = None
+    """``calibration.json`` (v0.6): predicted MIC -> P(drug works). ``None`` for bundles
+    written before it existed (``prob_works`` is then null)."""
 
     @property
     def n_features(self) -> int:
@@ -662,6 +675,16 @@ class PredictionPipeline:
                 raise BundleError(f"{drug_dir / CONFORMAL_FILE}: cap_low_log2 > cap_high_log2")
             caps = (float(cap_raw[0]), float(cap_raw[1]))  # type: ignore[arg-type]
 
+        calibration: prob_cal.PairCalibration | None = None
+        calibration_path = drug_dir / CALIBRATION_FILE
+        if calibration_path.is_file():
+            try:
+                calibration = prob_cal.PairCalibration.from_json(_read_json(calibration_path))
+            except (KeyError, TypeError, ValueError) as error:
+                raise BundleError(f"{calibration_path}: invalid calibration ({error})") from error
+        else:
+            logger.info("%s: no %s; prob_works will be null for this drug", drug_dir, CALIBRATION_FILE)
+
         model_cls = self._resolve_model_class(model_class)
         try:
             model = model_cls.load(drug_dir)
@@ -712,6 +735,7 @@ class PredictionPipeline:
             meta=meta,
             unitig_kmer_set_sha1=kmer_set_sha1.strip() if isinstance(kmer_set_sha1, str) else None,
             caps=caps,
+            calibration=calibration,
         )
 
     def _resolve_unitig_cols(self, raw: Any, drug_dir: Path) -> tuple[int, ...]:
@@ -972,6 +996,8 @@ class PredictionPipeline:
             "margin_steps": None,
             "reasons": [rank.NATURAL_RESISTANCE_REASON],
             "override": rank.OVERRIDE_NATURAL_RESISTANCE,
+            "prob_works": prob_cal.NATURAL_RESISTANCE_PROB,
+            "prob_tier": prob_cal.tier_of(prob_cal.NATURAL_RESISTANCE_PROB),
         }
 
     def _predict_drug(
@@ -1039,10 +1065,15 @@ class PredictionPipeline:
             if gated:
                 reasons = [*reasons, rank.ACTIVE_GATE_REASON]
 
+        prob_works: float | None = None
+        if bundle.calibration is not None and bp is not None:
+            # Calibrated on out-of-fold training predictions; strong-marker rows use their own calibration.
+            prob_works = bundle.calibration.predict_one(pred_mic, strong_marker=bool(hits))
         logger.info(
-            "%s x %s: pred MIC %g mg/L (band %g-%g), %s%s",
+            "%s x %s: pred MIC %g mg/L (band %g-%g), %s%s, P(works) %s",
             bundle.species, bundle.drug, pred_mic, band_low, band_high, call,
             f", margin {margin} step(s)" if margin is not None else "",
+            "n/a" if prob_works is None else f"{prob_works:.2f}",
         )
         return {
             "drug": bundle.drug,
@@ -1055,4 +1086,6 @@ class PredictionPipeline:
             "margin_steps": margin,
             "reasons": reasons,
             "override": override,
+            "prob_works": prob_works,
+            "prob_tier": prob_cal.tier_of(prob_works),
         }

@@ -1,8 +1,22 @@
 # Genome-to-MIC — Data Contract
 
-**Status:** draft v0.5 · **Owner:** Hub · **Last updated:** 2026-10-03
+**Status:** draft v0.6 · **Owner:** Hub · **Last updated:** 2026-10-04
 
-**Changelog:** v0.5 (2026-10-03): optimisation and hardening round on the provisional
+**Changelog:** v0.6 (2026-10-04): probability, per-fold safety and model-choice round on
+the provisional 5-species release (cv-only; the test split is never read). The preds
+table gains `prob_works` and `prob_tier` and the model value `aft_b2_select` (stage 10);
+the prediction report's `DrugPrediction` gains optional `prob_works` and `prob_tier`
+(stage 12); the shipped bundle is now `aft_b2_select`, the per-pair choice of the AFT
+model, B2 or their average made inside the training folds (`params.json` + `aft/` +
+`b2/`), and gains `calibration.json`; `conformal.json` and `meta.json` gain keys; the
+bundle's active-call gate also closes on any calling CV fold whose call VME is
+significantly above 1.5 % and for pairs without a call breakpoint; evaluate writes
+`prob_summary`, `prob_calibration` and `call_vme_by_fold`; `drugs.yaml` gains optional
+`strong_marker_exceptions` and the 16S rRNA methyltransferases as aminoglycoside strong
+markers; training-time calls apply `strong_subclasses` from the AMRFinderPlus database
+(`train --amrfinder-db`); `TrainConfig` gains `fold_gate_p` and `model_select`, so every
+`run_id` changes. No column, dtype or file renamed. Section 7 rows marked v0.6.
+v0.5 (2026-10-03): optimisation and hardening round on the provisional
 5-species release (cv-only). Default band is the tuned asymmetric cross-conformal band
 with an active-call gate (`conformal.json` gains keys; stage 10, 11 and 12 band wording
 and the stage-12 call table updated); exact-MIC rows weigh 2x in the AFT fit
@@ -557,8 +571,10 @@ multi-species model.
 | `lab_lower`, `lab_upper` | float | Ground truth interval, copied from stage 2 |
 | `pred_sir` | str | `S` / `I` / `R` after applying breakpoints |
 | `lab_sir` | str | |
-| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` |
+| `model` | str | `b1_lookup` / `b2_xgb_steps` / `aft_known` / `aft_known_unitig` / `aft_b2_select` (v0.6: the shipped model, the per-pair choice of the AFT model, B2 or their average made inside the training folds; section 7) |
 | `run_id` | str | Config hash, for reproducibility |
+| `prob_works` | float | Calibrated probability that the drug works (lab MIC re-derived under the call breakpoint is S), `[0, 1]`. CV rows: calibration fit on the other folds' CV rows only. Test / LOLO rows: the fit on every CV row of that model. 0 under natural resistance. Null for `b0_resfinder` and for pairs without a call breakpoint (v0.6, section 7) |
+| `prob_tier` | str | `very_likely_works` (>= 0.90) / `probably_works` (0.70 to 0.90) / `uncertain` (0.30 to 0.70) / `probably_fails` (0.10 to 0.30) / `very_likely_fails` (<= 0.10); null with `prob_works` (v0.6) |
 
 Round **up**: a slightly high MIC prediction is the safer error.
 
@@ -640,6 +656,8 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | `margin_steps` | int | yes | Doubling steps below the S breakpoint |
 | `reasons` | list[str] | no | Markers behind the call, e.g. `gyrA S83L` |
 | `override` | str | yes | `natural_resistance` / `strong_marker`. Set → call is `likely_inactive` |
+| `prob_works` | float | yes | Calibrated probability (0 to 1) that the drug works in the lab, i.e. the lab MIC is at or below the S breakpoint (`calibration.json` of the bundle, fit on out-of-fold training predictions). 0 under natural resistance. When the strong-marker override fires, the override rows' own calibration (or 0.02 when training saw fewer than 30 such rows). Null when the bundle has no `calibration.json` or the pair has no breakpoint. Shown next to the call; it never changes the call (v0.6) |
+| `prob_tier` | str | yes | Tier of `prob_works` (see stage 10). Set exactly when `prob_works` is set and always consistent with it (schema-validated) (v0.6) |
 
 **Call logic:**
 
@@ -650,6 +668,9 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
 | Otherwise | Uncertain — wait for lab |
 | Training could not certify call VME for the pair (`conformal.json` `active_gate_open` false) and the band says likely active | Uncertain, `margin_steps` null, reason `likely_active withheld: ...` (v0.5) |
 
+The call is the decision. `prob_works` is reported beside it and is never used to make,
+upgrade or downgrade a call (v0.6).
+
 **Overrides, applied after the model:**
 
 1. Natural resistance for that species (`configs/natural_resistance.csv`) → inactive.
@@ -658,14 +679,25 @@ Ranked likely-active: 1. Piperacillin-tazobactam   2. Meropenem
    - `strong_markers`: known-AMR feature columns, matched as column-name prefixes
      (kept variants such as `gene_blakpc_2` match `gene_blakpc`). Every carbapenemase
      prefix in `keep_variant.csv` (blaOXA-48, blaOXA-181, blaOXA-232, ...) must be
-     listed for the carbapenems and the cephalosporins that carry the list.
+     listed for the carbapenems and the cephalosporins that carry the list. The 16S
+     rRNA methyltransferases (`gene_arma`, `gene_rmta` ... `gene_rmth`, `gene_npma`) are
+     listed for amikacin, gentamicin and tobramycin (v0.6).
+   - `strong_marker_exceptions` (optional, v0.6): column prefixes that never trigger the
+     override although a `strong_markers` prefix matches them (`gene_mcr_9`,
+     `gene_mcr_10` under `gene_mcr`: mcr-9 / mcr-10 are often found in
+     colistin-susceptible isolates). Each must narrow one of the drug's `strong_markers`
+     prefixes (validated at load).
    - `strong_subclasses` (optional): AMRFinderPlus `Subclass` values. A detected
      acquired gene (Type `AMR`, Subtype `AMR`; never a `POINT` mutation such as an
      ompK36 porin change) whose own Subclass contains one of them also triggers the
      override. The carbapenems (ertapenem, imipenem, meropenem) list `CARBAPENEM`, so
      carbapenemases that share a family column with non-carbapenemases
      (blaOXA-23/-58 with blaOXA-1 in `gene_blaoxa`, blaGES-5 with blaGES-1 in
-     `gene_blages`) or that no prefix covers still force the call.
+     `gene_blages`) or that no prefix covers still force the call. Training-time calls
+     (v0.6) apply the same rule from the AMRFinderPlus Subclass of each `gene_` column
+     (`AMRProt.fa` allele subclass, then `fam.tsv`; `train --amrfinder-db`), only on
+     columns whose every member symbol carries the subclass, so training-time calls are
+     never forced more often than the pipeline's.
    - Intrinsic genes (v0.5): symbols listed for the species in
      `configs/intrinsic_markers.csv` (the OXA-51 family for ABAU, which AMRFinderPlus
      reports with Subclass `CARBAPENEM`) never trigger either rule. Their per-allele
@@ -698,7 +730,7 @@ Checked into the repo, reviewed by the whole team.
 | File | Contents |
 | ---- | -------- |
 | `configs/species.yaml` | Species keys, AMRFinderPlus `-O` names, expected genome size, reference accessions |
-| `configs/drugs.yaml` | Drug names, synonyms for normalization, spectrum tiers for ranking, `strong_markers` (feature-column prefixes) and optional `strong_subclasses` (AMRFinderPlus Subclass values) for override 2, `call_standard` |
+| `configs/drugs.yaml` | Drug names, synonyms for normalization, spectrum tiers for ranking, `strong_markers` (feature-column prefixes), optional `strong_subclasses` (AMRFinderPlus Subclass values) and optional `strong_marker_exceptions` (column prefixes that never trigger the override; v0.6) for override 2, `call_standard` |
 | `configs/breakpoints/eucast_<version>.csv` | `species`, `drug`, `s_breakpoint`, `r_breakpoint`, `version` |
 | `configs/breakpoints/clsi_<version>.csv` | Same shape, for rows labelled CLSI |
 | `configs/natural_resistance.csv` | `species`, `drug` — always inactive |
@@ -796,10 +828,11 @@ ciprofloxacin). Get 1–7 working end to end before adding unitigs or more pairs
 
 ---
 
-## 7. Additions (v0.2 to v0.5)
+## 7. Additions (v0.2 to v0.6)
 
 Columns and files added on top of v0.1, sorted by file (the v0.4 rows from the real-data port are grouped
-after the first row, then the v0.5 rows from the optimisation and hardening round). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
+after the first row, then the v0.5 rows from the optimisation and hardening round, then the v0.6 rows from
+the probability, per-fold safety and model-choice round). Each row names the stage that writes it. v0.2 rows came from the first end-to-end build and are strictly additive.
 Rows marked v0.3 came with the review fixes, which also changed stage text above (see
 the changelog). A row that replaces an earlier row says so and says what changed.
 
@@ -809,6 +842,28 @@ training folds; the test split is never read. Not shipped (no gain over the tune
 beyond fold noise on the summed lab-S active rate of pairs passing call VME): monotone
 constraints and nested xgboost tuning. B1 and B2 are unchanged. No column, dtype or file
 was renamed.
+
+v0.6 summary: every drug gets `prob_works`, a calibrated probability that the drug works
+in the lab (isotonic, non-increasing map from the predicted MIC's distance to the S
+breakpoint onto the share of lab-S isolates, cross-fitted by fold), reported beside the
+call and never changing it. The bundle's active-call gate also closes when any calling
+CV fold's call VME is significantly above 1.5 % (one-sided exact binomial, p < 0.01), and
+the upper band end is widened when a calibration fold misses it significantly often.
+Training-time calls apply `strong_subclasses` from the AMRFinderPlus database (the full
+carbapenemase rule; `train --amrfinder-db`), and the 16S rRNA methyltransferases are
+aminoglycoside strong markers. The shipped model is `aft_b2_select`: per pair the AFT
+model, B2 or the average of their log2 predictions, ranked by call VME passing over the
+calling folds, then % lab S called likely active (to 1 pp), then EA (AFT > average > B2 on
+ties). CV fold f uses the choice made on the other folds only, so its `aft_b2_select` CV
+rows are an out-of-fold estimate of the procedure; the bundle repeats the choice on all
+folds. The bundle's gate certifies the shipped candidate on its own out-of-fold calls (the
+AFT bundle's standard); a pick other than AFT must also pass on the `aft_b2_select`
+out-of-fold calls, else the bundle falls back to AFT. It was adopted after an out-of-fold experiment on the release: EA higher in all 5
+folds (median +1.6 pp per pair), % lab S called likely active level, pairs failing call
+VME over their calling folds 7 to 4 of 97. Choosing among three candidates adds a little
+optimism, and the per-fold choice is unstable for many pairs; `aft_known` stays in the
+preds as the reference. Everything is fit on train-fold rows; the test split is never
+read. No column, dtype or file was renamed.
 
 | Where | Addition | Written by | Meaning |
 | ----- | -------- | ---------- | ------- |
@@ -840,6 +895,22 @@ was renamed.
 | prediction report `reasons` | `"likely_active withheld: ..."` (`rank.ACTIVE_GATE_REASON`) (v0.5) | predict | Added when the band alone would give `likely_active` but the bundle's `active_gate_open` is false. The call is then `uncertain` and `margin_steps` is null. A strong-marker or natural-resistance override still wins (`likely_inactive`, override reasons only) |
 | `results/report.md` | CV band-coverage header and note (v0.5; replaces the v0.3 footnote row) | report | Header `Band coverage % (tuned band; exact lab MICs; cross-conformal, see note)`. The note says CV bands are cross-conformal (an out-of-fold estimate, not the calibration set) and describes the tuned band, the calling-fold rule, the bundle restrictions and the gate |
 | `results/report.md` | "Call-safety summary" section and honesty bullets (v0.5) | report | Per species (main model, CV rows, lab S/I/R re-derived, VME first): pairs passing call VME <= 1.5 % pooled and over calling folds only; how many passing pairs make active calls vs pass only because no active call is made (gate closed) or natural resistance / no call breakpoint applies; pairs failing over calling folds (pooled, calling-fold and worst-fold VME); pairs with OOF band coverage < 85 %; per-species counts of rows whose reported S/I/R contradicts the S/I/R re-derived from their MIC. The how-to-read section adds bullets on exact-row weighting, selection bias (about 6 point-model candidates and 29 band variants compared on the same OOF rows), not-fully-nested cross-conformal tuning, folds as NCBI SNP clusters (not new lineages), and splitting every pass count as above |
+| `results/preds_<SPECIES>_<drug>.parquet` | `prob_works`, `prob_tier` (v0.6) | train | See stage 10. Per model with an MIC prediction: CV rows of fold f use the calibration fit on the other folds' CV rows; test and LOLO rows the fit on every CV row of that model |
+| `results/preds_<SPECIES>_<drug>.parquet` | `model` value `aft_b2_select` (v0.6) | train | The shipped model (`TrainConfig.model_select`, default on). CV rows of fold f: the candidate (`aft` = `aft_known` or `aft_known_unitig`, `b2` = `b2_xgb_steps`, `avg` = mean of the two capped log2 predictions, the available one when only one exists) chosen on the other folds, with that candidate's own cross-conformal band for fold f and the gated calls. Test and LOLO rows: the bundle's choice applied to that fit's AFT and B2 predictions, with the bundle's band. Rounded up once, after the average. Skipped (logged; the AFT model ships) when B2 or the AFT model is not trained, the band is `symmetric`, or the pair has fewer than 3 CV folds |
+| `models/<SPECIES>/<drug>/` | `aft_b2_select` bundle (v0.6; replaces `model.ubj` + `params.json` of the AFT model in the bundle layout row) | train | `features.json` `model_class` = `aft_b2_select` with the AFT model's feature list; `params.json` {`model_class`: `AftB2Select`, `name`, `choice` (`aft` / `avg` / `b2`), `base_name`, `caps` (the panel caps), `feature_names`, `components`}; `aft/` (XgbAft bundle) when the choice is `aft` or `avg`; `b2/` (B2XgbSteps bundle) when it is `b2` or `avg`. `AftB2Select.predict_log2` clips each component to the caps, then applies the choice, exactly as training did; B2 reads its own (known-AMR) columns by name. `train --no-model-select` ships the AFT bundle as before |
+| `models/<SPECIES>/<drug>/conformal.json` | `model_select` {`model`, `base_model`, `candidates`, `choice`, `rule_choice`, `fallback_from`, `rule`, `gate_rule`, `selection_gate_check`, `bundle_scores`, `choice_by_fold`, `inner_scores_by_fold`, `source`} (v0.6) | train | The shipped candidate (`choice`), the rule's pick on all folds (`rule_choice`) and the per-fold choices with their scores (`vme_ok`, `n_vme`, `n_lab_r_calling`, `n_calling_folds`, `active_s`, `n_lab_s`, `ea`, `n_exact`, `n`). The band keys are the shipped candidate's (levels limited to those that passed in every calling fold). Gate: the shipped candidate's own out-of-fold calls must pass the pooled calling-fold UCB and the per-fold binomial test, as for the AFT bundle. A pick other than AFT must also pass both rules on the `aft_b2_select` out-of-fold calls (`selection_gate_check`: `n_vme`, `n_lab_r_calling`, `n_calling_folds`, `ucb`, `significant_folds`). When its gate ends up closed while AFT's own gate is open, the bundle ships AFT (`fallback_from` = the pick). `fold_call_vme` is the shipped candidate's own table. `band_cross_conformal_by_fold` / `q_cross_conformal_by_fold` are the per-fold bands of the candidate used in each fold |
+| `models/<SPECIES>/<drug>/conformal.json` | `fold_call_vme` [{`fold`, `calling`, `n_lab_r`, `n_vme`, `call_vme`, `p_value`, `significant`}], `fold_gate_closed`, `q_up_widened` (v0.6) | train | `fold_call_vme`: out-of-fold call VME of each CV fold of the shipped model with its one-sided exact binomial p against `vme_target`; `significant` = calling and `p < fold_gate_p` (0.01). `fold_gate_closed` true when a significant fold closed the gate. `q_up_widened` true when `robust_q_up` widened the upper end (a calibration fold's exact lab MICs exceeded `q_up` significantly more often than `alpha_up`; `q_up` is raised to the smallest residual at which no fold is significant). `active_gate_open` is now false for pairs without a call breakpoint (was true) |
+| `models/<SPECIES>/<drug>/calibration.json` | new file (v0.6): `kind` (`isotonic_step_distance_to_s_breakpoint`), `s_breakpoint`, `natural_resistance`, `main` {`x`, `y`, `n`, `n_works`}, `override` (same shape or null), `override_constant` (0.02 or null), `n_override`, `min_override_rows` (30), `tiers`, `model`, `candidate`, `run_id`, `call_standard`, `source`, `cross_fitted_by_fold` {fold: {`n_main`, `n_override`, `override`}} | train | P(works) map of the bundle, fit on the out-of-fold CV predictions of the bundle's candidate (`candidate`; the bundle always applies that choice) on every train fold. `x` are knots in doubling steps above the S breakpoint, `y` non-increasing probabilities. The main map is fit on rows without a strong-marker override; override rows get their own map when at least 30 were seen, else 0.02. Absent: `prob_works` null |
+| `models/<SPECIES>/<drug>/features.json` | `class_by_column` subclass filled from the AMRFinderPlus database for release columns (v0.6) | train | Was null for every column of the NCBI release |
+| `models/<SPECIES>/<drug>/meta.json` | `model` = `aft_b2_select`; `model_select` {`choice`, `base_model`, `choice_by_fold`} or null; `strong_subclass_map` {`amrfinder_db_version`, `amrfinder_db_dir`, `lookup`} or null; `train_config.fold_gate_p`, `train_config.model_select` (v0.6) | train | Where the `gene_` column subclasses came from (null = no database: prefix rule only) and which candidate the bundle ships |
+| `results/prob_summary.{parquet,csv}` | new files (v0.6): species, model, split, n_drugs, `call_danger_rate`, `tier_danger_rate`, `forced_danger_rate`, `confident_rate`, `confident_right_rate`, `very_likely_works_right_rate`, `call_answer_rate`, `call_right_rate`, `forced_accuracy`, `brier`, counts | evaluate | The P(works) table, danger first: lab R called likely_active; lab R in a works tier (P >= 0.70); lab R with P >= 0.5. Then confident share (P >= 0.70 or <= 0.30), right when confident, 'very likely works' actually worked, call answer share, call right, accuracy when forced at 0.5, Brier |
+| `results/prob_calibration.{parquet,csv}` | new files (v0.6): species (plus `ALL`), model, split, `prob_bin`, `bin_low`, `bin_high`, `n`, `mean_prob`, `observed_works` | evaluate | Calibration check: bins `[0, 0.1]`, `(0.1, 0.3]`, `(0.3, 0.5]`, `(0.5, 0.7]`, `(0.7, 0.9]`, `(0.9, 1]` |
+| `results/call_vme_by_fold.{parquet,csv}` | new files (v0.6): species, drug, model, fold, calling, n_lab_r, n_vme, call_vme_rate, p_value, significant | evaluate | Out-of-fold call VME per CV fold (lab S/I/R re-derived), one-sided exact binomial p against 1.5 % |
+| `results/report.md` | "Probability that the drug works" and "Model choice" sections; call-safety summary by calling folds (v0.6) | report | P(works) table per species (danger columns first) and calibration table, main model, CV rows. Model choice: per species the bundle choice counts, pairs with the same choice in every fold, shipped gates, and AFT alone vs `aft_b2_select` (call VME, median % lab S active, median EA) on CV rows. Call safety: a pair passes when its calling-fold call VME is <= 1.5 % and no calling fold is significant; passing pairs are split by the shipped gate (`conformal.json`); pooled counts stay as a reference column; a per-fold table lists calling folds above 1.5 % |
+| `configs/drugs.yaml` | `strong_marker_exceptions` (optional list); 16S rRNA methyltransferase prefixes for amikacin, gentamicin, tobramycin (v0.6) | config | See stage 12 override 2 |
+| `train` / `run-all` CLI, `train.run` | `--amrfinder-db DIR` / `amrfinder_db=`; `--no-model-select` (v0.6) | train | AMRFinderPlus database for the column subclasses (also used for the release feature specs); without it a warning is logged and only the prefix rule applies. `--no-model-select` ships the AFT model |
+| `compare-oof` CLI | `--amrfinder-db DIR` (v0.6) | compare-oof | The recomputed calls (applied identically to both models) use the same subclass rule as training |
+| `TrainConfig` | `fold_gate_p = 0.01`, `model_select = True` (v0.6) | train | Both part of the `run_id` hash |
 | `data/interim/_references/references.msh` | new file (v0.3) | Snakefile (`mash_references`) | Mash sketch of every `data/raw/references/<SPECIES>.fasta`, the reference side of every per-genome `mash dist` |
 | `data/processed/drop_log_<stage>.csv` | new files | every stage | `stage, reason, n_dropped, detail` for every filter, including zero counts |
 | `data/processed/drop_log_evaluate.csv` | reason `lab interval censored or wider than one doubling step: excluded from EA, exact agreement and band coverage` (v0.3) | evaluate | Count of prediction rows left out of the exact-MIC metrics (not dropped from the preds) |

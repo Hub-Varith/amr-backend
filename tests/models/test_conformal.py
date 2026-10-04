@@ -428,3 +428,45 @@ def test_calling_fold_vme_ignores_folds_without_active_calls() -> None:
     folds = np.array([0, 0, 0, 1, 1, np.nan])
     assert calling_fold_vme(calls, lab, folds) == (1, 2, 1)  # fold 1 (2 lab R, no active call) is left out
     assert calling_fold_vme(np.array(["uncertain"], dtype=object), np.array(["R"], dtype=object), np.array([0.0])) == (0, 0, 0)
+
+
+# --------------------------------------------------------------- per-fold safety (v0.6)
+
+def test_fold_call_vme_table_flags_a_significant_calling_fold() -> None:
+    from genome2mic.models.conformal import binomial_excess_p, fold_call_vme_table  # noqa: PLC0415
+
+    # Fold 0: 1000 lab R, no VME. Fold 1: 100 lab R, 7 called likely_active. Fold 2: no active call.
+    calls = np.array(["uncertain"] * 1000 + ["likely_active"] * 7 + ["uncertain"] * 93 + ["uncertain"] * 50 + ["likely_active"],
+                     dtype=object)
+    lab = np.array(["R"] * 1100 + ["R"] * 50 + ["S"], dtype=object)
+    folds = np.array([0.0] * 1000 + [1.0] * 100 + [2.0] * 50 + [0.0])
+    table = {r["fold"]: r for r in fold_call_vme_table(calls, lab, folds, 0.015)}
+    assert table[0]["calling"] and table[0]["n_vme"] == 0 and table[0]["p_value"] == 1.0 and not table[0]["significant"]
+    assert table[1]["n_vme"] == 7 and table[1]["n_lab_r"] == 100
+    assert table[1]["p_value"] == pytest.approx(binomial_excess_p(7, 100, 0.015)) and table[1]["significant"]
+    assert not table[2]["calling"] and table[2]["call_vme"] == 0.0 and not table[2]["significant"]
+
+
+def test_robust_q_up_widens_only_for_a_significantly_missed_fold() -> None:
+    from genome2mic.models.conformal import robust_q_up  # noqa: PLC0415
+
+    rng = np.random.default_rng(5)
+    stable = [rng.integers(-2, 2, size=200).astype(float) for _ in range(3)]
+    q, widened = robust_q_up(stable, 1.0, 0.05)
+    assert (q, widened) == (1.0, False)
+    # One fold whose lab MICs sit 3 steps above the predictions: 70 % of it misses q_up = 1.
+    shifted = np.concatenate([np.full(140, 3.0), np.zeros(60)])
+    q, widened = robust_q_up([*stable, shifted], 1.0, 0.05)
+    assert widened and q == 3.0
+    # Nothing to check with no residuals.
+    assert robust_q_up([np.array([])], 1.0, 0.05) == (1.0, False)
+
+
+def test_band_params_json_records_the_new_keys() -> None:
+    from genome2mic.models.conformal import BandParams  # noqa: PLC0415
+
+    params = BandParams(q_up=1.0, q_low=1.0, alpha_up=0.05, alpha_low=0.05, active_gate_open=False, n_residuals=3,
+                        q_up_widened=True, fold_call_vme=({"fold": 0, "n_vme": 1},), fold_gate_closed=True)
+    out = params.as_json()
+    assert out["q_up_widened"] is True and out["fold_gate_closed"] is True
+    assert out["fold_call_vme"] == [{"fold": 0, "n_vme": 1}]

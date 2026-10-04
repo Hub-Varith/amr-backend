@@ -79,6 +79,7 @@ __all__ = [
     "strong_marker_columns",
     "strong_marker_hits",
     "strong_marker_mask",
+    "subclass_is_strong",
 ]
 
 CALL_LIKELY_ACTIVE = "likely_active"
@@ -323,42 +324,84 @@ def intrinsic_columns(intrinsic_symbols: Iterable[str]) -> frozenset[str]:
     return frozenset(column_name(PREFIX_GENE, str(symbol)) for symbol in intrinsic_symbols)
 
 
+def subclass_is_strong(subclass: str | None, wanted: Iterable[str]) -> bool:
+    """True when **every** ``;``-separated member subclass of a column carries a wanted token.
+
+    A column built from several symbols (``known_amr_columns.csv`` joins their subclasses
+    with ``;``) triggers the subclass rule only when all of them are, e.g., carbapenemases:
+    a family column mixing ``CARBAPENEM`` and ``CEPHALOSPORIN`` members cannot tell which
+    one a genome carries, so it never forces the call (training-time calls are then less
+    often forced than the pipeline's, never more).
+    """
+    want = frozenset(str(w).strip().upper() for w in wanted if str(w).strip())
+    if subclass is None or not want:
+        return False
+    members = [m for m in str(subclass).split(";") if m.strip() and m.strip().lower() not in {"nan", "none", "<na>"}]
+    return bool(members) and all(not class_tokens(m).isdisjoint(want) for m in members)
+
+
 def strong_marker_columns(
     columns: Iterable[str],
     drug_cfg: DrugConfig | None,
     exclude_columns: Iterable[str] = (),
+    subclass_by_column: Mapping[str, str | None] | None = None,
 ) -> list[str]:
-    """Known-AMR columns matching one of the drug's ``strong_markers`` prefixes (override 2, column rule).
+    """Known-AMR columns that trigger override 2 for this drug.
+
+    * Column rule: the column matches a ``strong_markers`` prefix and no
+      ``strong_marker_exceptions`` prefix (:meth:`DrugConfig.is_strong_column`).
+    * Subclass rule (when ``subclass_by_column`` is given): an acquired-gene column
+      (``gene_`` prefix; never ``point_``) whose AMRFinderPlus Subclass carries one of the
+      drug's ``strong_subclasses`` for every member symbol (:func:`subclass_is_strong`),
+      unless an exception prefix matches it.
 
     ``exclude_columns`` (:func:`intrinsic_columns` of the species) are never returned.
     """
-    if drug_cfg is None or not drug_cfg.strong_markers:
+    if drug_cfg is None:
+        return []
+    wanted = tuple(drug_cfg.strong_subclasses)
+    if not drug_cfg.strong_markers and not (wanted and subclass_by_column):
         return []
     excluded = frozenset(exclude_columns)
-    return [
-        str(c) for c in columns
-        if str(c) not in excluded
-        and any(str(c) == prefix or str(c).startswith(prefix) for prefix in drug_cfg.strong_markers)
-    ]
+    exceptions = tuple(getattr(drug_cfg, "strong_marker_exceptions", ()) or ())
+    out = []
+    for column in columns:
+        c = str(column)
+        if c in excluded:
+            continue
+        if drug_cfg.is_strong_column(c):
+            out.append(c)
+            continue
+        if (
+            wanted
+            and subclass_by_column
+            and c.startswith(PREFIX_GENE)
+            and not any(c == e or c.startswith(e) for e in exceptions)
+            and subclass_is_strong(subclass_by_column.get(c), wanted)
+        ):
+            out.append(c)
+    return out
 
 
 def strong_marker_mask(
     known: Any,
     drug_cfg: DrugConfig | None,
     exclude_columns: Iterable[str] = (),
+    subclass_by_column: Mapping[str, str | None] | None = None,
 ) -> np.ndarray:
-    """Per row of a known-AMR table: any ``strong_markers`` column present (> 0).
+    """Per row of a known-AMR table: any override-2 column present (> 0) (:func:`strong_marker_columns`).
 
-    This is the column-prefix half of override 2 only. The ``strong_subclasses`` half
-    needs the genome's own AMRFinderPlus detections (a family column such as
-    ``gene_blaoxa`` mixes carbapenemases and narrow-spectrum enzymes), which a
-    feature table does not carry, so evaluation-time calls can only be *less*
-    often forced inactive than the pipeline's -- never more. ``exclude_columns``
-    (the species' intrinsic genes, :func:`intrinsic_columns`) never count, exactly
-    as :func:`strong_marker_hits` skips their symbols at prediction time.
+    Without ``subclass_by_column`` this is the column-prefix half of override 2 only.
+    With it (training passes the AMRFinderPlus Subclass of every ``gene_`` column,
+    :mod:`genome2mic.features.subclass_map`) the ``strong_subclasses`` half is applied
+    too, on columns whose every member symbol carries the subclass, so carbapenemase
+    alleles that no prefix lists (blaOXA-23, blaOXA-58, blaGES-5, ...) force the call as
+    at prediction time. ``exclude_columns`` (the species' intrinsic genes,
+    :func:`intrinsic_columns`) never count, exactly as :func:`strong_marker_hits` skips
+    their symbols at prediction time.
     """
     n = len(known)
-    cols = strong_marker_columns(getattr(known, "columns", []), drug_cfg, exclude_columns)
+    cols = strong_marker_columns(getattr(known, "columns", []), drug_cfg, exclude_columns, subclass_by_column)
     if not cols:
         return np.zeros(n, dtype=bool)
     values = np.asarray(known[cols].to_numpy(dtype=np.float64))
@@ -378,8 +421,8 @@ def strong_marker_hits(
 ) -> list[str]:
     """Symbols of the detected markers that trigger the strong-marker override (override 2).
 
-    A symbol hits when its known-AMR column matches a ``strong_markers`` prefix, or
-    when it is an acquired gene (Subtype ``AMR``, never ``POINT``) whose AMRFinderPlus
+    A symbol hits when its known-AMR column matches a ``strong_markers`` prefix (and no
+    ``strong_marker_exceptions`` prefix), or when it is an acquired gene (Subtype ``AMR``, never ``POINT``) whose AMRFinderPlus
     ``Subclass`` (``/``-separated tokens) is in ``strong_subclasses``. The subclass
     comes from the detection itself, never from the training-time column metadata: a
     family column such as ``gene_blaoxa`` mixes carbapenemases and narrow-spectrum
@@ -401,8 +444,9 @@ def strong_marker_hits(
     markers = tuple(markers)
     intrinsic = frozenset(str(symbol).strip().lower() for symbol in intrinsic_symbols)
     hits: list[str] = []
+    exceptions = tuple(getattr(drug_cfg, "strong_marker_exceptions", ()) or ())
     for column, symbols in symbols_by_column.items():
-        if any(column == prefix or column.startswith(prefix) for prefix in drug_cfg.strong_markers):
+        if drug_cfg.is_strong_column(column):
             for symbol in symbols:
                 if symbol not in hits and str(symbol).strip().lower() not in intrinsic:
                     hits.append(symbol)
@@ -413,6 +457,8 @@ def strong_marker_hits(
             if not acquired_gene or marker.symbol in hits:
                 continue
             if str(marker.symbol).strip().lower() in intrinsic:
+                continue
+            if marker.column and any(marker.column == e or marker.column.startswith(e) for e in exceptions):
                 continue
             if not class_tokens(marker.subclass).isdisjoint(wanted):
                 hits.append(marker.symbol)

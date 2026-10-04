@@ -173,6 +173,7 @@ def cmd_compare_oof(args: argparse.Namespace) -> int:
             develop_preds=Path(args.develop_preds),
             out_dir=Path(args.out),
             breakpoints_csv=Path(args.breakpoints) if args.breakpoints else None,
+            amrfinder_db=Path(args.amrfinder_db) if getattr(args, "amrfinder_db", None) else None,
         ),
     )
     print(f"compare-oof: {len(result.table)} rows -> {result.csv_path} and {result.md_path}")
@@ -274,6 +275,7 @@ def _train_config(args: argparse.Namespace) -> Any:
         workers=max(1, int(getattr(args, "workers", 1) or 1)),
         band=getattr(args, "band", "asym_tuned") or "asym_tuned",
         exact_weight=float(getattr(args, "exact_weight", 2.0)),
+        model_select=not getattr(args, "no_model_select", False),
     )
 
 
@@ -292,7 +294,10 @@ def cmd_train(args: argparse.Namespace) -> int:
     pairs = train.select_pairs(paths, config, species=species, drugs=drugs) if (species or drugs) else None
     if pairs is not None:
         print(f"train: {len(pairs)} pair(s) selected: {', '.join(f'{s} x {d}' for s, d in pairs)}")
-    summary = _timed("train", lambda: train.run(paths, config, train_config=_train_config(args), pairs=pairs))
+    db = getattr(args, "amrfinder_db", None)
+    summary = _timed("train", lambda: train.run(
+        paths, config, train_config=_train_config(args), pairs=pairs, amrfinder_db=Path(db) if db else None,
+    ))
     print(summary.to_string(index=False))
     return 0
 
@@ -499,6 +504,11 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
              "tuned inside the training folds for call-level VME <= 1.5%%, active calls withheld when no "
              "level certifies it) or symmetric (the original +-q band at 90%%)",
     )
+    parser.add_argument(
+        "--no-model-select", dest="no_model_select", action="store_true",
+        help="ship the AFT model as is instead of aft_b2_select (the per-pair choice of AFT, B2 or their average "
+             "made inside the training folds; default on)",
+    )
     parser.add_argument("--train-seed", dest="train_seed", type=int, default=7, help="seed for in-fold holdouts and xgboost")
     parser.add_argument("--max-rounds", type=int, default=400)
     parser.add_argument("--early-stopping-rounds", type=int, default=20)
@@ -509,6 +519,12 @@ def _add_train_args(parser: argparse.ArgumentParser) -> None:
              "predict test or LOLO rows and never write the test ledger",
     )
     parser.add_argument("--ablation", action="store_true", help="also run aft_unitig_only")
+    parser.add_argument(
+        "--amrfinder-db", dest="amrfinder_db", default=None,
+        help="AMRFinderPlus database dir (fam.tsv, AMRProt.fa) giving every gene_ column its Subclass, so "
+             "training-time calls apply drugs.yaml strong_subclasses like the prediction pipeline "
+             "(default: next to amrfinder on PATH; none -> prefix rule only, with a warning)",
+    )
     parser.add_argument(
         "--species", dest="train_species", nargs="+", default=None, metavar="KEY",
         help="train only the kept pairs of these species (a shard; models/manifest.json is merged, not replaced)",
@@ -588,6 +604,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--develop-preds", required=True, help="OOF preds parquet of the reference model (e.g. develop's multitask)")
     p.add_argument("--breakpoints", default=None, help="breakpoint CSV to use instead of the call standard (species,drug,s_breakpoint,r_breakpoint)")
     p.add_argument("--out", required=True, help="output directory for oof_compare.csv / oof_compare.md")
+    p.add_argument("--amrfinder-db", dest="amrfinder_db", default=None,
+                   help="AMRFinderPlus database dir: recomputed calls apply strong_subclasses like training")
     p.set_defaults(func=cmd_compare_oof)
 
     p = sub.add_parser("predict", help="one FASTA -> report JSON on stdout")

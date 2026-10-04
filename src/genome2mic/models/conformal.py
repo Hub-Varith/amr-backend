@@ -290,6 +290,13 @@ class BandParams:
     """Bundle only: the levels that passed in every fold that issues calls (None = unrestricted)."""
     oof_call_vme_ucb: float | None = None
     """Bundle only: ``(k + 1) / (n_lab_R + 1)`` of the out-of-fold CV calls over the calling folds (None = not checked)."""
+    q_up_widened: bool = False
+    """True when :func:`robust_q_up` widened the upper end (a calibration fold missed it significantly often)."""
+    fold_call_vme: tuple[dict[str, Any], ...] | None = None
+    """Bundle only: per-CV-fold call VME of the out-of-fold calls with its one-sided exact binomial p-value
+    (:func:`fold_call_vme_table`); None = not checked."""
+    fold_gate_closed: bool = False
+    """Bundle only: the gate was closed because a calling fold's call VME was significantly above the target."""
 
     def band(self, pred_mic: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         return asym_band(pred_mic, self.q_up, self.q_low)
@@ -307,6 +314,9 @@ class BandParams:
             "passing_alpha_up": [float(a) for a in self.passing_alphas],
             "allowed_alpha_up": None if self.allowed_alphas is None else [float(a) for a in self.allowed_alphas],
             "oof_call_vme_ucb": None if self.oof_call_vme_ucb is None else float(self.oof_call_vme_ucb),
+            "q_up_widened": bool(self.q_up_widened),
+            "fold_call_vme": None if self.fold_call_vme is None else [dict(r) for r in self.fold_call_vme],
+            "fold_gate_closed": bool(self.fold_gate_closed),
         }
 
 
@@ -492,3 +502,99 @@ def calling_fold_vme(calls: np.ndarray, lab_sir: np.ndarray, folds: np.ndarray) 
     calling = np.unique(folds[active & ~np.isnan(folds)])
     in_calling = np.isin(folds, calling)
     return int((active & is_r).sum()), int((is_r & in_calling).sum()), int(calling.size)
+
+
+# --------------------------------------------------------------------------- #
+# Per-fold safety: exact binomial test of call VME and the upper-end guard
+# --------------------------------------------------------------------------- #
+
+DEFAULT_FOLD_P_THRESHOLD = 0.01
+"""One-sided p-value below which a fold's rate counts as significantly above its target."""
+
+
+def binomial_excess_p(k: int, n: int, rate: float) -> float:
+    """One-sided exact binomial p-value ``P(X >= k)`` for ``X ~ Binomial(n, rate)``.
+
+    ``1.0`` when ``k <= 0`` or ``n == 0`` (nothing observed cannot be "too many").
+    """
+    from scipy.stats import binom  # noqa: PLC0415
+
+    k, n = int(k), int(n)
+    if k <= 0 or n <= 0:
+        return 1.0
+    if not 0 < rate < 1:
+        raise ValueError("rate must be in (0, 1)")
+    return float(binom.sf(k - 1, n, rate))
+
+
+def fold_call_vme_table(
+    calls: np.ndarray,
+    lab_sir: np.ndarray,
+    folds: np.ndarray,
+    target: float = DEFAULT_VME_TARGET,
+    p_threshold: float = DEFAULT_FOLD_P_THRESHOLD,
+) -> list[dict[str, Any]]:
+    """Per fold: lab R, VMEs (lab R called ``likely_active``), the rate and its one-sided p-value.
+
+    ``calling`` = the fold issued at least one ``likely_active`` call; ``significant`` =
+    calling and ``p < p_threshold`` under ``Binomial(n_lab_R, target)``. Rows with a NaN
+    fold are ignored.
+    """
+    calls = np.asarray(calls, dtype=object)
+    folds = np.asarray(folds, dtype=np.float64)
+    active = np.array([c == "likely_active" for c in calls], dtype=bool)
+    is_r = np.array([v == "R" for v in np.asarray(lab_sir, dtype=object)], dtype=bool)
+    out: list[dict[str, Any]] = []
+    for fold in sorted({int(f) for f in folds[~np.isnan(folds)]}):
+        in_f = folds == fold
+        n_r = int((is_r & in_f).sum())
+        k = int((is_r & active & in_f).sum())
+        calling = bool((active & in_f).any())
+        p = binomial_excess_p(k, n_r, target)
+        out.append({
+            "fold": fold,
+            "calling": calling,
+            "n_lab_r": n_r,
+            "n_vme": k,
+            "call_vme": (k / n_r) if n_r else None,
+            "p_value": p,
+            "significant": bool(calling and p < p_threshold),
+        })
+    return out
+
+
+def robust_q_up(
+    signed_by_fold: Sequence[np.ndarray],
+    q_up: float,
+    alpha_up: float,
+    *,
+    p_threshold: float = DEFAULT_FOLD_P_THRESHOLD,
+) -> tuple[float, bool]:
+    """Upper half-width that no calibration fold misses significantly more often than ``alpha_up``.
+
+    ``signed_by_fold`` holds the signed exact residuals (``log2(lab) - pred``) of each
+    calibration fold. A fold *misses* the upper end when a residual exceeds ``q_up``. When
+    some fold's miss count is significantly above ``alpha_up`` (one-sided exact binomial
+    p < ``p_threshold``; e.g. a fold whose lab MICs sit far above the predictions), the
+    upper half-width is raised to the smallest residual value at which no fold is
+    significant any more (at worst the largest residual: no misses). Otherwise ``q_up``
+    is returned unchanged. The upper-end analogue of :func:`robust_q_low`.
+
+    Returns:
+        ``(q_up, widened)``.
+    """
+    parts = [np.asarray(r, dtype=np.float64).ravel() for r in signed_by_fold]
+    parts = [r for r in parts if r.size]
+    if not parts or not 0 < alpha_up < 1:
+        return float(q_up), False
+
+    def any_significant(q: float) -> bool:
+        return any(binomial_excess_p(int((r > q + 1e-9).sum()), r.size, alpha_up) < p_threshold for r in parts)
+
+    if not any_significant(float(q_up)):
+        return float(q_up), False
+    candidates = np.unique(np.concatenate(parts))
+    for q in candidates[candidates > q_up + 1e-9]:
+        if not any_significant(float(q)):
+            return float(q), True
+    return float(max(q_up, candidates.max())), True

@@ -60,11 +60,15 @@ Implements the ``train.py`` part of the models section in ``.context/DESIGN.md``
        models/<SPECIES>/train_sketches.npz    sketches of the train-split genomes
        models/<SPECIES>/unitig_kmers.npz      copy of the frozen k-mer set (when unitigs exist)
        models/<SPECIES>/unitig_index.parquet  copy of the pattern index
-       models/<SPECIES>/<drug>/model.ubj + params.json      (XgbAft.save)
+       models/<SPECIES>/<drug>/params.json + aft/ + b2/  (AftB2Select.save, v0.6: the in-fold choice of the
+                                              AFT model, B2 or their average; model.ubj + params.json
+                                              (XgbAft.save) when TrainConfig.model_select is off)
        models/<SPECIES>/<drug>/features.json  model_class, known_columns, unitig_cols, class_by_column,
                                               feature_names, unitig_kmer_set_sha1
        models/<SPECIES>/<drug>/conformal.json q, alpha, n_residuals, caps, q_up, q_low, alpha_up,
-                                              alpha_low, active_gate_open (+ per-fold record)
+                                              alpha_low, active_gate_open (+ per-fold record,
+                                              model_select: choice, per-fold choices and scores)
+       models/<SPECIES>/<drug>/calibration.json  P(works) map (v0.6)
        models/<SPECIES>/<drug>/meta.json      free-form training record (incl. inputs_sha1)
        models/<SPECIES>/<drug>/importance.json [{feature, gain}, ...]
 
@@ -119,25 +123,31 @@ from genome2mic.features import select
 from genome2mic.io import read_parquet, write_parquet
 from genome2mic.mic import GRID_MAX_EXPONENT, GRID_MIN_EXPONENT, lab_exact_mask, panel_caps_log2, round_up_to_step_array
 from genome2mic.models import MODEL_CLASSES, make_model
+from genome2mic.models import aft_b2_select as model_select
 from genome2mic.models.base import (
+    exact_mask,
     label_point_log2_array,
     read_json,
     validate_intervals,
     write_json,
 )
+from genome2mic.models import calibration as prob_cal
 from genome2mic.models.conformal import (
     DEFAULT_ALPHA,
     DEFAULT_ALPHA_GRID,
     DEFAULT_ALPHA_LOW,
+    DEFAULT_FOLD_P_THRESHOLD,
     DEFAULT_VME_TARGET,
     BandParams,
     asym_quantiles,
     calling_fold_vme,
     conformal_q,
+    fold_call_vme_table,
     gate_calls,
     passing_levels,
     residual_steps,
     robust_q_low,
+    robust_q_up,
     signed_residual_steps,
     vme_certified,
     symmetric_params,
@@ -190,6 +200,10 @@ MODEL_B2 = "b2_xgb_steps"
 MODEL_AFT_KNOWN = "aft_known"
 MODEL_AFT_KNOWN_UNITIG = "aft_known_unitig"
 MODEL_AFT_UNITIG_ONLY = "aft_unitig_only"
+MODEL_SELECT = model_select.MODEL_ID
+"""``aft_b2_select`` (v0.6): per pair, the AFT model, B2 or their average, chosen inside the
+training folds (:func:`_select_model`). Derived from the fitted AFT and B2 models; never in
+``TrainConfig.models``."""
 DEFAULT_MODELS: tuple[str, ...] = (MODEL_B1, MODEL_B2, MODEL_AFT_KNOWN, MODEL_AFT_KNOWN_UNITIG)
 UNITIG_MODELS: frozenset[str] = frozenset({MODEL_AFT_KNOWN_UNITIG, MODEL_AFT_UNITIG_ONLY})
 KNOWN_MODELS: frozenset[str] = frozenset({MODEL_B1, MODEL_B2, MODEL_AFT_KNOWN, MODEL_AFT_KNOWN_UNITIG})
@@ -213,12 +227,16 @@ PREDS_COLUMNS: tuple[str, ...] = (
     "lab_sir_rederived",
     "lab_exact",
     "call",
+    "prob_works",
+    "prob_tier",
 )
 """Stage-10 contract columns plus the v0.2 additions ``external_set``,
 ``nearest_training_distance``, ``lab_sir_rederived`` and ``lab_exact`` (bool: the lab
-result is an exact measured MIC, :func:`genome2mic.mic.lab_exact_mask`) and the v0.4
+result is an exact measured MIC, :func:`genome2mic.mic.lab_exact_mask`), the v0.4
 ``call`` (``likely_active`` / ``uncertain`` / ``likely_inactive`` or null; the
-prediction pipeline's call rule and overrides, :func:`genome2mic.predict.rank.call_array`)."""
+prediction pipeline's call rule and overrides, :func:`genome2mic.predict.rank.call_array`)
+and the v0.6 ``prob_works`` (calibrated P(lab S under the call breakpoint); CV rows
+cross-fitted on the other folds, :mod:`genome2mic.models.calibration`) and ``prob_tier``."""
 
 LEDGER_COLUMNS: tuple[str, ...] = ("run_id", "created_utc", "species", "drug", "n_test_rows", "inputs_sha1")
 """Header of the append-only ``results/test_ledger.csv``."""
@@ -296,6 +314,18 @@ class TrainConfig:
         panel_cap: Clip each raw log2 prediction to the panel-edge caps of the rows the
             model was fitted on (:func:`genome2mic.mic.panel_caps_log2`) before rounding
             up and before the band; the final caps are stored in the bundle.
+        model_select: (v0.6) Also emit ``aft_b2_select`` and ship it as the bundle: per pair
+            the main AFT model, B2 or the average of their log2 predictions, chosen by
+            :func:`_select_model` from out-of-fold calls and EA. CV fold ``f`` uses the
+            choice made on the other folds only (nested); the bundle uses the choice made on
+            every fold. Needs ``b2_xgb_steps`` and the AFT model in ``models``, the
+            ``asym_tuned`` band and at least 3 CV folds; otherwise the AFT model ships.
+        fold_gate_p: One-sided exact binomial p-value below which a fold counts as
+            significantly above its target (v0.6): a calling CV fold whose call VME is
+            significantly above ``band_vme_target`` closes the bundle's active-call gate
+            (:func:`_oof_gate_check`), and a calibration fold that misses the band's upper
+            end significantly more often than ``alpha_up`` widens it
+            (:func:`~genome2mic.models.conformal.robust_q_up`).
     """
 
     models: tuple[str, ...] = DEFAULT_MODELS
@@ -319,8 +349,13 @@ class TrainConfig:
     band_alpha_grid: tuple[float, ...] = DEFAULT_ALPHA_GRID
     band_alpha_low: float = DEFAULT_ALPHA_LOW
     band_vme_target: float = DEFAULT_VME_TARGET
+    fold_gate_p: float = DEFAULT_FOLD_P_THRESHOLD
+    model_select: bool = True
 
     def effective_models(self, has_unitigs: bool) -> list[str]:
+        if MODEL_SELECT in self.models:
+            raise ValueError(f"{MODEL_SELECT} is derived from the fitted AFT and B2 models (TrainConfig.model_select); "
+                             "do not list it in models")
         out = [m for m in self.models if m in MODEL_CLASSES]
         unknown = [m for m in self.models if m not in MODEL_CLASSES and m != MODEL_B0]
         if unknown:
@@ -353,6 +388,8 @@ class TrainConfig:
             "band_alpha_grid": [float(a) for a in self.band_alpha_grid],
             "band_alpha_low": float(self.band_alpha_low),
             "band_vme_target": float(self.band_vme_target),
+            "fold_gate_p": float(self.fold_gate_p),
+            "model_select": bool(self.model_select),
         }
 
 
@@ -496,6 +533,10 @@ class SpeciesData:
     """:meth:`~genome2mic.features.unitigs.KmerSet.sha1` of ``unitigs_<SPECIES>_kmers.npz``
     (the set whose pattern columns the matrix holds); recorded in every unitig model's
     ``features.json``."""
+    subclass_source: dict[str, Any] | None = None
+    """Where the ``gene_`` column subclasses behind the training-time ``strong_subclasses``
+    rule came from (AMRFinderPlus DB version and directory); ``None`` = no database, the
+    subclass rule then only sees subclasses already in ``known_amr_columns.csv``."""
 
     @property
     def has_unitigs(self) -> bool:
@@ -620,20 +661,60 @@ def _load_species_data(paths: Paths, species: str, known_all: pd.DataFrame, clas
     )
 
 
-def _class_map(paths: Paths) -> dict[str, tuple[str | None, str | None]]:
-    """``column_name -> (class, subclass)`` from ``known_amr_columns.csv`` (empty if absent)."""
+def _class_map(paths: Paths, subclass_tables: Any = None) -> dict[str, tuple[str | None, str | None]]:
+    """``column_name -> (class, subclass)`` from ``known_amr_columns.csv`` (empty if absent).
+
+    ``gene_`` columns get their AMRFinderPlus Subclass from
+    :func:`genome2mic.features.subclass_map.column_subclasses`: a non-empty ``subclass``
+    cell of the file wins; otherwise (the NCBI release ships none) the member symbols are
+    looked up in ``subclass_tables`` (``AMRProt.fa`` alleles, then ``fam.tsv``). The
+    subclass feeds the training-time ``strong_subclasses`` rule (:func:`pair_marker`).
+    """
     if not paths.known_amr_columns.is_file():
         return {}
+    from genome2mic.features.subclass_map import column_subclasses  # noqa: PLC0415
+
     table = pd.read_csv(paths.known_amr_columns, dtype=str, keep_default_na=False)
+    subclasses = column_subclasses(table, subclass_tables)
     out: dict[str, tuple[str | None, str | None]] = {}
     for _, row in table.iterrows():
         column = str(row.get("column_name", "")).strip()
         if not column:
             continue
         cls = str(row.get("class", "")).strip() or None
-        sub = str(row.get("subclass", "")).strip() or None
+        if column in out and out[column][0] and not cls:
+            cls = out[column][0]
+        sub = subclasses.get(column) or (str(row.get("subclass", "")).strip() or None)
         out[column] = (cls, sub)
     return out
+
+
+def _subclass_tables(paths: Paths, amrfinder_db: Path | None) -> tuple[Any, dict[str, Any] | None]:
+    """Load the AMRFinderPlus subclass tables for :func:`_class_map` (``(None, None)`` when unavailable)."""
+    from genome2mic.features.subclass_map import load_subclass_tables  # noqa: PLC0415
+    from genome2mic.predict.release_features import find_amrfinder_db  # noqa: PLC0415
+
+    db = find_amrfinder_db(Path(amrfinder_db) if amrfinder_db is not None else None)
+    if db is None or not (Path(db) / "fam.tsv").is_file():
+        imported = paths.processed_dir.joinpath("IMPORTED_RELEASE.json").is_file()
+        (logger.warning if imported else logger.info)(
+            "train: no AMRFinderPlus database (%s); training-time calls apply strong_markers prefixes and only the "
+            "subclasses already in known_amr_columns.csv%s. Pass --amrfinder-db DIR to apply strong_subclasses "
+            "(e.g. every acquired carbapenemase for the carbapenems) as the prediction pipeline does",
+            db or "amrfinder not on PATH",
+            " (the imported release ships none, so the subclass rule is OFF)" if imported else "",
+        )
+        return None, None
+    tables = load_subclass_tables(Path(db))
+    source = {"amrfinder_db_version": tables.db_version, "amrfinder_db_dir": str(db),
+              "lookup": "AMRProt.fa allele subclass, then fam.tsv node (raw symbol, then without allele suffix)"}
+    logger.info("train: gene_ column subclasses from AMRFinderPlus DB %s (%s)", tables.db_version, db)
+    return tables, source
+
+
+def _subclass_by_column(sd: SpeciesData) -> dict[str, str | None]:
+    """``gene_`` column -> AMRFinderPlus Subclass (``;``-joined members) for :func:`pair_marker`."""
+    return {c: v[1] for c, v in sd.class_by_column.items() if c.startswith("gene_")}
 
 
 class _PairDropLog(DropLog):
@@ -990,13 +1071,21 @@ def apply_caps(pred_log2: np.ndarray, caps: tuple[float, float] | None) -> np.nd
     return np.clip(pred, caps[0], caps[1])
 
 
-def pair_marker(pd_: PairData, config: Config) -> np.ndarray:
-    """Override-2 strong-marker flag for every row of the pair (see :func:`pair_calls`)."""
+def pair_marker(
+    pd_: PairData, config: Config, subclass_by_column: Mapping[str, str | None] | None = None
+) -> np.ndarray:
+    """Override-2 strong-marker flag for every row of the pair (see :func:`pair_calls`).
+
+    With ``subclass_by_column`` (:func:`_subclass_by_column`) the ``strong_subclasses``
+    rule is applied too (acquired ``gene_`` columns whose every member carries e.g.
+    ``CARBAPENEM``), as the pipeline does from the AMRFinderPlus detections.
+    """
     from genome2mic.predict import rank  # noqa: PLC0415  (avoids a predict <-> models import cycle)
 
     return np.asarray(rank.strong_marker_mask(
         pd_.X_known, config.drugs.get(pd_.drug),
         exclude_columns=rank.intrinsic_columns(config.intrinsic_symbols(pd_.species)),
+        subclass_by_column=subclass_by_column,
     ), dtype=bool)
 
 
@@ -1042,13 +1131,17 @@ def finish_predictions(
     nearest: np.ndarray,
     config: Config,
     caps: tuple[float, float] | None = None,
+    marker_all: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Cap, round up, band, classify, call and assemble the preds rows for ``idx``.
 
     ``caps`` (:func:`genome2mic.mic.panel_caps_log2` of the fit rows) clips the raw
     log2 prediction before rounding up; ``None`` when the caller already capped.
     ``q`` is a :class:`BandParams` (asymmetric band + active-call gate) or a plain
-    float (symmetric ``+-q`` band, gate open).
+    float (symmetric ``+-q`` band, gate open). ``marker_all`` is the pair's override-2
+    flag per frame row (:func:`pair_marker`); computed (column rule only) when omitted.
+    ``prob_works`` / ``prob_tier`` are left null here; :func:`train_pair` fills them
+    (cross-fitted for CV rows, :func:`_add_probabilities`).
     """
     params = q if isinstance(q, BandParams) else symmetric_params(float(q), DEFAULT_ALPHA, 0)
     pred_log2 = apply_caps(pred_log2, caps)
@@ -1081,7 +1174,9 @@ def finish_predictions(
             "nearest_training_distance": np.asarray(nearest, dtype=np.float64),
             "lab_sir_rederived": rederived,
             "lab_exact": pd_.lab_exact[idx],
-            "call": gate_calls(pair_calls(pd_, idx, band_low, band_high, config), params.active_gate_open),
+            "call": gate_calls(pair_calls(pd_, idx, band_low, band_high, config, marker_all), params.active_gate_open),
+            "prob_works": np.nan,
+            "prob_tier": None,
         },
         columns=list(PREDS_COLUMNS),
     )
@@ -1435,7 +1530,9 @@ def _band_params(
         else:
             alpha_up, gate_open, ucb = float(cfg.band_alpha_grid[-1]), False, None
     else:
-        alpha_up, gate_open, ucb = 0.05, True, None
+        # No call breakpoint: nothing can be certified, so the gate ships closed (the pipeline's
+        # call is 'uncertain' anyway). Natural resistance: the call is always likely_inactive.
+        alpha_up, gate_open, ucb = 0.05, bp is not None, None
     cal_list = [int(f) for f in cal_folds]
     cal = np.isin(folds, cal_list) & ~np.isnan(p)
     signed = signed_residual_steps(p[cal], pd_.lo[cal], pd_.hi[cal], exact_rows=pd_.lab_exact[cal])
@@ -1448,6 +1545,12 @@ def _band_params(
     if widened:
         logger.info("%s: leave-one-fold-out lower half-widths disagree by > 1 step; lower end widened to %.2f steps",
                     label, q_low)
+    q_up_before = q_up
+    q_up, up_widened = robust_q_up(by_fold, q_up, alpha_up, p_threshold=cfg.fold_gate_p)
+    if up_widened:
+        logger.info("%s: a calibration fold misses the upper end significantly more often than %.3g "
+                    "(one-sided binomial p < %.2g); upper end widened from %.2f to %.2f steps",
+                    label, alpha_up, cfg.fold_gate_p, q_up_before, q_up)
     if not gate_open:
         logger.info("%s: no upper level met call VME <= %.1f%% in the calling training folds%s; likely_active calls withheld",
                     label, 100 * cfg.band_vme_target, "" if allowed_alphas is None else " (and in every calling CV fold)")
@@ -1459,6 +1562,7 @@ def _band_params(
         active_gate_open=bool(gate_open and certified), n_residuals=int(signed.size), inner_vme_ucb=ucb,
         q_low_widened=widened, passing_alphas=tuple(a for a, _ in passed),
         allowed_alphas=None if allowed_alphas is None else tuple(float(a) for a in allowed_alphas),
+        q_up_widened=up_widened,
     )
 
 
@@ -1470,20 +1574,40 @@ def _oof_gate_check(
     folds: np.ndarray,
     target: float,
     label: str,
+    p_threshold: float = DEFAULT_FOLD_P_THRESHOLD,
 ) -> BandParams:
-    """Close the bundle's active-call gate unless the out-of-fold CV calls pass the call-VME rule.
+    """Close the bundle's active-call gate unless the out-of-fold CV calls pass the call-VME rules.
 
-    The rule is :func:`~genome2mic.models.conformal.vme_certified` on the VMEs and lab-R
-    rows pooled over the CV folds that issued at least one ``likely_active`` call
-    (:func:`~genome2mic.models.conformal.calling_fold_vme`). Only train-fold rows are
-    read. Uncallable pairs (``lab_sir`` None) and already-closed gates are returned as is.
+    Two rules, both on train-fold rows only:
+
+    1. pooled: :func:`~genome2mic.models.conformal.vme_certified` on the VMEs and lab-R
+       rows pooled over the CV folds that issued at least one ``likely_active`` call
+       (:func:`~genome2mic.models.conformal.calling_fold_vme`);
+    2. per fold: no calling fold's call VME may be significantly above ``target``
+       (one-sided exact binomial ``P(X >= n_vme | n_lab_R, target) < p_threshold``, default 0.01,
+       :func:`~genome2mic.models.conformal.fold_call_vme_table`). One bad fold is enough:
+       pooling across folds must not hide a fold where the calls were unsafe.
+
+    The per-fold table is recorded on the result (``fold_call_vme``, ``conformal.json``)
+    whenever the pair is callable, also for a gate that was already closed. Uncallable
+    pairs (``lab_sir`` None) are returned as is.
     """
-    if lab_sir is None or not params.active_gate_open or params.inner_vme_ucb is None or not cv_calls:
+    if lab_sir is None or not cv_calls:
         return params
     idx = np.concatenate([i for _, i in cv_calls])
     calls = np.concatenate([c for c, _ in cv_calls])
+    table = tuple(fold_call_vme_table(calls, lab_sir[idx], folds[idx], target, p_threshold))
+    params = replace(params, fold_call_vme=table)
+    if not params.active_gate_open or params.inner_vme_ucb is None:
+        return params
     k, n_r, n_folds = calling_fold_vme(calls, lab_sir[idx], folds[idx])
     ucb = (k + 1) / (n_r + 1)
+    bad_folds = [r for r in table if r["significant"]]
+    if bad_folds:
+        logger.info("%s: calling fold(s) %s have call VME significantly above %.1f%% (%s); bundle likely_active "
+                    "calls withheld", label, [r["fold"] for r in bad_folds], 100 * target,
+                    ", ".join(f"fold {r['fold']}: {r['n_vme']}/{r['n_lab_r']}, p={r['p_value']:.2g}" for r in bad_folds))
+        return replace(params, active_gate_open=False, oof_call_vme_ucb=ucb, fold_gate_closed=True)
     if n_folds and vme_certified(k, n_r, target):
         return replace(params, oof_call_vme_ucb=ucb)
     logger.info("%s: out-of-fold call VME over %d calling fold(s) is %d / %d lab R (UCB %.3f > %.3f); "
@@ -1506,6 +1630,322 @@ def bundle_allowed_alphas(params_cv: Mapping[int, BandParams], grid: Sequence[fl
         return ()
     return tuple(float(a) for a in grid
                  if all(any(abs(a - b) < 1e-12 for b in p_.passing_alphas) for p_ in calling))
+
+
+# --------------------------------------------------------------------------- #
+# aft_b2_select: in-fold choice of AFT, B2 or their average (v0.6)
+# --------------------------------------------------------------------------- #
+
+_MIN_SELECT_FOLDS = 3
+"""Nested choice needs two inner folds per outer fold (one scored, one calibrating)."""
+
+
+def select_score(
+    calls: np.ndarray,
+    idx: np.ndarray,
+    pred_mic: np.ndarray,
+    pd_: PairData,
+    lab_sir: np.ndarray | None,
+    target: float,
+) -> dict[str, Any]:
+    """Score one candidate on rows ``idx`` (its out-of-fold calls and rounded-up ``pred_mic``).
+
+    ``vme_ok``: the gate's rule ``(n_vme + 1) / (n_lab_R + 1) <= target`` over the folds that
+    issue ``likely_active`` calls (no calling fold = ok); ``active_s``: share of lab-S rows
+    called ``likely_active``; ``ea``: essential agreement (+-1 step) on exact lab MICs. Lab
+    S/I/R is the call-breakpoint re-derivation (``None`` = unknown, never counted).
+    """
+    calls = np.asarray(calls, dtype=object)
+    idx = np.asarray(idx, dtype=np.int64)
+    lab = np.full(idx.size, None, dtype=object) if lab_sir is None else np.asarray(lab_sir, dtype=object)[idx]
+    k, n_r, n_cf = calling_fold_vme(calls, lab, pd_.folds[idx])
+    ok = vme_certified(k, n_r, target) if n_cf else True
+    is_s = np.array([v == "S" for v in lab], dtype=bool)
+    active = np.array([c == "likely_active" for c in calls], dtype=bool)
+    act = float((active & is_s).sum() / is_s.sum()) if is_s.any() else 0.0
+    lo, hi = pd_.lo[idx], pd_.hi[idx]
+    exact = np.asarray(pd_.lab_exact[idx], dtype=bool) & exact_mask(lo, hi)
+    pm = np.asarray(pred_mic, dtype=np.float64)
+    ea = float(np.mean(np.abs(np.log2(pm[exact]) - np.log2(hi[exact])) <= 1 + 1e-9)) if exact.any() else 0.0
+    return {
+        "vme_ok": bool(ok), "n_vme": int(k), "n_lab_r_calling": int(n_r), "n_calling_folds": int(n_cf),
+        "active_s": act, "n_lab_s": int(is_s.sum()), "ea": ea, "n_exact": int(exact.sum()), "n": int(idx.size),
+    }
+
+
+def select_key(name: str, score: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Ranking key: call VME passes, then % lab S called active (to 1 pp), then EA (0.1 pp), then AFT > avg > B2."""
+    act = float(score["active_s"]) if score["vme_ok"] else 0.0
+    return (bool(score["vme_ok"]), round(act, 2), round(float(score["ea"]), 3), -model_select.CHOICES.index(name))
+
+
+def choose_candidate(scores: Mapping[str, Mapping[str, Any]]) -> str:
+    """The best candidate under :func:`select_key`."""
+    if not scores:
+        raise ValueError("no candidates to choose from")
+    return max(scores, key=lambda c: select_key(c, scores[c]))
+
+
+def _candidate_calls(
+    cand: np.ndarray,
+    pd_: PairData,
+    cfg: TrainConfig,
+    config: Config,
+    cal_folds: Sequence[int],
+    rows: np.ndarray,
+    label: str,
+    marker_all: np.ndarray,
+    lab_sir: np.ndarray | None,
+    params: BandParams | None = None,
+) -> tuple[BandParams, np.ndarray, np.ndarray, np.ndarray]:
+    """Band tuned on ``cal_folds`` (unless ``params`` is given) and the calls for ``rows`` -- train_pair's CV path."""
+    if params is None:
+        params = _band_params(cand, pd_, cfg, config, cal_folds, label, marker_all, lab_sir)
+    idx = np.asarray(rows, dtype=np.int64)
+    idx = idx[~np.isnan(cand[idx])]
+    pred_mic = round_up_to_step_array(2.0 ** np.clip(cand[idx], GRID_MIN_EXPONENT, GRID_MAX_EXPONENT))
+    low, high = params.band(pred_mic)
+    calls = gate_calls(pair_calls(pd_, idx, low, high, config, marker_all), params.active_gate_open)
+    return params, idx, pred_mic, calls
+
+
+@dataclass
+class SelectOutcome:
+    """Result of :func:`_select_model` for one pair."""
+
+    base_model: str
+    candidates: dict[str, np.ndarray]
+    """Capped log2 OOF prediction per candidate (``aft`` / ``b2`` / ``avg``)."""
+    choice_by_fold: dict[int, str]
+    """Candidate used for CV fold f, chosen on the other folds only."""
+    params_cv: dict[int, BandParams]
+    """Cross-conformal band of the chosen candidate per CV fold."""
+    cv_frames: list[pd.DataFrame]
+    cv_calls: list[tuple[np.ndarray, np.ndarray]]
+    scores_by_fold: dict[int, dict[str, dict[str, Any]]]
+    bundle_choice: str
+    """What the bundle ships: ``rule_choice``, or ``aft`` after a fallback."""
+    bundle_scores: dict[str, dict[str, Any]]
+    bundle_params: BandParams
+    n_residuals: int
+    rule_choice: str = model_select.CHOICE_AFT
+    """The rule's pick on every fold's cross-conformal calls."""
+    fallback_from: str | None = None
+    """Set when a non-AFT pick was not certified for likely-active calls and the bundle fell back to AFT."""
+    selection_gate_check: dict[str, Any] = field(default_factory=dict)
+    """The gate rules on the nested selection's out-of-fold calls (:func:`_gate_rules`)."""
+
+    def as_json(self) -> dict[str, Any]:
+        def clean(scores: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+            return {c: {k: (round(v, 6) if isinstance(v, float) else v) for k, v in s.items()} for c, s in scores.items()}
+
+        return {
+            "model": MODEL_SELECT,
+            "base_model": self.base_model,
+            "candidates": list(model_select.CHOICES),
+            "choice": self.bundle_choice,
+            "rule_choice": self.rule_choice,
+            "fallback_from": self.fallback_from,
+            "rule": "max over candidates of (call VME (k+1)/(n_lab_R+1) <= target over calling folds, "
+                    "% lab S likely_active to 1 pp, EA to 0.1 pp, preference aft > avg > b2)",
+            "gate_rule": "the shipped candidate's own out-of-fold calls must pass the pooled calling-fold UCB and the "
+                         "per-fold binomial test (as the AFT bundle); a non-aft pick must also pass both on the "
+                         "nested selection's out-of-fold calls, else the bundle falls back to aft when aft's own "
+                         "gate is open",
+            "selection_gate_check": dict(self.selection_gate_check),
+            "bundle_scores": clean(self.bundle_scores),
+            "choice_by_fold": {str(f): c for f, c in sorted(self.choice_by_fold.items())},
+            "inner_scores_by_fold": {str(f): clean(s) for f, s in sorted(self.scores_by_fold.items())},
+            "source": "out-of-fold CV predictions of the train folds only (test split never used)",
+        }
+
+
+def _select_model(
+    pd_: PairData,
+    cfg: TrainConfig,
+    config: Config,
+    plan: FitPlan,
+    oof: Mapping[str, np.ndarray],
+    base_model: str,
+    params_cv: Mapping[str, Mapping[int, BandParams]],
+    marker_all: np.ndarray,
+    lab_sir: np.ndarray | None,
+    run_id: str,
+    nearest_cv: np.ndarray,
+    label: str,
+) -> SelectOutcome:
+    """Choose AFT, B2 or their average per CV fold (nested) and for the bundle (all folds).
+
+    Candidates are the capped log2 OOF predictions of the AFT model and B2 and their mean.
+    For outer fold ``f`` every candidate is scored on the other folds ``g``: the band for
+    ``g`` is tuned on the folds other than ``f`` and ``g`` (``_band_params``, the same
+    nested level choice and gate as everywhere), the calls on ``g`` are pooled and scored
+    with :func:`select_score` / :func:`select_key`. Fold ``f``'s rows then get the chosen
+    candidate with that candidate's own cross-conformal band for ``f`` (calibrated on the
+    other folds), so the ``aft_b2_select`` CV rows are an honest out-of-fold estimate of the
+    whole procedure. The bundle repeats the choice on every fold's cross-conformal calls.
+
+    Bundle gate: the chosen candidate's band on all folds (levels limited to those that passed
+    in every calling fold), gated on the candidate's own out-of-fold calls by
+    :func:`_oof_gate_check` (pooled UCB and per-fold test), exactly as the AFT bundle is. A
+    pick other than AFT must also pass both rules on the nested selection's out-of-fold calls
+    (:func:`_gate_rules`); when its gate ends up closed while AFT's own gate is open, the
+    bundle falls back to AFT (the incumbent), so a likely-active call is never shipped on a
+    weaker standard than the AFT bundle's and a deviation from it needs both certifications.
+    """
+    folds = pd_.folds
+    cv_folds = sorted(int(g.fold) for g in plan.cv)
+    rows_of = {int(g.fold): g.predict_idx for g in plan.cv}
+    target = cfg.band_vme_target
+    cands = {
+        model_select.CHOICE_AFT: np.asarray(oof[base_model], dtype=np.float64),
+        model_select.CHOICE_B2: np.asarray(oof[MODEL_B2], dtype=np.float64),
+    }
+    cands[model_select.CHOICE_AVG] = model_select.combine_log2(cands["aft"], cands["b2"], model_select.CHOICE_AVG)
+    cands = {c: cands[c] for c in model_select.CHOICES}
+
+    # Outer cross-conformal band + calls per candidate (aft / b2 reuse the per-model bands).
+    outer_params: dict[str, dict[int, BandParams]] = {
+        model_select.CHOICE_AFT: dict(params_cv.get(base_model, {})),
+        model_select.CHOICE_B2: dict(params_cv.get(MODEL_B2, {})),
+        model_select.CHOICE_AVG: {},
+    }
+    outer: dict[str, dict[int, tuple[np.ndarray, np.ndarray, np.ndarray]]] = {c: {} for c in cands}
+    for c, cand in cands.items():
+        for f in cv_folds:
+            others = [g for g in cv_folds if g != f]
+            params, idx, pm, calls = _candidate_calls(cand, pd_, cfg, config, others, rows_of[f],
+                                                      f"{label} [{MODEL_SELECT}:{c}] fold {f}", marker_all, lab_sir,
+                                                      params=outer_params[c].get(f))
+            outer_params[c][f] = params
+            outer[c][f] = (idx, pm, calls)
+
+    # Nested choice for each outer fold: score on the other folds only.
+    choice_by_fold: dict[int, str] = {}
+    scores_by_fold: dict[int, dict[str, dict[str, Any]]] = {}
+    for f in cv_folds:
+        inner = [g for g in cv_folds if g != f]
+        scores: dict[str, dict[str, Any]] = {}
+        for c, cand in cands.items():
+            parts = []
+            for g in inner:
+                cal = [h for h in inner if h != g]
+                _, idx, pm, calls = _candidate_calls(cand, pd_, cfg, config, cal, rows_of[g],
+                                                     f"{label} [{MODEL_SELECT}:{c}] inner {f}/{g}", marker_all, lab_sir)
+                parts.append((idx, pm, calls))
+            scores[c] = select_score(np.concatenate([p[2] for p in parts]), np.concatenate([p[0] for p in parts]),
+                                     np.concatenate([p[1] for p in parts]), pd_, lab_sir, target)
+        choice_by_fold[f] = choose_candidate(scores)
+        scores_by_fold[f] = scores
+
+    frames: list[pd.DataFrame] = []
+    sel_calls: list[tuple[np.ndarray, np.ndarray]] = []
+    sel_params: dict[int, BandParams] = {}
+    for f in cv_folds:
+        c = choice_by_fold[f]
+        sel_params[f] = outer_params[c][f]
+        idx = rows_of[f][~np.isnan(cands[c][rows_of[f]])]
+        if idx.size:
+            frame = finish_predictions(pd_, idx, cands[c][idx], sel_params[f], SPLIT_CV, MODEL_SELECT, run_id,
+                                       nearest_cv[idx], config, marker_all=marker_all)
+            frames.append(frame)
+            sel_calls.append((frame["call"].to_numpy(dtype=object), idx))
+
+    # Bundle: the same rule on every fold's cross-conformal calls.
+    bundle_scores = {}
+    for c in cands:
+        idx = np.concatenate([outer[c][f][0] for f in cv_folds])
+        bundle_scores[c] = select_score(np.concatenate([outer[c][f][2] for f in cv_folds]), idx,
+                                        np.concatenate([outer[c][f][1] for f in cv_folds]), pd_, lab_sir, target)
+    rule_choice = choose_candidate(bundle_scores)
+    has_bp = config.call_breakpoint(pd_.species, pd_.drug) is not None
+
+    def bundle_params(c: str) -> BandParams:
+        """Candidate c's bundle band, gated on c's own out-of-fold calls (the AFT bundle's standard)."""
+        allowed = bundle_allowed_alphas(outer_params[c], cfg.band_alpha_grid)
+        p_ = _band_params(cands[c], pd_, cfg, config, cv_folds, f"{label} [{MODEL_SELECT}:{c}] bundle",
+                          marker_all, lab_sir, allowed_alphas=allowed)
+        own = [(outer[c][f][2], outer[c][f][0]) for f in cv_folds]
+        p_ = _oof_gate_check(p_, own, pd_, lab_sir, folds, target, f"{label} [{MODEL_SELECT}:{c}] bundle", cfg.fold_gate_p)
+        return p_ if has_bp or not p_.active_gate_open else replace(p_, active_gate_open=False)
+
+    # The selection's nested out-of-fold calls (the aft_b2_select CV rows) under the same two gate rules.
+    sel_ok, sel_check = _gate_rules(sel_calls, pd_, lab_sir, folds, target, cfg.fold_gate_p)
+    bundle_choice, fallback_from = rule_choice, None
+    params = bundle_params(rule_choice)
+    if rule_choice != model_select.CHOICE_AFT:
+        if params.active_gate_open and not sel_ok:
+            logger.info("%s [%s]: %s passes on its own out-of-fold calls but the nested selection's do not (%s); "
+                        "its gate is closed", label, MODEL_SELECT, rule_choice, sel_check)
+            params = replace(params, active_gate_open=False)
+        if not params.active_gate_open:
+            aft_params = bundle_params(model_select.CHOICE_AFT)
+            if aft_params.active_gate_open:
+                # Deviating from the incumbent was not certified: ship the AFT model, gated as before.
+                logger.info("%s [%s]: %s not certified for likely-active calls; the bundle falls back to aft "
+                            "(its own out-of-fold calls pass)", label, MODEL_SELECT, rule_choice)
+                bundle_choice, fallback_from, params = model_select.CHOICE_AFT, rule_choice, aft_params
+    logger.info("%s [%s]: fold choices %s; rule choice %s, bundle %s (gate %s); scores %s", label, MODEL_SELECT,
+                {f: c for f, c in sorted(choice_by_fold.items())}, rule_choice, bundle_choice,
+                "open" if params.active_gate_open else "closed",
+                {c: (s["vme_ok"], round(s["active_s"], 3), round(s["ea"], 3)) for c, s in bundle_scores.items()})
+    return SelectOutcome(
+        base_model=base_model, candidates=cands, choice_by_fold=choice_by_fold, params_cv=sel_params, cv_frames=frames,
+        cv_calls=sel_calls, scores_by_fold=scores_by_fold, bundle_choice=bundle_choice, bundle_scores=bundle_scores,
+        bundle_params=params, n_residuals=int(params.n_residuals), rule_choice=rule_choice,
+        fallback_from=fallback_from, selection_gate_check=sel_check,
+    )
+
+
+def _gate_rules(
+    cv_calls: Sequence[tuple[np.ndarray, np.ndarray]],
+    pd_: PairData,
+    lab_sir: np.ndarray | None,
+    folds: np.ndarray,
+    target: float,
+    p_threshold: float,
+) -> tuple[bool, dict[str, Any]]:
+    """The two :func:`_oof_gate_check` rules on out-of-fold calls, as ``(passed, record)``.
+
+    Passes when no fold makes a likely-active call (nothing to certify), or when the pooled
+    calling-fold UCB passes and no calling fold is significantly above ``target``.
+    """
+    if lab_sir is None or not cv_calls:
+        return True, {"n_vme": 0, "n_lab_r_calling": 0, "n_calling_folds": 0, "ucb": None, "significant_folds": []}
+    idx = np.concatenate([i for _, i in cv_calls])
+    calls = np.concatenate([c for c, _ in cv_calls])
+    k, n_r, n_cf = calling_fold_vme(calls, lab_sir[idx], folds[idx])
+    table = fold_call_vme_table(calls, lab_sir[idx], folds[idx], target, p_threshold)
+    significant = [int(r["fold"]) for r in table if r["significant"]]
+    passed = n_cf == 0 or (vme_certified(k, n_r, target) and not significant)
+    return bool(passed), {"n_vme": int(k), "n_lab_r_calling": int(n_r), "n_calling_folds": int(n_cf),
+                          "ucb": (k + 1) / (n_r + 1) if n_cf else None, "significant_folds": significant}
+
+
+def _select_calibration(
+    select: SelectOutcome,
+    pd_: PairData,
+    config: Config,
+    marker_all: np.ndarray,
+) -> tuple[prob_cal.PairCalibration, dict[str, Any]]:
+    """P(works) map for the bundle: fit on the chosen candidate's out-of-fold CV predictions.
+
+    The bundle always applies the bundle choice, so its map is fit on that candidate's
+    predictions (train-fold rows only); the per-fold record is cross-fitted the same way.
+    """
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    s_bp = float(bp.s_breakpoint) if bp is not None else None
+    natural = config.is_naturally_resistant(pd_.species, pd_.drug)
+    cand = select.candidates[select.bundle_choice]
+    rows = np.flatnonzero(~np.isnan(pd_.folds) & ~np.isnan(cand))
+    pred_mic = round_up_to_step_array(2.0 ** np.clip(cand[rows], GRID_MIN_EXPONENT, GRID_MAX_EXPONENT))
+    lab = np.array([rederive_lab_sir(lo, hi, bp) for lo, hi in zip(pd_.lo[rows], pd_.hi[rows])], dtype=object) \
+        if bp is not None else np.full(rows.size, None, dtype=object)
+    works = prob_cal.works_from_sir(lab)
+    marker = np.asarray(marker_all, dtype=bool)[rows]
+    _, by_fold = prob_cal.cross_fit_probabilities(pred_mic, works, marker, pd_.folds[rows], s_bp, natural_resistance=natural)
+    full = prob_cal.fit_pair_calibration(pred_mic, works, marker, s_bp, natural_resistance=natural)
+    return full, prob_cal.summarize_fits(by_fold)
 
 
 # --------------------------------------------------------------------------- #
@@ -1576,6 +2016,8 @@ def resfinder_predictions(paths: Paths, pd_: PairData, run_id: str, config: Conf
             "lab_sir_rederived": [rederive_lab_sir(lo, hi, bp) for lo, hi in zip(pd_.lo[idx], pd_.hi[idx])],
             "lab_exact": pd_.lab_exact[idx],
             "call": None,
+            "prob_works": np.nan,
+            "prob_tier": None,
         },
         columns=list(PREDS_COLUMNS),
     )
@@ -1674,7 +2116,9 @@ def train_pair(
     params_by_model: dict[str, BandParams] = {}
     cv_calls: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {}
     cv_folds = sorted(int(g.fold) for g in plan.cv)
-    band_marker = pair_marker(pd_, config) if cfg.band == BAND_ASYM_TUNED else None
+    # Override 2 for every row, with the strong_subclasses rule when the subclass map is known.
+    marker_all = pair_marker(pd_, config, _subclass_by_column(sd))
+    band_marker = marker_all if cfg.band == BAND_ASYM_TUNED else None
     _bp = config.call_breakpoint(pd_.species, pd_.drug)
     band_lab = np.array([rederive_lab_sir(lo, hi, _bp) for lo, hi in zip(pd_.lo, pd_.hi)], dtype=object) \
         if cfg.band == BAND_ASYM_TUNED and _bp is not None else None
@@ -1696,7 +2140,8 @@ def train_pair(
             params_cv[m][int(group.fold)] = params_f
             has = group.predict_idx[~np.isnan(oof[m][group.predict_idx])]
             if has.size:
-                cv_frame = finish_predictions(pd_, has, oof[m][has], params_f, SPLIT_CV, m, run_id, oof_nearest[has], config)
+                cv_frame = finish_predictions(pd_, has, oof[m][has], params_f, SPLIT_CV, m, run_id, oof_nearest[has], config,
+                                              marker_all=marker_all)
                 preds.append(cv_frame)
                 cv_calls.setdefault(m, []).append((cv_frame["call"].to_numpy(dtype=object), has))
         # Bundle: tuned on every fold, but never narrower than a level a fold validated
@@ -1706,9 +2151,12 @@ def train_pair(
                                               band_marker, band_lab,
                                               allowed_alphas=bundle_allowed_alphas(params_cv[m], cfg.band_alpha_grid))
             params_by_model[m] = _oof_gate_check(params_by_model[m], cv_calls.get(m, []), pd_, band_lab, folds_arr,
-                                                 cfg.band_vme_target, f"{label} [{m}] bundle")
+                                                 cfg.band_vme_target, f"{label} [{m}] bundle", cfg.fold_gate_p)
         else:
             params_by_model[m] = symmetric_params(q, cfg.alpha, n)
+        if _bp is None and params_by_model[m].active_gate_open:
+            # No call breakpoint: nothing was certified, so the bundle ships with the gate closed.
+            params_by_model[m] = replace(params_by_model[m], active_gate_open=False)
         q_by_model[m] = params_by_model[m].q_up
         n_res[m] = n
         bundle_params = params_by_model[m]
@@ -1720,23 +2168,64 @@ def train_pair(
             {f: (p_.alpha_up, p_.active_gate_open) for f, p_ in params_cv[m].items()},
         )
 
+    # --- aft_b2_select: AFT, B2 or their average, chosen inside the training folds --
+    base_model = MODEL_AFT_KNOWN_UNITIG if MODEL_AFT_KNOWN_UNITIG in models else MODEL_AFT_KNOWN
+    select: SelectOutcome | None = None
+    if cfg.model_select:
+        why_not = (
+            "band is not asym_tuned" if cfg.band != BAND_ASYM_TUNED
+            else f"needs {base_model} and {MODEL_B2}" if base_model not in models or MODEL_B2 not in models
+            else f"only {len(plan.cv)} CV fold(s)" if len(plan.cv) < _MIN_SELECT_FOLDS
+            else None
+        )
+        if why_not is None:
+            t_sel = time.perf_counter()
+            select = _select_model(pd_, cfg, config, plan, oof, base_model, params_cv, marker_all, band_lab, run_id,
+                                   oof_nearest, label)
+            preds.extend(select.cv_frames)
+            params_by_model[MODEL_SELECT] = select.bundle_params
+            q_by_model[MODEL_SELECT] = select.bundle_params.q_up
+            n_res[MODEL_SELECT] = select.n_residuals
+            timings["select_s"] = time.perf_counter() - t_sel
+        else:
+            logger.info("%s: %s skipped (%s); %s ships", label, MODEL_SELECT, why_not, base_model)
+    main_model = MODEL_SELECT if select is not None else base_model
+
     # --- Final fit on all train rows -> bundle (+ test unless cv_only) -------------
     t0 = time.perf_counter()
-    main_model = MODEL_AFT_KNOWN_UNITIG if MODEL_AFT_KNOWN_UNITIG in models else MODEL_AFT_KNOWN
     final_caps = panel_caps_log2(pd_.lo[train_all], pd_.hi[train_all]) if cfg.panel_cap else None
     selected = _select_all(pd_, train_all, cfg, droplog, models, sd.has_unitigs)
     test_nearest = nearest.test[test_idx]
+    final_fits: dict[str, tuple[Any, FoldFeatures, list[str], np.ndarray]] = {}
     for m in models:
         pred, model, feats_used, names = _fit_predict(pd_, m, train_all, test_idx, cfg, droplog, feats=selected[m])
+        final_fits[m] = (model, feats_used, names, pred)
         if test_idx.size:
             preds.append(finish_predictions(pd_, test_idx, pred, params_by_model[m], SPLIT_TEST, m, run_id, test_nearest, config,
-                                            caps=final_caps))
-        if m == main_model:
-            _write_pair_bundle(
-                paths, config, sd, pd_, cfg, model, feats_used, names, q_by_model[m], n_res[m], run_id,
-                train_all.size, test_idx.size, inputs_sha1=inputs_sha1, caps=final_caps, q_cv=q_cv[m],
-                band_params=params_by_model[m], band_params_cv=params_cv[m],
-            )
+                                            caps=final_caps, marker_all=marker_all))
+    if select is not None:
+        base_fit, base_feats, base_names, base_pred = final_fits[base_model]
+        b2_fit, _, _, b2_pred = final_fits[MODEL_B2]
+        bundle_model = model_select.AftB2Select.from_parts(select.bundle_choice, base_fit, b2_fit, final_caps, base_names,
+                                                          base_name=base_model)
+        if test_idx.size:
+            pred = model_select.combine_log2(apply_caps(base_pred, final_caps), apply_caps(b2_pred, final_caps),
+                                             select.bundle_choice)
+            preds.append(finish_predictions(pd_, test_idx, pred, select.bundle_params, SPLIT_TEST, MODEL_SELECT, run_id,
+                                            test_nearest, config, caps=final_caps, marker_all=marker_all))
+        _write_pair_bundle(
+            paths, config, sd, pd_, cfg, bundle_model, base_feats, base_names, q_by_model[MODEL_SELECT],
+            n_res[MODEL_SELECT], run_id, train_all.size, test_idx.size, inputs_sha1=inputs_sha1, caps=final_caps,
+            q_cv={f: p_.q_up for f, p_ in select.params_cv.items()}, band_params=select.bundle_params,
+            band_params_cv=select.params_cv, select_info=select.as_json(),
+        )
+    else:
+        model, feats_used, names, _ = final_fits[main_model]
+        _write_pair_bundle(
+            paths, config, sd, pd_, cfg, model, feats_used, names, q_by_model[main_model], n_res[main_model], run_id,
+            train_all.size, test_idx.size, inputs_sha1=inputs_sha1, caps=final_caps, q_cv=q_cv[main_model],
+            band_params=params_by_model[main_model], band_params_cv=params_cv[main_model],
+        )
     timings["final_s"] = time.perf_counter() - t0
 
     # --- LOLO (train lineages only; see _fit_plan) --------------------------------
@@ -1756,14 +2245,26 @@ def train_pair(
             lolo_caps = panel_caps_log2(pd_.lo[group.fit_idx], pd_.hi[group.fit_idx]) if cfg.panel_cap else None
             selected = _select_all(pd_, group.fit_idx, cfg, droplog, models, sd.has_unitigs)
             lolo_nearest = nearest.lolo[lineage][group.predict_idx]
+            lolo_pred: dict[str, np.ndarray] = {}
             for m in models:
                 try:
                     pred, _, _, _ = _fit_predict(pd_, m, group.fit_idx, group.predict_idx, cfg, droplog, feats=selected[m])
                 except ValueError as error:
                     logger.warning("%s [%s] LOLO %s: %s; skipped", label, m, lineage, error)
                     continue
+                lolo_pred[m] = pred
                 preds.append(finish_predictions(pd_, group.predict_idx, pred, params_by_model[m], group.split, m, run_id, lolo_nearest, config,
-                                                caps=lolo_caps))
+                                                caps=lolo_caps, marker_all=marker_all))
+            if select is not None:
+                # The bundle's choice, applied to this lineage's own AFT / B2 fits (same rule as the bundle).
+                missing = np.full(group.predict_idx.size, np.nan)
+                pred = model_select.combine_log2(apply_caps(lolo_pred.get(base_model, missing), lolo_caps),
+                                                 apply_caps(lolo_pred.get(MODEL_B2, missing), lolo_caps), select.bundle_choice)
+                ok = ~np.isnan(pred)
+                if ok.any():
+                    preds.append(finish_predictions(pd_, group.predict_idx[ok], pred[ok], select.bundle_params, group.split,
+                                                    MODEL_SELECT, run_id, lolo_nearest[ok], config, caps=lolo_caps,
+                                                    marker_all=marker_all))
             logger.info("%s: LOLO %s done (%d fit, %d held-out train genomes)", label, lineage, group.fit_idx.size, group.predict_idx.size)
     timings["lolo_s"] = time.perf_counter() - t0
 
@@ -1778,6 +2279,33 @@ def train_pair(
         logger.info("%s: no %s (no per-genome tool output); b0_resfinder skipped", label, paths.interim_root)
 
     table = pd.concat(preds, ignore_index=True) if preds else pd.DataFrame(columns=list(PREDS_COLUMNS))
+    table, calibrations, fold_fits = _add_probabilities(table, pd_, config, marker_all)
+    if select is not None and paths.model_dir(pd_.species, pd_.drug).is_dir():
+        # The bundle always applies its own choice, so its map is fit on that candidate's OOF predictions.
+        bundle_cal, bundle_fits = _select_calibration(select, pd_, config, marker_all)
+        bundle_cal.save(
+            paths.model_dir(pd_.species, pd_.drug) / prob_cal.CALIBRATION_FILE,
+            extra={
+                "model": main_model,
+                "candidate": select.bundle_choice,
+                "run_id": run_id,
+                "call_standard": list(config.call_standard),
+                "source": f"out-of-fold CV predictions of the bundle's candidate ({select.bundle_choice}) on every train "
+                          "fold (test split never used)",
+                "cross_fitted_by_fold": bundle_fits,
+            },
+        )
+    elif main_model in calibrations and paths.model_dir(pd_.species, pd_.drug).is_dir():
+        calibrations[main_model].save(
+            paths.model_dir(pd_.species, pd_.drug) / prob_cal.CALIBRATION_FILE,
+            extra={
+                "model": main_model,
+                "run_id": run_id,
+                "call_standard": list(config.call_standard),
+                "source": "out-of-fold CV predictions of this model on every train fold (test split never used)",
+                "cross_fitted_by_fold": fold_fits.get(main_model, {}),
+            },
+        )
     table = _typed_preds(table)
     _check_preds(table, pd_, label)
     write_parquet(table, paths.preds(pd_.species, pd_.drug))
@@ -1788,11 +2316,69 @@ def train_pair(
     return PairResult(pd_.species, pd_.drug, table, main_model, q_by_model, n_res, timings)
 
 
+def _add_probabilities(
+    table: pd.DataFrame,
+    pd_: PairData,
+    config: Config,
+    marker_all: np.ndarray,
+) -> tuple[pd.DataFrame, dict[str, prob_cal.PairCalibration], dict[str, dict[str, Any]]]:
+    """Fill ``prob_works`` / ``prob_tier`` for every model with an MIC prediction.
+
+    Per model: ``works`` = ``lab_sir_rederived == 'S'`` (call breakpoint; I/R = 0;
+    straddling = unknown, skipped). CV rows of fold f get P from a calibration fit on the
+    CV rows of the other folds only (:func:`~genome2mic.models.calibration.cross_fit_probabilities`);
+    test and LOLO rows use the fit on every CV row, which is also what the bundle ships.
+    Strong-marker rows (``marker_all``) use their own map or the 0.02 fallback; natural
+    resistance gives 0. Pairs without a call breakpoint get null.
+
+    Returns the table, the all-CV-row fit per model and a per-fold record per model.
+    """
+    out = table.copy()
+    out["prob_works"] = np.nan
+    out["prob_tier"] = None
+    calibrations: dict[str, prob_cal.PairCalibration] = {}
+    fold_fits: dict[str, dict[str, Any]] = {}
+    if out.empty:
+        return out, calibrations, fold_fits
+    bp = config.call_breakpoint(pd_.species, pd_.drug)
+    s_bp = float(bp.s_breakpoint) if bp is not None else None
+    natural = config.is_naturally_resistant(pd_.species, pd_.drug)
+    row_of = {str(g): i for i, g in enumerate(pd_.frame["genome_id"].astype(str))}
+    folds = pd_.folds
+    pred_all = pd.to_numeric(out["pred_mic"], errors="coerce").to_numpy(dtype=np.float64)
+    split_all = out["split"].astype(object).to_numpy()
+    model_all = out["model"].astype(object).to_numpy()
+    prob = np.full(len(out), np.nan)
+    for model in sorted({str(m) for m in model_all}):
+        rows = np.flatnonzero(model_all == model)
+        if np.isnan(pred_all[rows]).all():
+            continue  # b0_resfinder: S/R only, no MIC
+        pos = np.array([row_of[str(g)] for g in out["genome_id"].to_numpy()[rows]], dtype=np.int64)
+        marker = np.asarray(marker_all, dtype=bool)[pos]
+        cv = split_all[rows] == SPLIT_CV
+        cv_rows = rows[cv]
+        works = prob_cal.works_from_sir(out["lab_sir_rederived"].to_numpy(dtype=object)[cv_rows])
+        p_cv, by_fold = prob_cal.cross_fit_probabilities(
+            pred_all[cv_rows], works, marker[cv], folds[pos[cv]], s_bp, natural_resistance=natural,
+        )
+        prob[cv_rows] = p_cv
+        full = prob_cal.fit_pair_calibration(pred_all[cv_rows], works, marker[cv], s_bp, natural_resistance=natural)
+        other = rows[~cv]
+        if other.size:
+            prob[other] = full.predict(pred_all[other], marker[~cv])
+        calibrations[model] = full
+        fold_fits[model] = prob_cal.summarize_fits(by_fold)
+    out["prob_works"] = prob
+    out["prob_tier"] = prob_cal.prob_tier(prob)
+    return out, calibrations, fold_fits
+
+
 def _typed_preds(table: pd.DataFrame) -> pd.DataFrame:
     out = table.copy()
-    for col in ("pred_mic", "band_low", "band_high", "lab_lower", "lab_upper", "nearest_training_distance"):
+    for col in ("pred_mic", "band_low", "band_high", "lab_lower", "lab_upper", "nearest_training_distance", "prob_works"):
         out[col] = pd.to_numeric(out[col], errors="coerce").astype("float64")
-    for col in ("genome_id", "species", "drug", "split", "pred_sir", "lab_sir", "model", "run_id", "external_set", "lab_sir_rederived"):
+    for col in ("genome_id", "species", "drug", "split", "pred_sir", "lab_sir", "model", "run_id", "external_set",
+                "lab_sir_rederived", "prob_tier"):
         out[col] = out[col].astype(object).where(out[col].notna(), None).astype("string")
     if out["lab_exact"].isna().any():
         raise ContractViolation("lab_exact is null on some prediction rows", STAGE)
@@ -1866,8 +2452,12 @@ def _write_pair_bundle(
     q_cv: Mapping[int, float] | None = None,
     band_params: BandParams | None = None,
     band_params_cv: Mapping[int, BandParams] | None = None,
+    select_info: Mapping[str, Any] | None = None,
 ) -> None:
     """Write ``models/<SPECIES>/<drug>/`` for the prediction pipeline.
+
+    ``select_info`` (``aft_b2_select`` bundles, :meth:`SelectOutcome.as_json`) is recorded
+    as ``model_select`` in ``conformal.json`` and ``meta.json``.
 
     ``band_params`` (tuned on all OOF predictions) go to ``conformal.json``:
     ``q_up`` / ``q_low`` / ``alpha_up`` / ``alpha_low`` / ``active_gate_open``; ``q``
@@ -1887,7 +2477,7 @@ def _write_pair_bundle(
         shutil.rmtree(target)
     target.mkdir(parents=True, exist_ok=True)
     model.save(target)
-    use_known, use_unitigs = _uses(model.name)
+    use_known, use_unitigs = _uses(getattr(model, "base_name", model.name))
     known_columns = list(feats.known_columns) if use_known else []
     unitig_cols = [_pattern_name(int(c)) for c in feats.unitig_cols] if use_unitigs else []
     select.assert_no_forbidden(names, require_prefix=True)
@@ -1919,6 +2509,8 @@ def _write_pair_bundle(
         extra["vme_target"] = float(cfg.band_vme_target)
         if band_params_cv:
             extra["band_cross_conformal_by_fold"] = {str(k): v.as_json() for k, v in sorted(band_params_cv.items())}
+    if select_info is not None:
+        extra["model_select"] = dict(select_info)
     write_conformal(target / "conformal.json", q, cfg.alpha, n_residuals, extra)
     write_json(
         target / "meta.json",
@@ -1938,8 +2530,13 @@ def _write_pair_bundle(
             "unitig_kmer_set_sha1": kmer_set_sha1,
             "call_standard": list(config.call_standard),
             "panel_caps_log2": None if caps is None else [float(caps[0]), float(caps[1])],
+            "strong_subclass_map": sd.subclass_source,
             "cv_only": bool(cfg.cv_only),
             "synthetic": (paths.raw_dir / SYNTHETIC_MARKER).is_file(),
+            "model_select": None if select_info is None else {
+                "choice": select_info.get("choice"), "base_model": select_info.get("base_model"),
+                "choice_by_fold": select_info.get("choice_by_fold"),
+            },
         },
     )
     importance: list[dict[str, Any]] = []
@@ -1998,6 +2595,7 @@ def write_shared_bundle(
     run_id: str,
     *,
     full_run: bool = True,
+    amrfinder_db: Path | None = None,
 ) -> None:
     """``manifest.json``, ``reference_sketches.npz`` and (synthetic runs only) ``markers.fasta``.
 
@@ -2102,7 +2700,7 @@ def write_shared_bundle(
     logger.info("wrote %s: %s", paths.models_manifest, {k: len(v) for k, v in manifest["species"].items()})
     if imported:
         try:
-            release_features.write_specs_for_root(paths, config)
+            release_features.write_specs_for_root(paths, config, amrfinder_db)
         except FileNotFoundError as error:
             logger.warning(
                 "imported release: feature specs not written (%s); run `genome2mic release-feature-spec --root %s "
@@ -2376,6 +2974,7 @@ def run(
     *,
     train_config: TrainConfig | None = None,
     pairs: Iterable[tuple[str, str]] | None = None,
+    amrfinder_db: Path | None = None,
 ) -> pd.DataFrame:
     """Train every kept species x drug pair; write preds, bundles and ``drop_log_train.csv``.
 
@@ -2395,6 +2994,12 @@ def run(
             replacing them, and refuses to start when it would replace a
             species' shipped k-mer set under drugs it does not retrain
             (:func:`check_subset_unitig_sets`).
+        amrfinder_db: AMRFinderPlus database directory (``fam.tsv``, ``AMRProt.fa``) used
+            to give every ``gene_`` column its Subclass, so training-time calls apply the
+            ``strong_subclasses`` override (e.g. any acquired carbapenemase for the
+            carbapenems) exactly like the prediction pipeline. Default: the database next
+            to ``amrfinder`` on ``PATH``; without one only the subclasses already in
+            ``known_amr_columns.csv`` count (logged as a warning).
 
     Raises:
         ContractViolation: a subset run would swap the k-mer set under other drugs'
@@ -2432,7 +3037,8 @@ def run(
     if not full_run:
         check_subset_unitig_sets(paths, by_species)
 
-    class_map = _class_map(paths)
+    subclass_tables, subclass_source = _subclass_tables(paths, amrfinder_db)
+    class_map = _class_map(paths, subclass_tables)
     digest_cache: dict[Path, str] = {}
     trained: dict[str, list[str]] = {}
     summaries: list[dict[str, Any]] = []
@@ -2441,6 +3047,7 @@ def run(
         inputs_sha1 = compute_inputs_sha1(paths, species, cache=digest_cache)
         logger.info("%s: inputs_sha1=%s (labels, features, unitig set, configs, model code)", species, inputs_sha1)
         sd = _load_species_data(paths, species, known, class_map)
+        sd.subclass_source = subclass_source
         logs: dict[str, _PairDropLog] = {}
         frames: dict[str, pd.DataFrame] = {}
         plans: dict[str, FitPlan] = {}
@@ -2469,7 +3076,7 @@ def run(
         del sd, frames, plans, nearest
         logger.info("%s: done; species arrays released", species)
 
-    write_shared_bundle(paths, config, trained, run_id, full_run=full_run)
+    write_shared_bundle(paths, config, trained, run_id, full_run=full_run, amrfinder_db=amrfinder_db)
     _write_drop_log(paths, droplog, [_pair_label(s, d) for s, d in wanted], full_run=full_run)
     summary = pd.DataFrame(summaries)
     logger.info("train stage finished in %.1fs:\n%s", time.perf_counter() - started, summary.to_string(index=False))

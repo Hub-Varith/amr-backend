@@ -91,6 +91,8 @@ from sklearn.metrics import roc_auc_score
 
 from genome2mic.droplog import DropLog
 from genome2mic.mic import exact_interval_mask, round_down_to_step_array, round_up_to_step_array
+from genome2mic.models.calibration import FAILS_TIERS, PROB_TIERS, WORKS_TIERS, prob_tier
+from genome2mic.models.conformal import DEFAULT_FOLD_P_THRESHOLD, DEFAULT_VME_TARGET, binomial_excess_p
 
 logger = logging.getLogger(__name__)
 
@@ -866,3 +868,239 @@ def by_distance_bin(
     out = _rows_to_frame(rows, DISTANCE_COLUMNS)
     logger.info("summarized %d prediction rows into %d distance-binned groups", int(keep.sum()), len(out))
     return out
+
+
+# ------------------------------------------------------- probability that the drug works
+# ``prob_works`` (preds, v0.6) is the calibrated P(lab S under the call breakpoint) from
+# :mod:`genome2mic.models.calibration`; ``prob_tier`` its tier. "Works" = the lab MIC
+# re-derived under the call breakpoint is S; I and R do not work. Every danger
+# (VME-like) column comes first.
+
+
+PROB_COLUMN = "prob_works"
+"""Optional preds column: calibrated probability that the drug works (v0.6)."""
+TIER_COLUMN = "prob_tier"
+
+PROB_METRIC_COLUMNS: tuple[str, ...] = (
+    "call_danger_rate",
+    "tier_danger_rate",
+    "forced_danger_rate",
+    "confident_rate",
+    "confident_right_rate",
+    "very_likely_works_right_rate",
+    "call_answer_rate",
+    "call_right_rate",
+    "forced_accuracy",
+    "brier",
+)
+"""Per-group probability metrics, danger first:
+
+* ``call_danger_rate`` = lab R called ``likely_active`` / lab R with a call (call VME);
+* ``tier_danger_rate`` = lab R given a 'works' tier (P >= 0.70) / lab R with a probability;
+* ``forced_danger_rate`` = lab R with P >= 0.5 / lab R with a probability (forced answer);
+* ``confident_rate`` = a 'works' or 'fails' tier (P >= 0.70 or P <= 0.30) / rows with a probability;
+* ``confident_right_rate`` = right among those ('works' tier and lab S, or 'fails' tier and lab I/R);
+* ``very_likely_works_right_rate`` = lab S among 'very likely works' rows;
+* ``call_answer_rate`` = ``likely_active`` or ``likely_inactive`` / rows with a call;
+* ``call_right_rate`` = right among answered calls (active and lab S, inactive and lab I/R);
+* ``forced_accuracy`` = right when every row is forced to works (P >= 0.5) or fails;
+* ``brier`` = mean squared error of P against works (0/1)."""
+PROB_COUNT_COLUMNS: tuple[str, ...] = (
+    "n_prob", "n_prob_lab_r", "n_confident", "n_very_likely_works", "n_call", "n_call_lab_r", "n_call_answer",
+)
+PROB_SUMMARY_COLUMNS: tuple[str, ...] = ("species", "model", "split", "n_drugs", *PROB_METRIC_COLUMNS, *PROB_COUNT_COLUMNS)
+"""Column order of :func:`probability_summary` (default grouping)."""
+
+DEFAULT_PROB_BINS: tuple[float, ...] = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0)
+"""Probability bin edges of :func:`calibration_table` (first bin closed, later bins ``(a, b]``)."""
+CALIBRATION_VALUE_COLUMNS: tuple[str, ...] = ("prob_bin", "bin_low", "bin_high", "n", "mean_prob", "observed_works")
+"""Columns of :func:`calibration_table` after the group columns."""
+
+FOLD_VME_COLUMNS: tuple[str, ...] = (
+    "species", "drug", "model", "fold", "calling", "n_lab_r", "n_vme", "call_vme_rate", "p_value", "significant",
+)
+"""Columns of :func:`call_vme_by_fold`, VME first after the keys."""
+
+
+def _as_prob_array(values: ArrayLike, name: str = PROB_COLUMN) -> np.ndarray:
+    arr = _as_float_array(values, name)
+    finite = ~np.isnan(arr)
+    if ((arr[finite] < -_TOL) | (arr[finite] > 1 + _TOL)).any():
+        raise ValueError(f"{name} must be in [0, 1] where present")
+    return arr
+
+
+def probability_metrics(prob: ArrayLike, call: ArrayLike, lab_sir: ArrayLike) -> dict[str, float | int | None]:
+    """The user's table for one group of rows (see :data:`PROB_METRIC_COLUMNS`).
+
+    Probability metrics use rows with a probability and a lab category; call metrics rows
+    with a call and a lab category. A rate is ``None`` when its denominator is zero.
+    """
+    p = _as_prob_array(prob)
+    calls = _as_call_array(call)
+    lab = _as_sir_array(lab_sir, "lab_sir")
+    _check_same_length(prob=p, call=calls, lab_sir=lab)
+    has_lab = np.array([v is not None for v in lab], dtype=bool)
+    is_s = lab == "S"
+    is_r = lab == "R"
+
+    with_p = has_lab & ~np.isnan(p)
+    tiers = prob_tier(np.where(with_p, p, np.nan))
+    works_tier = np.array([t in WORKS_TIERS for t in tiers], dtype=bool) & with_p
+    fails_tier = np.array([t in FAILS_TIERS for t in tiers], dtype=bool) & with_p
+    vlw = np.array([t == PROB_TIERS[0] for t in tiers], dtype=bool) & with_p
+    forced_works = with_p & (np.nan_to_num(p, nan=-1.0) >= 0.5 - _TOL)
+    confident = works_tier | fails_tier
+    n_prob = int(with_p.sum())
+    n_prob_r = int((with_p & is_r).sum())
+
+    with_call = has_lab & np.array([c is not None for c in calls], dtype=bool)
+    active = with_call & (calls == "likely_active")
+    inactive = with_call & (calls == "likely_inactive")
+    answered = active | inactive
+    n_call_r = int((with_call & is_r).sum())
+
+    brier = None
+    if n_prob:
+        brier = float(np.mean((p[with_p] - is_s[with_p].astype(float)) ** 2))
+    return {
+        "call_danger_rate": _ratio(int((active & is_r).sum()), n_call_r),
+        "tier_danger_rate": _ratio(int((works_tier & is_r).sum()), n_prob_r),
+        "forced_danger_rate": _ratio(int((forced_works & is_r).sum()), n_prob_r),
+        "confident_rate": _ratio(int(confident.sum()), n_prob),
+        "confident_right_rate": _ratio(int(((works_tier & is_s) | (fails_tier & ~is_s)).sum()), int(confident.sum())),
+        "very_likely_works_right_rate": _ratio(int((vlw & is_s).sum()), int(vlw.sum())),
+        "call_answer_rate": _ratio(int(answered.sum()), int(with_call.sum())),
+        "call_right_rate": _ratio(int(((active & is_s) | (inactive & ~is_s)).sum()), int(answered.sum())),
+        "forced_accuracy": _ratio(int(((forced_works & is_s) | (with_p & ~forced_works & ~is_s)).sum()), n_prob),
+        "brier": brier,
+        "n_prob": n_prob,
+        "n_prob_lab_r": n_prob_r,
+        "n_confident": int(confident.sum()),
+        "n_very_likely_works": int(vlw.sum()),
+        "n_call": int(with_call.sum()),
+        "n_call_lab_r": n_call_r,
+        "n_call_answer": int(answered.sum()),
+    }
+
+
+def probability_summary(
+    preds: pd.DataFrame,
+    group_columns: Sequence[str] = ("species", "model", "split"),
+    lab_column: str = REDERIVED_SIR_COLUMN,
+) -> pd.DataFrame:
+    """:func:`probability_metrics` per group (default: species x model x split), danger first.
+
+    ``n_drugs`` counts the drugs of the group with at least one probability. Empty (with
+    the columns) when the preds carry no ``prob_works`` or no ``lab_column``.
+    """
+    columns = (*group_columns, "n_drugs", *PROB_METRIC_COLUMNS, *PROB_COUNT_COLUMNS)
+    if PROB_COLUMN not in preds.columns or lab_column not in preds.columns or preds.empty:
+        logger.info("preds have no %s / %s column (or no rows); probability summary is empty", PROB_COLUMN, lab_column)
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in columns})
+    calls = preds[CALL_COLUMN] if CALL_COLUMN in preds.columns else pd.Series([None] * len(preds), index=preds.index)
+    rows = []
+    for key, block in preds.groupby(list(group_columns), sort=True, dropna=False):
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        stats = probability_metrics(block[PROB_COLUMN], calls.loc[block.index], block[lab_column])
+        has_p = pd.to_numeric(block[PROB_COLUMN], errors="coerce").notna()
+        row = dict(zip(group_columns, key_tuple))
+        row["n_drugs"] = int(block.loc[has_p, "drug"].nunique()) if "drug" in block.columns else 0
+        row.update(stats)
+        rows.append(row)
+    out = pd.DataFrame(rows, columns=list(columns))
+    for c in PROB_METRIC_COLUMNS:
+        out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
+    for c in (*PROB_COUNT_COLUMNS, "n_drugs"):
+        out[c] = out[c].astype("int64")
+    return out
+
+
+def calibration_table(
+    preds: pd.DataFrame,
+    group_columns: Sequence[str] = ("species", "model", "split"),
+    edges: Sequence[float] = DEFAULT_PROB_BINS,
+    lab_column: str = REDERIVED_SIR_COLUMN,
+) -> pd.DataFrame:
+    """Calibration check: per group and probability bin, ``n``, mean P and the observed share that worked.
+
+    Rows need a probability and a lab category. Only non-empty bins are returned. Bins
+    are ``[e0, e1]``, then ``(e_i, e_i+1]``.
+    """
+    columns = [*group_columns, *CALIBRATION_VALUE_COLUMNS]
+    if PROB_COLUMN not in preds.columns or lab_column not in preds.columns or preds.empty:
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in columns})
+    p = _as_prob_array(preds[PROB_COLUMN])
+    lab = _as_sir_array(preds[lab_column], lab_column)
+    keep = ~np.isnan(p) & np.array([v is not None for v in lab], dtype=bool)
+    edge_arr = np.asarray(list(edges), dtype=np.float64)
+    codes = np.asarray(pd.cut(p, edge_arr, right=True, include_lowest=True, labels=False), dtype=np.float64)
+    keep &= ~np.isnan(codes)
+    work = preds.loc[keep, list(group_columns)].copy()
+    work["_code"] = codes[keep].astype(np.int64)
+    work["_p"] = p[keep]
+    work["_works"] = (lab[keep] == "S").astype(float)
+    rows = []
+    for key, block in work.groupby([*group_columns, "_code"], sort=True):
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        code = int(key_tuple[-1])
+        row = dict(zip(group_columns, key_tuple[:-1]))
+        row.update({
+            "prob_bin": _bin_label(edge_arr, code),
+            "bin_low": float(edge_arr[code]),
+            "bin_high": float(edge_arr[code + 1]),
+            "n": int(len(block)),
+            "mean_prob": float(block["_p"].mean()),
+            "observed_works": float(block["_works"].mean()),
+        })
+        rows.append(row)
+    out = pd.DataFrame(rows, columns=columns)
+    if not out.empty:
+        out["n"] = out["n"].astype("int64")
+    return out
+
+
+def call_vme_by_fold(
+    preds: pd.DataFrame,
+    folds: pd.Series | Mapping[str, float],
+    target: float = DEFAULT_VME_TARGET,
+    p_threshold: float = DEFAULT_FOLD_P_THRESHOLD,
+    lab_column: str = REDERIVED_SIR_COLUMN,
+) -> pd.DataFrame:
+    """Out-of-fold call VME per species x drug x model x CV fold, with a one-sided exact binomial p.
+
+    Only ``split == 'cv'`` rows are used; ``folds`` maps ``genome_id`` to its fold.
+    ``calling`` = the fold issued at least one ``likely_active`` call; ``p_value`` =
+    ``P(X >= n_vme)`` for ``X ~ Binomial(n_lab_r, target)``; ``significant`` = calling and
+    ``p_value < p_threshold`` (the bundle gate closes on such a fold).
+    """
+    need = {"genome_id", "species", "drug", "model", "split", CALL_COLUMN, lab_column}
+    if not need.issubset(preds.columns):
+        return pd.DataFrame({c: pd.Series(dtype=object) for c in FOLD_VME_COLUMNS})
+    cv = preds.loc[(preds["split"] == "cv").fillna(False).to_numpy(dtype=bool)]
+    fold_map = folds.to_dict() if isinstance(folds, pd.Series) else dict(folds)
+    fold = pd.to_numeric(cv["genome_id"].map(fold_map), errors="coerce").to_numpy(dtype=np.float64)
+    calls = _as_call_array(cv[CALL_COLUMN])
+    lab = _as_sir_array(cv[lab_column], lab_column)
+    active = calls == "likely_active"
+    is_r = lab == "R"
+    keys = cv[["species", "drug", "model"]].astype(str).to_numpy()
+    frame = pd.DataFrame({"species": keys[:, 0], "drug": keys[:, 1], "model": keys[:, 2], "fold": fold,
+                          "_active": active, "_r": is_r, "_vme": active & is_r})
+    frame = frame.loc[~np.isnan(fold)]
+    rows = []
+    for (species, drug, model, f), block in frame.groupby(["species", "drug", "model", "fold"], sort=True):
+        n_r = int(block["_r"].sum())
+        k = int(block["_vme"].sum())
+        calling = bool(block["_active"].any())
+        p = binomial_excess_p(k, n_r, target)
+        rows.append({
+            "species": species, "drug": drug, "model": model, "fold": int(f), "calling": calling,
+            "n_lab_r": n_r, "n_vme": k, "call_vme_rate": (k / n_r) if n_r else np.nan, "p_value": p,
+            "significant": bool(calling and p < p_threshold),
+        })
+    out = pd.DataFrame(rows, columns=list(FOLD_VME_COLUMNS))
+    if not out.empty:
+        out = out.astype({"fold": "int64", "calling": bool, "n_lab_r": "int64", "n_vme": "int64",
+                          "call_vme_rate": "float64", "p_value": "float64", "significant": bool})
+    return out.reset_index(drop=True)

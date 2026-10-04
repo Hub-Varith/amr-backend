@@ -416,3 +416,42 @@ def test_conformal_band_asym_snaps_outward(pred: float, q_up: float, q_low: floa
 def test_conformal_band_asym_rejects_bad_q(q_up: float, q_low: float) -> None:
     with pytest.raises(ValueError):
         rank.conformal_band_asym(4.0, q_up, q_low)
+
+
+# --------------------------------------------------------------- subclass rule at training time (v0.6)
+
+def test_subclass_is_strong_requires_every_member() -> None:
+    assert rank.subclass_is_strong("CARBAPENEM", ["CARBAPENEM"])
+    assert rank.subclass_is_strong("CARBAPENEM/TANIBORBACTAM", ["CARBAPENEM"])
+    assert not rank.subclass_is_strong("CARBAPENEM;CEPHALOSPORIN", ["CARBAPENEM"])  # mixed family column
+    assert not rank.subclass_is_strong("CARBAPENEM;UNKNOWN", ["CARBAPENEM"])
+    assert not rank.subclass_is_strong(None, ["CARBAPENEM"]) and not rank.subclass_is_strong("CARBAPENEM", [])
+
+
+def test_strong_marker_mask_applies_the_subclass_rule_to_acquired_gene_columns(config: Config) -> None:
+    known = pd.DataFrame({
+        "gene_blaoxa_23": [1, 0, 0, 0, 0],      # acquired OXA-23: CARBAPENEM -> forced
+        "gene_blaoxa_66": [0, 1, 0, 0, 0],      # intrinsic OXA-51-like (ABAU): never forced
+        "gene_blaoxa": [0, 0, 1, 0, 0],         # family column, generic class D: not forced
+        "point_ompk36_x": [0, 0, 0, 1, 0],      # a POINT column never triggers the subclass rule
+        "gene_blaoxa_1": [0, 0, 0, 0, 1],       # OXA-1: CEPHALOSPORIN -> not forced
+    })
+    sub = {"gene_blaoxa_23": "CARBAPENEM", "gene_blaoxa_66": "CARBAPENEM", "gene_blaoxa": "BETA-LACTAM",
+           "point_ompk36_x": "CARBAPENEM", "gene_blaoxa_1": "CEPHALOSPORIN"}
+    mero = config.drugs["meropenem"]
+    intrinsic = rank.intrinsic_columns(config.intrinsic_symbols("ABAU"))
+    assert "gene_blaoxa_66" in intrinsic
+    with_sub = rank.strong_marker_mask(known, mero, exclude_columns=intrinsic, subclass_by_column=sub)
+    assert with_sub.tolist() == [True, False, False, False, False]
+    # Without the subclass map only the prefix rule applies (blaOXA-23 is in no prefix list).
+    assert rank.strong_marker_mask(known, mero, exclude_columns=intrinsic).tolist() == [False] * 5
+    # A drug without strong_subclasses ignores the map.
+    assert not rank.strong_marker_mask(known, config.drugs["ciprofloxacin"], subclass_by_column=sub).any()
+
+
+def test_strong_marker_exceptions_apply_at_prediction_time(config: Config) -> None:
+    colistin = config.drugs["colistin"]
+    markers = [Marker(symbol="mcr-9.1", subtype=SUBTYPE_AMR, amr_class="COLISTIN", subclass="COLISTIN", column="gene_mcr_9_1")]
+    assert rank.strong_marker_hits({"gene_mcr_9_1": ("mcr-9.1",)}, colistin, markers) == []
+    hits = rank.strong_marker_hits({"gene_mcr_1_1": ("mcr-1.1",)}, colistin, [])
+    assert hits == ["mcr-1.1"]

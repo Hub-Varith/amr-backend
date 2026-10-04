@@ -212,8 +212,13 @@ def _rescore(
     config: Config,
     breakpoints: Mapping[tuple[str, str], Breakpoint] | None,
     known: pd.DataFrame,
+    subclass_by_column: Mapping[str, str | None] | None = None,
 ) -> pd.DataFrame:
-    """pred_sir / lab_sir / lab_sir_rederived / call recomputed under one breakpoint table."""
+    """pred_sir / lab_sir / lab_sir_rederived / call recomputed under one breakpoint table.
+
+    ``subclass_by_column`` (``gene_`` column -> AMRFinderPlus Subclass) applies the
+    ``strong_subclasses`` half of override 2 as training does; without it only the prefix rule.
+    """
     from genome2mic.models.train import derive_lab_sir, rederive_lab_sir  # noqa: PLC0415
     from genome2mic.predict import rank  # noqa: PLC0415
 
@@ -237,6 +242,7 @@ def _rescore(
         marker = rank.strong_marker_mask(
             rows.fillna(0), config.drugs.get(drug),
             exclude_columns=rank.intrinsic_columns(config.intrinsic_symbols(species)),
+            subclass_by_column=subclass_by_column,
         )
         call[idx] = rank.call_array(
             sub["band_low"].to_numpy(dtype=float), sub["band_high"].to_numpy(dtype=float), bp,
@@ -392,8 +398,14 @@ def compare(
     *,
     breakpoints_csv: Path | None = None,
     droplog: DropLog | None = None,
+    amrfinder_db: Path | None = None,
 ) -> tuple[pd.DataFrame, str]:
-    """The comparison table (one row per species x drug x model) and its breakpoint label."""
+    """The comparison table (one row per species x drug x model) and its breakpoint label.
+
+    ``amrfinder_db`` gives every ``gene_`` column its Subclass, so the recomputed calls apply
+    ``strong_subclasses`` exactly as training does (:func:`genome2mic.models.train._class_map`);
+    both sides of the comparison are always scored with the same rule.
+    """
     log = droplog if droplog is not None else DropLog(STAGE)
     ours = _ours(paths)
     ref = _reference(Path(develop_preds))
@@ -411,8 +423,12 @@ def compare(
     known = known.drop_duplicates("genome_id").set_index("genome_id")
     feature_cols = [c for c in known.columns if c.startswith(("gene_", "point_"))]
     known = known[feature_cols]
+    from genome2mic.models.train import _class_map, _subclass_tables  # noqa: PLC0415
+
+    tables, _ = _subclass_tables(paths, amrfinder_db)
+    sub = {c: v[1] for c, v in _class_map(paths, tables).items() if c.startswith("gene_")} or None
     scored = pd.concat(
-        [_rescore(ours_k, paths, config, breakpoints, known), _rescore(ref_k, paths, config, breakpoints, known)],
+        [_rescore(ours_k, paths, config, breakpoints, known, sub), _rescore(ref_k, paths, config, breakpoints, known, sub)],
         ignore_index=True,
     )
     summary = metrics.summarize(scored, drop_log=log)
@@ -428,10 +444,12 @@ def run(
     develop_preds: Path,
     out_dir: Path,
     breakpoints_csv: Path | None = None,
+    amrfinder_db: Path | None = None,
 ) -> CompareResult:
     """Write ``oof_compare.csv``, ``oof_compare.md`` and ``oof_compare_rows.csv`` under ``out_dir``."""
     log = DropLog(STAGE)
-    table, label = compare(paths, config, develop_preds, breakpoints_csv=breakpoints_csv, droplog=log)
+    table, label = compare(paths, config, develop_preds, breakpoints_csv=breakpoints_csv, droplog=log,
+                           amrfinder_db=amrfinder_db)
     summary = summarize_models(table)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

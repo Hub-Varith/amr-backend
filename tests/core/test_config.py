@@ -572,3 +572,40 @@ def test_older_table_is_used_when_year_matches(configs_copy: Path) -> None:
     assert cfg.breakpoint("KPNEU", "gentamicin", "CLSI", None) is None
     # The 2019 test table has no ciprofloxacin row: exact-year match does not fall back.
     assert cfg.breakpoint("KPNEU", "ciprofloxacin", "CLSI", 2019) is None
+
+
+# --------------------------------------------------------------- strong markers (v0.6)
+
+@pytest.mark.parametrize("drug", ["amikacin", "gentamicin", "tobramycin"])
+def test_16s_rrna_methylases_are_strong_markers_for_aminoglycosides(config: Config, drug: str) -> None:
+    cfg = config.drugs[drug]
+    for column in ("gene_arma", "gene_rmtb1", "gene_rmtb4", "gene_rmtc", "gene_rmtd1", "gene_rmte1", "gene_rmtf1",
+                   "gene_rmtg", "gene_rmth", "gene_rmta", "gene_npma"):
+        assert cfg.is_strong_column(column), (drug, column)
+    for column in ("gene_aac_6_ib", "gene_aph_3_ia", "gene_ant_2_ia", "point_rrs_a1408g"):
+        assert not cfg.is_strong_column(column), (drug, column)
+
+
+def test_mec_van_and_mcr_strong_markers(config: Config) -> None:
+    for drug in ("oxacillin", "cefoxitin"):
+        assert config.drugs[drug].is_strong_column("gene_meca") and config.drugs[drug].is_strong_column("gene_mecc")
+        assert not config.drugs[drug].is_strong_column("gene_meci") and not config.drugs[drug].is_strong_column("gene_mecr1")
+    van = config.drugs["vancomycin"]
+    assert van.is_strong_column("gene_vana") and van.is_strong_column("gene_vanb")
+    assert not van.is_strong_column("gene_vanh_a") and not van.is_strong_column("gene_vanz_a")
+    for drug in ("colistin", "polymyxin-b"):
+        cfg = config.drugs[drug]
+        for column in ("gene_mcr_1", "gene_mcr_1_1", "gene_mcr_3_4", "gene_mcr_5", "gene_mcr_8_1"):
+            assert cfg.is_strong_column(column), column
+        # mcr-9 / mcr-10 are listed as exceptions (often colistin-susceptible), never forcing the call.
+        for column in ("gene_mcr_9", "gene_mcr_9_1", "gene_mcr_10_1"):
+            assert not cfg.is_strong_column(column), column
+
+
+def test_strong_marker_exception_must_narrow_a_prefix(configs_copy: Path) -> None:
+    path = configs_copy / "drugs.yaml"
+    text = path.read_text()
+    text = text.replace("      - gene_mcr_9\n", "      - gene_blakpc_9\n", 1)
+    path.write_text(text)
+    with pytest.raises(ConfigError, match="does not narrow"):
+        load_config(configs_copy)

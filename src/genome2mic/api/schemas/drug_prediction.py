@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validato
 
 from genome2mic.api.schemas.call import Call
 from genome2mic.api.schemas.override import Override
+from genome2mic.api.schemas.prob_tier import ProbTier
 
 
 class DrugPrediction(BaseModel):
@@ -23,6 +24,10 @@ class DrugPrediction(BaseModel):
     margin_steps: int | None
     reasons: list[str] = []
     override: Override | None = None
+    prob_works: float | None = Field(default=None, ge=0.0, le=1.0)
+    """Calibrated probability that the drug works (lab MIC at or below the S breakpoint), from
+    out-of-fold training predictions. Shown next to the call; the call stays the decision."""
+    prob_tier: ProbTier | None = None
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
@@ -38,4 +43,8 @@ class DrugPrediction(BaseModel):
                 raise ValueError("Expected s_breakpoint <= r_breakpoint.")
         if self.override is not None and self.call is not Call.LIKELY_INACTIVE:
             raise ValueError("A drug with an override must have call likely_inactive.")
+        if (self.prob_works is None) != (self.prob_tier is None):
+            raise ValueError("prob_works and prob_tier must be both set or both null.")
+        if self.prob_works is not None and self.prob_tier is not ProbTier.from_probability(self.prob_works):
+            raise ValueError("prob_tier does not match prob_works.")
         return self

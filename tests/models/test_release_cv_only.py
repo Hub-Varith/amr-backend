@@ -44,6 +44,8 @@ from genome2mic.synthetic import generate
 
 REPO_CONFIGS = Path(__file__).resolve().parents[2] / "configs"
 KNOWN_MODELS = ("b1_lookup", "b2_xgb_steps", "aft_known")
+SELECT_MODEL = "aft_b2_select"
+"""Derived (v0.6): the in-fold choice of aft_known, B2 or their average; the shipped bundle."""
 RELEASE_FILES = ("labels.parquet", "known_amr.parquet", "known_amr_columns.csv", "lineages.parquet",
                  "splits.parquet", "pairs_kept.csv", "label_counts.csv")
 
@@ -210,7 +212,7 @@ def test_cv_only_writes_no_test_or_lolo_rows_and_no_ledger(imported: dict) -> No
     paths: Paths = imported["paths"]
     preds = _all_preds(imported)
     assert set(preds["split"]) == {"cv"}
-    assert set(preds["model"]) == set(KNOWN_MODELS)
+    assert set(preds["model"]) == {*KNOWN_MODELS, SELECT_MODEL}
     assert not paths.test_ledger.exists()
     splits = pd.read_parquet(paths.splits)
     test_ids = set(splits.loc[splits["split"] == "test", "genome_id"].astype(str))
@@ -417,7 +419,7 @@ def test_compare_oof_scores_every_model_on_identical_rows(imported: dict, tmp_pa
     ref_path = _fake_reference(imported, tmp_path)
     result = oof_compare.run(paths, imported["config"], develop_preds=ref_path, out_dir=tmp_path / "out")
     table = result.table
-    assert set(table["model"]) == {*KNOWN_MODELS, "develop:multitask_aft"}
+    assert set(table["model"]) == {*KNOWN_MODELS, SELECT_MODEL, "develop:multitask_aft"}
     assert list(table.columns[3:5]) == ["vme_rate", "vme_rate_rederived"]
     per_pair = table.groupby(["species", "drug"])["n"].nunique()
     assert (per_pair == 1).all(), "every model must be scored on the same rows"
@@ -530,3 +532,22 @@ def test_workers_give_identical_preds_to_a_sequential_run(imported: dict, releas
     a_log = pd.read_csv(imported["paths"].processed_dir / "drop_log_train.csv")
     b_log = pd.read_csv(paths.processed_dir / "drop_log_train.csv")
     pd.testing.assert_frame_equal(a_log, b_log)
+
+
+def test_model_select_off_ships_the_aft_model(release_dir: Path, tmp_path: Path) -> None:
+    """``TrainConfig(model_select=False)`` (CLI ``--no-model-select``): no aft_b2_select rows; the AFT bundle ships."""
+    paths = Paths(root=tmp_path / "root", configs_dir=REPO_CONFIGS)
+    config = load_config(REPO_CONFIGS)
+    release.run(paths, config, release_dir=release_dir)
+    drug = pd.read_csv(paths.pairs_kept)["drug"].iloc[0]
+    cfg = train.TrainConfig(models=KNOWN_MODELS, min_count=3, nthread=1, max_rounds=25, early_stopping_rounds=5,
+                            cv_only=True, model_select=False)
+    train.run(paths, config, train_config=cfg, pairs=[("KPNEU", drug)])
+    preds = pd.read_parquet(paths.preds("KPNEU", drug))
+    assert set(preds["model"]) == set(KNOWN_MODELS)
+    d = paths.model_dir("KPNEU", drug)
+    assert json.loads((d / "features.json").read_text())["model_class"] == "aft_known"
+    assert (d / "model.ubj").is_file() and not (d / "aft").exists()
+    meta = json.loads((d / "meta.json").read_text())
+    assert meta["model_select"] is None and meta["train_config"]["model_select"] is False
+    assert "model_select" not in json.loads((d / "conformal.json").read_text())

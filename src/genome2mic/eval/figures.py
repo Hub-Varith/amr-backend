@@ -70,7 +70,10 @@ TARGET_COVERAGE_PCT = 90.0
 TARGET_NOTE = "figure commonly used in AST device evaluation"
 """Wording appended to every target-line label."""
 
-MAIN_MODEL = "aft_known_unitig"
+MAIN_MODEL = "aft_b2_select"
+"""The shipped model (v0.6): per pair AFT, B2 or their average, chosen inside the training folds."""
+MAIN_MODEL_FALLBACKS: tuple[str, ...] = ("aft_known_unitig",)
+"""Preferred, in order, when :data:`MAIN_MODEL` is absent (runs trained without model selection)."""
 MODEL_ORDER: tuple[str, ...] = (
     "b0_resfinder",
     "b1_lookup",
@@ -78,6 +81,7 @@ MODEL_ORDER: tuple[str, ...] = (
     "aft_known",
     "aft_unitig_only",
     "aft_known_unitig",
+    "aft_b2_select",
     "multitask_nn",
 )
 """Display order for models; unknown models are appended alphabetically."""
@@ -377,12 +381,13 @@ def ea_ca_by_model(
 
 
 def pick_model(available: Iterable[Any], preferred: str = MAIN_MODEL) -> str | None:
-    """``preferred`` if present, else the best-ranked model in :data:`MODEL_ORDER` (reversed)."""
+    """``preferred`` if present, then :data:`MAIN_MODEL_FALLBACKS`, else the best-ranked model in :data:`MODEL_ORDER`."""
     models = order_models(available)
     if not models:
         return None
-    if preferred in models:
-        return preferred
+    for name in (preferred, *MAIN_MODEL_FALLBACKS):
+        if name in models:
+            return name
     return models[-1]
 
 

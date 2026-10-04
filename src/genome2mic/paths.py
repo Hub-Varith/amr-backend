@@ -195,6 +195,21 @@ class Paths:
         return self.results_dir / "metrics_by_distance.parquet"
 
     @property
+    def prob_summary(self) -> Path:
+        """P(works) table per species x model x split (v0.6): ``results/prob_summary.parquet``."""
+        return self.results_dir / "prob_summary.parquet"
+
+    @property
+    def prob_calibration(self) -> Path:
+        """P(works) calibration check by probability bin (v0.6): ``results/prob_calibration.parquet``."""
+        return self.results_dir / "prob_calibration.parquet"
+
+    @property
+    def call_vme_by_fold(self) -> Path:
+        """Out-of-fold call VME per CV fold with a binomial p-value (v0.6): ``results/call_vme_by_fold.parquet``."""
+        return self.results_dir / "call_vme_by_fold.parquet"
+
+    @property
     def test_ledger(self) -> Path:
         """Append-only record of every test-set scoring: ``results/test_ledger.csv``.
 

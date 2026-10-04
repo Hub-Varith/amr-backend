@@ -1029,3 +1029,109 @@ def test_call_safety_counts_vme_over_calling_folds_only() -> None:
     assert row["n_calling_folds"] == 1 and row["n_lab_r_calling_folds"] == 10
     assert row["call_vme_calling_folds"] == pytest.approx(0.1) and not row["pass_calling_folds"]
     assert row["status"] == "active_calls" and row["worst_calling_fold_vme"] == pytest.approx(0.1)
+
+
+def _safety_inputs(gates: dict) -> report.ReportInputs:
+    """Two pairs: meropenem (clean active calls) and ciprofloxacin (a fold with 7 / 100 lab R called active)."""
+    rows, split_rows = [], []
+    for drug, n_vme_fold1 in (("meropenem", 0), ("ciprofloxacin", 7)):
+        for i in range(1300):
+            gid = f"{drug}_{i}"
+            fold = 0 if i < 1200 else 1
+            if fold == 0:
+                lab, call = ("R", "uncertain") if i < 1000 else ("S", "likely_active")
+            else:
+                j = i - 1200
+                lab, call = "R", ("likely_active" if j < n_vme_fold1 else "uncertain")
+            rows.append({"species": "KPNEU", "drug": drug, "model": "aft_known", "split": "cv", "genome_id": gid,
+                         "call": call, "lab_sir_rederived": lab,
+                         "prob_works": 0.95 if call == "likely_active" else 0.2})
+            split_rows.append({"genome_id": gid, "fold": fold})
+    inputs = report.ReportInputs()
+    inputs.preds = pd.DataFrame(rows)
+    inputs.splits = pd.DataFrame(split_rows)
+    inputs.gates = gates
+    return inputs
+
+
+def test_call_safety_passing_uses_calling_folds_significance_and_shipped_gates() -> None:
+    gates = {("KPNEU", "meropenem"): {"active_gate_open": False}, ("KPNEU", "ciprofloxacin"): {"active_gate_open": True}}
+    text = "\n".join(report._call_safety_section(_safety_inputs(gates)))
+    # Header row then one KPNEU row: 2 pairs, 1 passes (meropenem; ciprofloxacin has a significant fold),
+    # 0 passing pairs ship active calls (meropenem's shipped gate is closed), 1 passing with the gate closed,
+    # 0 natural / no breakpoint, 1 failing, 1 failing although its shipped gate is open.
+    row = next(line for line in text.splitlines() if line.startswith("| KPNEU |"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[:8] == ["KPNEU", "2", "1", "0", "1", "0", "1", "1"]
+    assert "ciprofloxacin" in text and "Per-fold call VME" in text
+    fold_row = next(line for line in text.splitlines() if line.startswith("| KPNEU | ciprofloxacin | 1 |"))
+    assert "| yes |" in fold_row and "| open |" in fold_row
+
+
+def test_fold_safety_table_and_shipped_gate() -> None:
+    inputs = _safety_inputs({})
+    table = report.fold_safety_table(inputs.preds, inputs.splits)
+    sig = table.loc[table["significant"]]
+    assert sig[["drug", "fold", "n_vme", "n_lab_r"]].values.tolist() == [["ciprofloxacin", 1, 7, 100]]
+    assert report.shipped_gate({}, "KPNEU", "meropenem") is None
+    assert report.shipped_gate({("KPNEU", "x"): {"active_gate_open": False}}, "KPNEU", "x") is False
+
+
+def test_probability_section_renders_the_users_table() -> None:
+    inputs = _safety_inputs({})
+    text = "\n".join(report._probability_section(inputs))
+    assert "## Probability that the drug works" in text
+    header = next(line for line in text.splitlines() if line.startswith("| Species | Drugs |"))
+    cells = [c.strip() for c in header.strip("|").split("|")]
+    assert cells[3].startswith("Danger: lab R called likely active")  # VME first
+    assert "Calibration check" in text and "| ALL |" in text
+    # Without the column the section is omitted.
+    inputs.preds = inputs.preds.drop(columns=["prob_works"])
+    assert report._probability_section(inputs) == []
+
+
+def test_model_choice_section_summarises_the_bundle_choices() -> None:
+    """v0.6: per species, the bundle choice counts, fold stability and AFT-alone vs aft_b2_select on CV rows."""
+    def gate(choice: str, by_fold: str, open_: bool) -> dict:
+        return {"active_gate_open": open_, "model_select": {
+            "choice": choice, "base_model": "aft_known",
+            "choice_by_fold": {str(i): {"A": "aft", "V": "avg", "B": "b2"}[c] for i, c in enumerate(by_fold)}}}
+
+    gates = {("KPNEU", "meropenem"): gate("aft", "AAAAA", True),
+             ("KPNEU", "amikacin"): gate("avg", "AVVAA", True),
+             ("ABAU", "cefepime"): gate("b2", "BBVBB", False),
+             ("ABAU", "imipenem"): {"active_gate_open": True}}  # no selection record: skipped
+    gates[("KPNEU", "meropenem")]["model_select"]["fallback_from"] = "avg"  # avg not certified -> AFT shipped
+    rows = []
+    for (sp, drug), ea_ref, ea_sel, act_ref, act_sel in ((("KPNEU", "meropenem"), 0.46, 0.46, 0.25, 0.25),
+                                                         (("KPNEU", "amikacin"), 0.60, 0.70, 0.40, 0.45),
+                                                         (("ABAU", "cefepime"), 0.70, 0.80, 0.10, 0.0)):
+        for model, ea, act in (("aft_known", ea_ref, act_ref), ("aft_b2_select", ea_sel, act_sel)):
+            rows.append({"species": sp, "drug": drug, "model": model, "split": "cv", "essential_agreement": ea,
+                         "active_call_rate_s_rederived": act, "call_vme_rate_rederived": 0.01,
+                         "n_call_lab_r_rederived": 100})
+    metrics = pd.DataFrame(rows)
+    table = report.model_choice_table(metrics, gates)
+    assert len(table) == 3
+    row = table.set_index(["species", "drug"]).loc[("KPNEU", "amikacin")]
+    assert row["fold_choices"] == "AVVAA" and not row["stable"] and row["choice"] == "avg"
+    assert row["ref_essential_agreement"] == 0.60 and row["sel_essential_agreement"] == 0.70
+    inputs = report.ReportInputs()
+    inputs.metrics, inputs.gates = metrics, gates
+    text = "\n".join(report._model_choice_section(inputs))
+    assert "## Model choice" in text and "aft_b2_select" in text
+    line = next(l for l in text.splitlines() if l.startswith("| KPNEU"))
+    cells = [c.strip() for c in line.strip("|").split("|")]
+    assert cells[:8] == ["KPNEU", "2", "1", "1", "0", "1", "1", "2"]
+    assert cells[8] == "2 / 200" and cells[12] == "53.0" and cells[13] == "58.0"
+    assert report._model_choice_section(report.ReportInputs()) == []
+
+
+def test_shipped_candidate_names_the_fallback() -> None:
+    gates = {("KPNEU", "gentamicin"): {"model_select": {"choice": "aft", "fallback_from": "avg"}},
+             ("KPNEU", "meropenem"): {"model_select": {"choice": "avg", "fallback_from": None}},
+             ("ABAU", "imipenem"): {"active_gate_open": True}}
+    assert report._shipped_candidate(gates, "KPNEU", "gentamicin") == "aft (fallback from avg)"
+    assert report._shipped_candidate(gates, "KPNEU", "meropenem") == "avg"
+    assert report._shipped_candidate(gates, "ABAU", "imipenem") == "-"
+    assert report._shipped_candidate(gates, "PAER", "cefepime") == "-"

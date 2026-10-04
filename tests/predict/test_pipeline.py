@@ -1327,3 +1327,49 @@ def test_bad_asymmetric_band_is_refused(tmp_path: Path, configs_dir: Path, dna: 
     pipe = PredictionPipeline(models, configs_dir)
     with pytest.raises(BundleError, match="conformal.json"):
         pipe.load()
+
+
+# --------------------------------------------------------------- P(works) (v0.6)
+
+def _write_calibration(models_dir: Path, drug: str, s_breakpoint: float, *, override_constant: float = 0.02) -> None:
+    from genome2mic.models import calibration as cal  # noqa: PLC0415
+
+    fit = cal.PairCalibration(
+        s_breakpoint=s_breakpoint,
+        main=cal.ProbMap(x=(-3.0, 0.0, 3.0), y=(0.95, 0.5, 0.05), n=100, n_works=50),
+        override=None,
+        override_constant=override_constant,
+        n_override=5,
+    )
+    fit.save(models_dir / SPECIES / drug / cal.CALIBRATION_FILE)
+
+
+def test_report_carries_calibrated_probabilities(models_dir: Path, configs_dir: Path, genomes: dict[str, Path],
+                                                 unitig_query: RecordingUnitigQuery) -> None:
+    config = load_config(configs_dir)
+    for drug in ("gentamicin", "meropenem"):
+        _write_calibration(models_dir, drug, config.call_breakpoint(SPECIES, drug).s_breakpoint)
+    pipeline = PredictionPipeline(models_dir=models_dir, configs_dir=configs_dir,
+                                  model_classes={FAKE_MODEL_CLASS: FakeLinearModel}, unitig_query=unitig_query)
+    pipeline.load()
+    report = pipeline.run(genomes["kpc"], "FAKE-KPC")
+    PredictionReport.model_validate(report)
+    preds = by_drug(report)
+    # Gentamicin: pred 0.5, S breakpoint 2 -> d = -2 -> 0.95 + (1/3) * (0.5 - 0.95) = 0.8.
+    gen = preds["gentamicin"]
+    assert gen["call"] == "likely_active"
+    assert gen["prob_works"] == pytest.approx(0.8) and gen["prob_tier"] == "probably_works"
+    # Meropenem: blaKPC-2 strong-marker override -> the override calibration (constant 0.02), call unchanged.
+    mem = preds["meropenem"]
+    assert mem["override"] == "strong_marker" and mem["call"] == "likely_inactive"
+    assert mem["prob_works"] == pytest.approx(0.02) and mem["prob_tier"] == "very_likely_fails"
+    # Natural resistance -> 0; drugs without calibration.json -> null.
+    assert preds["ampicillin"]["prob_works"] == 0.0 and preds["ampicillin"]["prob_tier"] == "very_likely_fails"
+    assert preds["ciprofloxacin"]["prob_works"] is None and preds["ciprofloxacin"]["prob_tier"] is None
+
+
+def test_load_rejects_a_broken_calibration(models_dir: Path, configs_dir: Path) -> None:
+    (models_dir / SPECIES / "gentamicin" / "calibration.json").write_text(json.dumps({"kind": "nope"}))
+    with pytest.raises(BundleError, match="calibration"):
+        PredictionPipeline(models_dir=models_dir, configs_dir=configs_dir,
+                           model_classes={FAKE_MODEL_CLASS: FakeLinearModel}).load()

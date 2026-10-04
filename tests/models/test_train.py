@@ -34,7 +34,7 @@ from genome2mic.splits import lineages, make_splits
 from genome2mic.synthetic import generate
 
 REPO_CONFIGS = Path(__file__).resolve().parents[2] / "configs"
-MODEL_IDS = {"b0_resfinder", "b1_lookup", "b2_xgb_steps", "aft_known", "aft_known_unitig"}
+MODEL_IDS = {"b0_resfinder", "b1_lookup", "b2_xgb_steps", "aft_known", "aft_known_unitig", "aft_b2_select"}
 
 
 @pytest.fixture(scope="module")
@@ -222,10 +222,18 @@ def test_bundle_layout(project: dict) -> None:
         assert (models_dir / species / "unitig_index.parquet").is_file()
         for drug in drugs:
             d = models_dir / species / drug
-            for name in ("model.ubj", "params.json", "features.json", "conformal.json", "meta.json", "importance.json"):
+            for name in ("params.json", "features.json", "conformal.json", "meta.json", "importance.json"):
                 assert (d / name).is_file(), f"{d / name} missing"
             feats = json.loads((d / "features.json").read_text())
-            assert feats["model_class"] == "aft_known_unitig"
+            assert feats["model_class"] == "aft_b2_select"
+            # v0.6: the bundle ships the in-fold choice of the AFT model, B2 or their average
+            params = json.loads((d / "params.json").read_text())
+            assert params["model_class"] == "AftB2Select" and params["base_name"] == "aft_known_unitig"
+            assert params["choice"] in ("aft", "b2", "avg")
+            for part in ("aft", "b2"):
+                needed = params["choice"] in (part, "avg")
+                assert (d / part / "params.json").is_file() == needed
+            assert params["feature_names"] == feats["feature_names"]
             assert all(c.startswith("u_") for c in feats["unitig_cols"])
             assert not (set(feats["known_columns"]) & FORBIDDEN_FEATURES)
             assert all(c.startswith(("gene_", "point_", "n_class_")) for c in feats["known_columns"])
@@ -241,7 +249,7 @@ def test_pipeline_loads_bundle_and_matches_test_predictions(project: dict) -> No
     """The saved bundle reproduces the preds table's test-row pred_mic for the main model."""
     paths, config = project["paths"], project["config"]
     preds = _preds(project)
-    test_rows = preds.loc[(preds["split"] == "test") & (preds["model"] == "aft_known_unitig")]
+    test_rows = preds.loc[(preds["split"] == "test") & (preds["model"] == "aft_b2_select")]
     assert len(test_rows) > 0
     gid = str(test_rows["genome_id"].iloc[0])
     pipeline = PredictionPipeline(paths.models_dir, paths.configs_dir, amrfinder_tsv=paths.interim_dir(gid) / "amrfinder.tsv")
@@ -257,6 +265,56 @@ def test_pipeline_loads_bundle_and_matches_test_predictions(project: dict) -> No
         assert got[drug] == pytest.approx(mic), f"{drug}: bundle {got[drug]} vs preds table {mic}"
     # nearest-training-distance from the bundle equals the preds table value for this test genome
     assert report["nearest_training_distance"] == pytest.approx(float(test_rows.loc[test_rows["genome_id"] == gid, "nearest_training_distance"].iloc[0]), abs=1e-9)
+
+
+def _candidate_mic(aft_mic: pd.Series, b2_mic: pd.Series, choice: str) -> pd.Series:
+    """Rounded-up candidate MIC from the stored (rounded-up) AFT and B2 rows.
+
+    ``ceil((ceil(a) + b) / 2) == ceil((a + b) / 2)`` for an integer B2 step ``b``, so the
+    stored rows reproduce the average exactly.
+    """
+    a, b = np.log2(aft_mic.astype(float)), np.log2(b2_mic.astype(float))
+    if choice == "aft":
+        return aft_mic.astype(float)
+    if choice == "b2":
+        return b2_mic.astype(float)
+    return pd.Series(2.0 ** np.ceil((a + b) / 2 - 1e-9), index=aft_mic.index)
+
+
+def test_select_rows_follow_the_in_fold_choice(project: dict) -> None:
+    """v0.6: CV fold f uses the candidate chosen on the other folds; test rows use the bundle's choice."""
+    paths, pairs = project["paths"], project["pairs"]
+    preds = _preds(project)
+    n_checked = 0
+    for species, drug in zip(pairs["species"], pairs["drug"]):
+        conformal = json.loads((paths.model_dir(species, drug) / "conformal.json").read_text())
+        info = conformal["model_select"]
+        assert info["base_model"] == "aft_known_unitig" and info["choice"] in ("aft", "b2", "avg")
+        # A non-AFT pick that is not certified falls back to AFT; otherwise the bundle ships the rule's pick.
+        if info["fallback_from"] is None:
+            assert info["choice"] == info["rule_choice"]
+        else:
+            assert info["choice"] == "aft" and info["rule_choice"] == info["fallback_from"] != "aft"
+        assert {"n_vme", "n_lab_r_calling", "n_calling_folds", "ucb", "significant_folds"} <= set(info["selection_gate_check"])
+        assert set(info["bundle_scores"]) == {"aft", "b2", "avg"}
+        meta = json.loads((paths.model_dir(species, drug) / "meta.json").read_text())
+        assert meta["model"] == "aft_b2_select" and meta["model_select"]["choice"] == info["choice"]
+        assert meta["train_config"]["model_select"] is True
+        pair = preds.loc[(preds["species"] == species) & (preds["drug"] == drug)]
+        folds = pd.read_parquet(paths.splits).set_index("genome_id")["fold"]
+        for split, choice_of in (("cv", lambda gid: info["choice_by_fold"][str(int(folds[gid]))]),
+                                 ("test", lambda gid: info["choice"])):
+            rows = pair.loc[pair["split"] == split]
+            by_model = {m: rows.loc[rows["model"] == m].set_index("genome_id")["pred_mic"]
+                        for m in ("aft_known_unitig", "b2_xgb_steps", "aft_b2_select")}
+            sel = by_model["aft_b2_select"]
+            assert len(sel) == len(by_model["aft_known_unitig"]) > 0
+            for gid, got in sel.items():
+                choice = choice_of(gid)
+                expected = _candidate_mic(by_model["aft_known_unitig"].loc[[gid]], by_model["b2_xgb_steps"].loc[[gid]], choice)
+                assert got == pytest.approx(float(expected.iloc[0])), (species, drug, split, gid, choice)
+                n_checked += 1
+    assert n_checked > 0
 
 
 def test_pipeline_markerscan_fallback_validates(project: dict) -> None:
@@ -425,8 +483,9 @@ def test_cli_train_species_and_drugs(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     )
     captured: dict[str, object] = {}
 
-    def fake_run(paths, config, *, train_config=None, pairs=None):
+    def fake_run(paths, config, *, train_config=None, pairs=None, amrfinder_db=None):
         captured["pairs"] = pairs
+        captured["amrfinder_db"] = amrfinder_db
         return pd.DataFrame({"species": [], "drug": []})
 
     monkeypatch.setattr(train, "run", fake_run)
@@ -436,7 +495,9 @@ def test_cli_train_species_and_drugs(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert cli.main([*base, "--drugs", "meropenem"]) == 0
     assert captured["pairs"] == [("KPNEU", "meropenem"), ("ECOLI", "meropenem")]
     assert cli.main(base) == 0
-    assert captured["pairs"] is None
+    assert captured["pairs"] is None and captured["amrfinder_db"] is None
+    assert cli.main([*base, "--amrfinder-db", str(tmp_path / "db")]) == 0
+    assert captured["amrfinder_db"] == tmp_path / "db"
     with pytest.raises(ValueError, match="no kept pair"):
         cli.main([*base, "--species", "SAUR"])
 
@@ -1058,3 +1119,156 @@ def test_oof_gate_check_closes_the_bundle_gate_on_calling_fold_vme() -> None:
     assert ok.active_gate_open and ok.oof_call_vme_ucb == pytest.approx(1 / 101)
     # Uncallable pairs and closed gates are untouched.
     assert train._oof_gate_check(params, [(calls, np.arange(n))], None, None, folds, 0.015, "t") is params  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------- v0.6: P(works), per-fold gate
+
+def test_oof_gate_check_closes_on_a_significant_fold_even_when_pooled_passes() -> None:
+    from genome2mic.models.conformal import BandParams  # noqa: PLC0415
+
+    params = BandParams(q_up=1.0, q_low=1.0, alpha_up=0.05, alpha_low=0.05, active_gate_open=True, n_residuals=10,
+                        inner_vme_ucb=0.01)
+    # Fold 0: 1000 lab R and active calls on lab S only; fold 1: 7 of 100 lab R called likely_active.
+    lab = np.array(["R"] * 1000 + ["S"] * 50 + ["R"] * 100, dtype=object)
+    calls = np.array(["uncertain"] * 1000 + ["likely_active"] * 50 + ["likely_active"] * 7 + ["uncertain"] * 93, dtype=object)
+    folds = np.array([0.0] * 1050 + [1.0] * 100)
+    out = train._oof_gate_check(params, [(calls, np.arange(len(lab)))], None, lab, folds, 0.015, "t")  # type: ignore[arg-type]
+    assert (7 + 1) / (1100 + 1) <= 0.015  # the pooled rule alone would have passed
+    assert not out.active_gate_open and out.fold_gate_closed
+    by_fold = {r["fold"]: r for r in out.fold_call_vme}
+    assert by_fold[1]["significant"] and by_fold[1]["n_vme"] == 7 and not by_fold[0]["significant"]
+    # The per-fold record is kept for an already-closed gate too.
+    closed = train._oof_gate_check(replace_gate(params, False), [(calls, np.arange(len(lab)))], None, lab, folds, 0.015, "t")  # type: ignore[arg-type]
+    assert closed.fold_call_vme is not None and not closed.fold_gate_closed
+
+
+def replace_gate(params, gate: bool):  # noqa: ANN001, ANN201
+    from dataclasses import replace  # noqa: PLC0415
+
+    return replace(params, active_gate_open=gate)
+
+
+def test_band_params_close_the_gate_without_a_call_breakpoint() -> None:
+    n = 60
+    rng = np.random.default_rng(2)
+    lo = 2.0 ** rng.integers(-2, 4, size=n).astype(float)
+    pd_ = SimpleNamespace(
+        species="KPNEU", drug="nodrug", folds=np.arange(n, dtype=float) % 3, lo=lo, hi=2 * lo,
+        lab_exact=np.ones(n, dtype=bool), n=n,
+    )
+    config = SimpleNamespace(call_breakpoint=lambda s, d: None, is_naturally_resistant=lambda s, d: False)
+    pred = np.log2(lo) + rng.normal(0, 0.7, size=n)
+    params = train._band_params(pred, pd_, train.TrainConfig(), config, [0, 1, 2], "t")  # type: ignore[arg-type]
+    assert params.active_gate_open is False
+    natural = SimpleNamespace(call_breakpoint=lambda s, d: None, is_naturally_resistant=lambda s, d: True)
+    assert train._band_params(pred, pd_, train.TrainConfig(), natural, [0, 1, 2], "t").active_gate_open is False  # type: ignore[arg-type]
+
+
+def test_preds_carry_cross_fitted_probabilities(project: dict) -> None:
+    from genome2mic.models import calibration as cal  # noqa: PLC0415
+
+    paths, config = project["paths"], project["config"]
+    preds = _preds(project)
+    assert {"prob_works", "prob_tier"}.issubset(preds.columns)
+    b0 = preds.loc[preds["model"] == "b0_resfinder"]
+    assert b0["prob_works"].isna().all() and b0["prob_tier"].isna().all()
+    has = preds["prob_works"].notna()
+    assert has.any()
+    p = preds.loc[has, "prob_works"].to_numpy(dtype=float)
+    assert ((p >= 0) & (p <= 1)).all()
+    assert preds.loc[has, "prob_tier"].tolist() == cal.prob_tier(p).tolist()
+    splits = pd.read_parquet(paths.splits).set_index("genome_id")["fold"]
+    checked = 0
+    for (species, drug), pair in preds.groupby(["species", "drug"]):
+        bp = config.call_breakpoint(species, drug)
+        cv = pair.loc[(pair["model"] == "aft_known") & (pair["split"] == "cv")].reset_index(drop=True)
+        if bp is None or config.is_naturally_resistant(species, drug) or cv.empty:
+            continue
+        # Recompute fold f's probabilities from the other folds' CV rows only, for pairs without
+        # strong-marker rows (whose flag is not in the preds table).
+        folds = cv["genome_id"].map(splits).to_numpy(dtype=float)
+        works = cal.works_from_sir(cv["lab_sir_rederived"].to_numpy(dtype=object))
+        bundle_cal = cal.PairCalibration.load(paths.model_dir(species, drug) / cal.CALIBRATION_FILE)
+        marker = np.zeros(len(cv), dtype=bool)
+        if bundle_cal.n_override == 0:
+            expected, _ = cal.cross_fit_probabilities(cv["pred_mic"].to_numpy(dtype=float), works, marker, folds,
+                                                      float(bp.s_breakpoint))
+            assert np.allclose(expected, cv["prob_works"].to_numpy(dtype=float), equal_nan=True), (species, drug)
+            checked += 1
+    assert checked >= 1
+
+
+def test_bundle_ships_calibration_and_fold_records(project: dict) -> None:
+    from genome2mic.models import calibration as cal  # noqa: PLC0415
+
+    paths, config = project["paths"], project["config"]
+    pairs = project["pairs"]
+    for species, drug in zip(pairs["species"], pairs["drug"]):
+        drug_dir = paths.model_dir(species, drug)
+        conformal = json.loads((drug_dir / "conformal.json").read_text())
+        meta = json.loads((drug_dir / "meta.json").read_text())
+        assert "strong_subclass_map" in meta and "q_up_widened" in conformal
+        bp = config.call_breakpoint(species, drug)
+        if bp is None:
+            assert conformal["active_gate_open"] is False
+            continue
+        fit = cal.PairCalibration.load(drug_dir / cal.CALIBRATION_FILE)
+        assert fit.s_breakpoint == pytest.approx(bp.s_breakpoint)
+        record = json.loads((drug_dir / cal.CALIBRATION_FILE).read_text())
+        assert record["model"] == meta["model"] and set(record["cross_fitted_by_fold"])
+        if not config.is_naturally_resistant(species, drug):
+            assert isinstance(conformal["fold_call_vme"], list) and conformal["fold_call_vme"]
+            assert {"fold", "n_lab_r", "n_vme", "p_value", "significant"} <= set(conformal["fold_call_vme"][0])
+
+
+def test_pipeline_report_carries_probabilities(project: dict) -> None:
+    paths = project["paths"]
+    pipeline = PredictionPipeline(paths.models_dir, paths.configs_dir)
+    pipeline.load()
+    fasta = sorted((paths.raw_dir / "genomes").glob("*.fasta"))[0]
+    report = pipeline.run(fasta, "SYN-1")
+    PredictionReport.model_validate(report)
+    with_prob = [p for p in report["predictions"] if p.get("prob_works") is not None]
+    assert with_prob
+    for p in with_prob:
+        assert 0.0 <= p["prob_works"] <= 1.0 and p["prob_tier"] is not None
+        if p["override"] == "natural_resistance":
+            assert p["prob_works"] == 0.0 and p["prob_tier"] == "very_likely_fails"
+
+
+def test_evaluate_writes_probability_and_fold_tables(project: dict) -> None:
+    paths = project["paths"]
+    prob = pd.read_parquet(paths.prob_summary)
+    assert not prob.empty and list(prob.columns[:4]) == ["species", "model", "split", "n_drugs"]
+    assert [c for c in prob.columns if c.endswith("danger_rate")][0] == "call_danger_rate"
+    cal_table = pd.read_parquet(paths.prob_calibration)
+    assert "ALL" in set(cal_table["species"]) and cal_table["n"].sum() > 0
+    folds = pd.read_parquet(paths.call_vme_by_fold)
+    assert list(folds.columns) == list(metrics.FOLD_VME_COLUMNS) and not folds.empty
+    assert paths.prob_summary.with_suffix(".csv").is_file()
+
+
+def test_class_map_fills_release_subclasses_from_the_amrfinder_db(tmp_path: Path) -> None:
+    from genome2mic.features.subclass_map import load_subclass_tables  # noqa: PLC0415
+
+    db = tmp_path / "db"
+    db.mkdir()
+    (db / "fam.tsv").write_text("#node_id\tsubclass\nblaOXA\tBETA-LACTAM\n")
+    (db / "AMRProt.fa").write_text(">WP_1|1|1|blaOXA-23|blaOXA-23_fam|h|2|CARBAPENEM|BETA-LACTAM|OXA-23\nMA\n")
+    paths = Paths(root=tmp_path, configs_dir=REPO_CONFIGS)
+    paths.processed_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "column_name": ["gene_blaoxa_23", "gene_blaoxa", "point_gyra_s83l"],
+        "source_symbol": ["blaOXA-23", "blaOXA", "gyrA_S83L"],
+        "class": ["BETA-LACTAM", "BETA-LACTAM", "QUINOLONE"],
+        "n_genomes_present": [3, 2, 1],
+        "species": ["ABAU", "ABAU", "ABAU"],
+    }).to_csv(paths.known_amr_columns, index=False)
+    with_db = train._class_map(paths, load_subclass_tables(db))
+    assert with_db["gene_blaoxa_23"] == ("BETA-LACTAM", "CARBAPENEM")
+    assert with_db["gene_blaoxa"] == ("BETA-LACTAM", "BETA-LACTAM")
+    assert with_db["point_gyra_s83l"] == ("QUINOLONE", None)
+    assert train._class_map(paths)["gene_blaoxa_23"] == ("BETA-LACTAM", None)
+    tables, source = train._subclass_tables(paths, db)
+    assert tables is not None and source["amrfinder_db_dir"] == str(db)
+    assert train._subclass_tables(paths, tmp_path / "missing") == (None, None)

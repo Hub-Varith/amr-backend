@@ -1,5 +1,10 @@
 """Evaluation stage: ``results/preds_*.parquet`` -> ``metrics.parquet`` + ``metrics_by_distance.parquet``.
 
+Also (v0.6): ``prob_summary`` (the P(drug works) table per species x model x split, danger
+first), ``prob_calibration`` (probability bins vs the observed share that worked, per
+species and pooled as ``ALL``) and ``call_vme_by_fold`` (out-of-fold call VME per CV fold
+with its one-sided exact binomial p-value against 1.5 %), each as Parquet and CSV.
+
 ``run(paths, config)`` stacks every predictions file, calls
 :func:`genome2mic.eval.metrics.summarize` (one row per species x drug x model x
 evaluation set, **VME first**) and :func:`genome2mic.eval.metrics.by_distance_bin`
@@ -79,6 +84,29 @@ def run(paths: Paths, config: Any = None, *, bins: tuple[float, ...] = metrics.D
         by_dist = pd.DataFrame(columns=list(metrics.DISTANCE_COLUMNS))
     write_parquet(by_dist, paths.metrics_by_distance)
     write_csv(by_dist, _csv_path(paths.metrics_by_distance))
+
+    # P(drug works) (v0.6): the per-species table, the calibration check and the per-fold call VME.
+    prob = metrics.probability_summary(preds)
+    write_parquet(prob, paths.prob_summary)
+    write_csv(prob, _csv_path(paths.prob_summary))
+    cal = metrics.calibration_table(preds)
+    pooled = metrics.calibration_table(preds.assign(species="ALL")) if not preds.empty else cal
+    cal = pd.concat([cal, pooled], ignore_index=True) if not cal.empty else pooled
+    write_parquet(cal, paths.prob_calibration)
+    write_csv(cal, _csv_path(paths.prob_calibration))
+    if paths.splits.is_file():
+        splits = pd.read_parquet(paths.splits, columns=["genome_id", "fold"]).drop_duplicates("genome_id")
+        folds = pd.Series(splits["fold"].to_numpy(), index=splits["genome_id"].astype(str))
+        by_fold = metrics.call_vme_by_fold(preds, folds)
+    else:
+        logger.warning("%s missing; call_vme_by_fold is empty", paths.splits)
+        by_fold = pd.DataFrame(columns=list(metrics.FOLD_VME_COLUMNS))
+    write_parquet(by_fold, paths.call_vme_by_fold)
+    write_csv(by_fold, _csv_path(paths.call_vme_by_fold))
+    n_sig = int(by_fold["significant"].sum()) if not by_fold.empty else 0
+    if n_sig:
+        logger.warning("%d calling CV fold(s) have call VME significantly above 1.5%% (binomial p < 0.01); "
+                       "see %s", n_sig, paths.call_vme_by_fold)
     log.write(paths.drop_log(STAGE))
 
     headline_cols = ["species", "drug", "model", "vme_rate", "me_rate", "vme_rate_rederived", "essential_agreement", "n_exact", "categorical_agreement", "n"]

@@ -99,6 +99,17 @@ class DrugConfig:
     strong_subclasses: tuple[str, ...] = ()
     """AMRFinderPlus ``Subclass`` values (upper case) that force ``likely_inactive`` when an
     acquired gene (Subtype ``AMR``, never ``POINT``) carries them, e.g. ``CARBAPENEM``."""
+    strong_marker_exceptions: tuple[str, ...] = ()
+    """Column-name prefixes that never trigger the override even though a ``strong_markers``
+    prefix matches them (e.g. ``gene_mcr_9`` under ``gene_mcr``: mcr-9 often leaves
+    colistin MICs susceptible)."""
+
+    def is_strong_column(self, column: str) -> bool:
+        """``column`` matches a ``strong_markers`` prefix and no ``strong_marker_exceptions`` prefix."""
+        text = str(column)
+        if not any(text == prefix or text.startswith(prefix) for prefix in self.strong_markers):
+            return False
+        return not any(text == prefix or text.startswith(prefix) for prefix in self.strong_marker_exceptions)
 
 
 @dataclass(frozen=True)
@@ -493,12 +504,23 @@ def _load_drugs(path: Path) -> tuple[dict[str, DrugConfig], tuple[str, str], dic
                     f"{where}: strong marker {marker!r} must be a gene_/point_ feature column name"
                 )
         subclasses = _string_list(entry.get("strong_subclasses", []), f"{where}: strong_subclasses")
+        exceptions = _string_list(entry.get("strong_marker_exceptions", []), f"{where}: strong_marker_exceptions")
+        for exception in exceptions:
+            if not _STRONG_MARKER_RE.fullmatch(exception):
+                raise ConfigError(
+                    f"{where}: strong marker exception {exception!r} must be a gene_/point_ feature column name"
+                )
+            if not any(exception.startswith(prefix) for prefix in markers):
+                raise ConfigError(
+                    f"{where}: strong marker exception {exception!r} does not narrow any strong_markers prefix"
+                )
         drugs[name] = DrugConfig(
             name=name,
             synonyms=tuple(synonyms),
             spectrum_tier=tier,
             strong_markers=tuple(markers),
             strong_subclasses=tuple(s.strip().upper() for s in subclasses if s.strip()),
+            strong_marker_exceptions=tuple(exceptions),
         )
 
     # Synonym index, built after all names are known so collisions are detected.

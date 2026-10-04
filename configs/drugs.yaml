@@ -18,6 +18,10 @@
 #                carbapenemase prefix in keep_variant.csv (blaOXA-48, blaOXA-181,
 #                blaOXA-232, ...) gets its own gene_ column and must be listed
 #                here, or the override never sees it.
+# strong_marker_exceptions
+#                Optional. Column-name prefixes that never trigger the override although a
+#                strong_markers prefix matches them (gene_mcr_9 under gene_mcr). Each must
+#                narrow one of the drug's strong_markers prefixes.
 # strong_subclasses
 #                Optional. AMRFinderPlus Subclass values; a detected ACQUIRED gene
 #                (Subtype AMR, never a POINT mutation such as an ompK36 porin
@@ -208,15 +212,54 @@ drugs:
   gentamicin:
     synonyms: [GEN, GM, CN, gentamycin, gentamicin sulfate, gentamicin sulphate]
     spectrum_tier: 2
-    strong_markers: []
+    strong_markers:
+      # 16S rRNA methyltransferases: high-level resistance to amikacin, gentamicin and
+      # tobramycin (all 4,6-disubstituted 2-deoxystreptamines). Release / known_amr naming:
+      # armA -> gene_arma, rmtB1 -> gene_rmtb1 (matched by the gene_rmtb prefix), npmA -> gene_npma.
+      - gene_arma
+      - gene_rmta
+      - gene_rmtb
+      - gene_rmtc
+      - gene_rmtd
+      - gene_rmte
+      - gene_rmtf
+      - gene_rmtg
+      - gene_rmth
+      - gene_npma
   tobramycin:
     synonyms: [TOB, NN, tobramycin sulfate, tobramycin sulphate, tobi]
     spectrum_tier: 2
-    strong_markers: []
+    strong_markers:
+      # 16S rRNA methyltransferases: high-level resistance to amikacin, gentamicin and
+      # tobramycin (all 4,6-disubstituted 2-deoxystreptamines). Release / known_amr naming:
+      # armA -> gene_arma, rmtB1 -> gene_rmtb1 (matched by the gene_rmtb prefix), npmA -> gene_npma.
+      - gene_arma
+      - gene_rmta
+      - gene_rmtb
+      - gene_rmtc
+      - gene_rmtd
+      - gene_rmte
+      - gene_rmtf
+      - gene_rmtg
+      - gene_rmth
+      - gene_npma
   amikacin:
     synonyms: [AMK, AK, AN, amikacin sulfate, amikacin sulphate, amikin]
     spectrum_tier: 3
-    strong_markers: []
+    strong_markers:
+      # 16S rRNA methyltransferases: high-level resistance to amikacin, gentamicin and
+      # tobramycin (all 4,6-disubstituted 2-deoxystreptamines). Release / known_amr naming:
+      # armA -> gene_arma, rmtB1 -> gene_rmtb1 (matched by the gene_rmtb prefix), npmA -> gene_npma.
+      - gene_arma
+      - gene_rmta
+      - gene_rmtb
+      - gene_rmtc
+      - gene_rmtd
+      - gene_rmte
+      - gene_rmtf
+      - gene_rmtg
+      - gene_rmth
+      - gene_npma
   trimethoprim-sulfamethoxazole:
     synonyms:
       - SXT
@@ -254,6 +297,11 @@ drugs:
     spectrum_tier: 4
     strong_markers:
       - gene_mcr
+    # mcr-9 and mcr-10 are often found in colistin-susceptible isolates (mcr-9 is poorly
+    # expressed without induction; mcr-10 gives low-level MICs), so they never force the call.
+    strong_marker_exceptions:
+      - gene_mcr_9
+      - gene_mcr_10
   tigecycline:
     synonyms: [TGC, TIG, tygacil]
     spectrum_tier: 4
@@ -297,6 +345,11 @@ drugs:
     spectrum_tier: 4
     strong_markers:
       - gene_mcr
+    # mcr-9 and mcr-10 are often found in colistin-susceptible isolates (mcr-9 is poorly
+    # expressed without induction; mcr-10 gives low-level MICs), so they never force the call.
+    strong_marker_exceptions:
+      - gene_mcr_9
+      - gene_mcr_10
   ceftaroline:
     synonyms: [CPT, ceftaroline fosamil, teflaro, zinforo]
     spectrum_tier: 3
