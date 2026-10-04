@@ -2,10 +2,10 @@ import { RuledList, type RuledItem } from './RuledList'
 import { Section } from './Section'
 
 const PRINCIPLES: RuledItem[] = [
-  { key: 'round-up', title: 'Errs high', body: 'Predicted MICs round up to the next doubling step. Overstating resistance is the safer mistake.' },
-  { key: 'unsure', title: 'Says when it is unsure', body: 'If the band crosses a breakpoint, the call is uncertain and the lab result decides.' },
-  { key: 'override', title: 'Known biology overrides', body: 'Natural resistance, and markers such as a carbapenemase for meropenem, force likely inactive.' },
-  { key: 'range', title: 'Flags unfamiliar strains', body: 'A genome far from the training data gets every call marked low confidence.' },
+  { key: 'lab', title: 'Grounded in lab measurements', body: 'Model predictions are evaluated against observed laboratory results. A completed run is not proof of accuracy.' },
+  { key: 'uncertainty', title: 'Uncertainty stays visible', body: 'A value reported as “greater than” remains a limit, not an invented exact MIC. Confidence estimates require their own validation.' },
+  { key: 'scope', title: 'Clear about what is supported', body: 'Results depend on the species, antibiotic, and available resistance features. Performance varies across those groups.' },
+  { key: 'confirm', title: 'The laboratory remains essential', body: 'This research prototype does not prescribe treatment. Confirm susceptibility with standard laboratory testing.' },
 ]
 
 /** The design choices that lean away from very major errors. */
@@ -15,8 +15,8 @@ export function SafetyByDesign() {
       id="safety"
       number="02"
       label="Safety"
-      title="Built to fail safe."
-      intro="The error that harms patients is calling a drug active when the lab says resistant. Each of these choices makes that error less likely."
+      title="Evidence first. Limits in view."
+      intro="A useful research tool should be as clear about what it cannot establish as what it predicts."
     >
       <RuledList items={PRINCIPLES} />
     </Section>

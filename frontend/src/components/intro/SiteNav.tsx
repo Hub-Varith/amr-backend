@@ -14,7 +14,7 @@ export function SiteNav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-paper/95 backdrop-blur-sm">
-      <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
+      <nav className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
         <Link to="/" aria-label="Breakpoint home">
           <Logo />
         </Link>
@@ -37,9 +37,9 @@ export function SiteNav() {
         </div>
         <Link
           to="/analyze"
-          className="border border-rule-strong px-3.5 py-1.5 text-sm text-ink transition-colors hover:border-ink-3 hover:bg-raised"
+          className="border border-rule-strong px-3.5 py-3 text-sm text-ink transition-colors hover:border-ink-3 hover:bg-raised"
         >
-          Analyze a genome
+          Explore demo
         </Link>
       </nav>
     </header>

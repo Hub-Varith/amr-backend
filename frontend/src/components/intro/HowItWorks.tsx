@@ -6,25 +6,25 @@ const STEPS: RuledItem[] = [
   {
     key: 'upload',
     title: 'Upload a genome',
-    body: 'One assembled genome as FASTA. We check assembly quality and confirm the species.',
+    body: 'Start with an assembled bacterial genome in FASTA format. Quality checks and species identification come before prediction.',
     aside: 'QC, Mash',
   },
   {
     key: 'markers',
     title: 'Read resistance markers',
-    body: 'Known resistance genes and mutations, plus DNA patterns that no curated database lists yet.',
-    aside: 'AMRFinderPlus, unitigs',
+    body: 'Convert known resistance genes and mutations into the features used by the prediction model.',
+    aside: 'Genes and mutations',
   },
   {
     key: 'predict',
     title: 'Predict the MIC',
-    body: 'One model per species and drug, with a 90% band showing how sure the prediction is.',
-    aside: 'XGBoost AFT, conformal',
+    body: 'Estimate the minimum inhibitory concentration for each supported antibiotic. Evaluate predictions against laboratory measurements.',
+    aside: 'MIC estimation',
   },
   {
     key: 'call',
-    title: 'Call and rank',
-    body: 'Each band is compared to the clinical breakpoint. Drugs likely to work are ranked, narrowest spectrum first.',
+    title: 'Review the evidence',
+    body: 'Review the evidence and limitations for each antibiotic. Clinical interpretation requires validated breakpoints and laboratory confirmation.',
     aside: 'EUCAST / CLSI breakpoints',
   },
 ]
@@ -33,10 +33,9 @@ export function HowItWorks() {
   return (
     <Section
       id="how"
-      lead
       number="01"
       label="How it works"
-      title="From one bacterial genome to a ranked list of antibiotics, in four steps."
+      title="A sequence becomes a clearer picture."
       intro="Breakpoint predicts each antibiotic's MIC: the lowest concentration that stops the bacteria growing in a lab test, in mg/L. Choosing a dose stays with the clinician."
     >
       <RuledList items={STEPS} animateOnLoad />
@@ -45,7 +44,7 @@ export function HowItWorks() {
         <dl className="text-[15px]">
           <dt className="font-mono text-xs uppercase tracking-[0.12em] text-ink-3">Species covered</dt>
           <dd className="mt-2 max-w-xl leading-relaxed text-ink-2">
-            <i className="text-ink">Klebsiella pneumoniae</i> (first models), <i>Escherichia coli</i>,{' '}
+            <i className="text-ink">Klebsiella pneumoniae</i> , <i>Escherichia coli</i>,{' '}
             <i>Staphylococcus aureus</i>, <i>Pseudomonas aeruginosa</i>, <i>Acinetobacter baumannii</i>
           </dd>
         </dl>
