@@ -247,7 +247,7 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 
 ## Current state
 
-- [ ] Stage 1 — ingest + harmonize → `labels.parquet`, `pairs_kept.csv`
+- [x] Stage 1 — ingest + harmonize → `labels.parquet`, `pairs_kept.csv` (`make download-ast labels`; breakpoints still to verify)
 - [ ] Stage 2 — genomes + QC
 - [ ] Stage 3 — lineages + splits (freeze)
 - [ ] Stage 4 — AMRFinderPlus → `known_amr.parquet`

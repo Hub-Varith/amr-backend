@@ -2,3 +2,13 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .env
+/secret
+# Data: raw downloads and tool output are rebuilt, never committed.
+# No trailing slash: on the VM these are links to the data disk, and "dir/" does not match a link.
+/data/raw
+/data/interim
+/.snakemake/
+/data/processed/*
+# Frozen and version-controlled per DATA_CONTRACT.md.
+!/data/processed/splits.parquet
+!/data/processed/pairs_kept.csv

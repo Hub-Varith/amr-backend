@@ -29,6 +29,12 @@ model = [
     "scipy>=1.11",
     "scikit-learn>=1.4",
 ]
+# The data pipeline (src/genome2mic/ingest, genomes, qc, features, splits).
+data = [
+    "pandas>=2.2",
+    "pyarrow>=15",
+    "numpy>=1.26",
+]
 test = [
     "pytest>=8",
     "pytest-asyncio>=0.24",
