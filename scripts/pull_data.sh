@@ -16,7 +16,9 @@ fi
 
 echo "Pulling release $RELEASE from s3://$BUCKET"
 mkdir -p "$TARGET_DIR"
-aws s3 sync --only-show-errors "s3://$BUCKET/releases/$RELEASE/" "$TARGET_DIR/"
+# --exact-timestamps: without it, sync skips a changed file that kept the same size
+# (e.g. SHA256SUMS between releases), and the checksum check below then fails.
+aws s3 sync --only-show-errors --exact-timestamps "s3://$BUCKET/releases/$RELEASE/" "$TARGET_DIR/"
 
 if ! (cd "$TARGET_DIR" && shasum -a 256 --check --quiet SHA256SUMS); then
   echo "ERROR: checksum mismatch. A file is damaged or was edited by hand. Delete $TARGET_DIR and pull again."
