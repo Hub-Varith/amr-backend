@@ -29,11 +29,11 @@ These are predictions of in-vitro susceptibility, not prescribing advice.
 3. Get the code and the Python env:
 
    ```bash
-   git clone https://github.com/Hub-Varith/amr-backend.git
+   git clone -b develop https://github.com/Hub-Varith/amr-backend.git
    cd amr-backend
    conda create -n genome2mic python=3.11 -y
    conda activate genome2mic
-   make install-data
+   pip install -e ".[model,data,test]"
    ```
 
 4. Get the data:
