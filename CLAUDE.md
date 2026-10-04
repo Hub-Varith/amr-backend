@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Project context for Claude Code. Read `DATA_CONTRACT.md` before touching any
-schema and `MODEL_DESIGN.md` before touching the model. If this file and `DATA_CONTRACT.md` disagree, the contract wins.
+schema. If this file and `DATA_CONTRACT.md` disagree, the contract wins.
 
 ---
 
@@ -162,8 +162,8 @@ genome2mic/
 | `b1_lookup` | known AMR | Median MIC of training genomes with the same known-AMR profile |
 | `b2_xgb_steps` | known AMR | Multi-class over log2 MIC steps, exact MICs only |
 | `aft_known` | known AMR | XGBoost `survival:aft` on intervals |
-| `aft_known_unitig` | known AMR + unitigs | Per-drug ablation baseline |
-| `multitask_aft` | species + known AMR + unitigs | **Main model.** One network, one head per drug, masked censored-normal loss. See `MODEL_DESIGN.md` |
+| `aft_known_unitig` | known AMR + unitigs | **Main model** |
+| `multitask_nn` | all | Later. Shared body, per-drug heads, masked censored-normal loss |
 
 Main model parameters:
 
@@ -234,8 +234,7 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 - **Write the test first** for anything in `ingest/harmonize.py`, `eval/metrics.py`,
   or the interval conversion. These are where silent errors hide.
 - **Do not add a dependency** without saying why. Current stack: pandas, pyarrow,
-  numpy, scipy, torch (shared model), xgboost (baselines), scikit-learn, shap,
-  streamlit, snakemake.
+  numpy, scipy, xgboost, scikit-learn, shap, streamlit, snakemake.
 - **Per-genome tool calls go in the Snakefile**, not in Python loops.
 - **Log dropped rows with reasons.** Every filter emits a count. Silent drops make
   dataset bugs invisible.
@@ -247,13 +246,13 @@ device evaluation. Do not present them as regulatory thresholds we have met.
 
 ## Current state
 
-- [x] Stage 1 — ingest + harmonize → `labels.parquet`, `pairs_kept.csv` (`make download-ast labels`; breakpoints still to verify)
+- [ ] Stage 1 — ingest + harmonize → `labels.parquet`, `pairs_kept.csv`
 - [ ] Stage 2 — genomes + QC
 - [ ] Stage 3 — lineages + splits (freeze)
 - [ ] Stage 4 — AMRFinderPlus → `known_amr.parquet`
-- [x] Stage 5 — metrics module + unit tests (`eval/metrics.py`)
+- [ ] Stage 5 — metrics module + unit tests
 - [ ] Stage 6 — baselines B0–B2
-- [~] Stage 7 — shared `multitask_aft` model built and tested on fake data; waits for real contract files
+- [ ] Stage 7 — AFT on known AMR only
 - [ ] Stage 8 — unitigs: build, query, filter, collapse
 - [ ] Stage 9 — AFT on known AMR + unitigs; ablations
 - [ ] Stage 10 — conformal bands + ranking + report

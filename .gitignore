@@ -2,9 +2,3 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .env
-
-# Imported training release and local artifacts; never commit data or model weights.
-/data/processed/
-/models/
-/.venv-model/
-/runs/

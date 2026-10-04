@@ -1,7 +1,0 @@
-species,drug,s_breakpoint,r_breakpoint,version,site
-ECOLI,ceftriaxone,1,2,v9.0,bloodstream
-ECOLI,meropenem,2,8,v9.0,bloodstream
-ECOLI,ciprofloxacin,0.25,0.5,v9.0,bloodstream
-KPNEU,ceftriaxone,1,2,v9.0,bloodstream
-KPNEU,meropenem,2,8,v9.0,bloodstream
-KPNEU,ciprofloxacin,0.25,0.5,v9.0,bloodstream
