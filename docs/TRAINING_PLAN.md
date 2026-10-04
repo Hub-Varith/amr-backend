@@ -1,11 +1,26 @@
 # Training plan — one shared MIC model for 5 germ types
 
-**Status:** draft v2 · **Date:** 2026-10-03 · **Data:** release `2026-10-04-hackathon-all5` · **Branch:** `training-plan`
+**Status:** draft v2 + update · **Date:** 2026-10-03 · **Data:** release `2026-10-04-hackathon-all5` · **Branch:** `training-plan`
 
 These are predictions of in-vitro susceptibility, not prescribing advice. Dose, route,
 and final drug choice remain with the clinician. Confirm with standard AST.
 
 ---
+
+## Update (2026-10-03, after v2)
+
+- **Saved model:** run `4d85f96f288e` is `models/all5_run1/` on S3
+  (`s3://g2m-data-v1/models/hub/all5_run1/`, see `docs/MODEL_HANDOFF.md` §10).
+- **Calls now use a calibrated chance** (`p_active`) with a 7-step `confidence_level`, and
+  per-pair safety thresholds; the range rule in section 4d is the fallback. See
+  `DATA_CONTRACT.md` stage 12.
+- **Cut-offs exist for all 5 germ types** (87 of 97 pairs), so step 4 below is done except
+  for a second-source check of the *S. aureus*, *Pseudomonas* and *Acinetobacter* numbers.
+- **Out-of-fold results with the new calls:** danger mistakes 0.8–1.4% per germ type,
+  right 94.6–97.3% when the model commits, commits on 37–60% of results. Per-germ table in
+  `models/all5_run1/README.txt`.
+- **Step 9 (connect to the API)** is with another developer; the model side is ready.
+- Still the main model problem: guesses outside the lab range (step 1).
 
 ## 1. What we are building
 
