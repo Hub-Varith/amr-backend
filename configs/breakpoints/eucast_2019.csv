@@ -5,3 +5,13 @@ ECOLI,ciprofloxacin,0.25,0.5,v9.0,bloodstream
 KPNEU,ceftriaxone,1,2,v9.0,bloodstream
 KPNEU,meropenem,2,8,v9.0,bloodstream
 KPNEU,ciprofloxacin,0.25,0.5,v9.0,bloodstream
+KPNEU,amikacin,8,16,v9.0,bloodstream
+KPNEU,aztreonam,1,4,v9.0,bloodstream
+KPNEU,ceftazidime,1,4,v9.0,bloodstream
+KPNEU,ertapenem,0.5,0.5,v9.0,bloodstream
+KPNEU,gentamicin,2,4,v9.0,bloodstream
+KPNEU,imipenem,2,4,v9.0,bloodstream
+KPNEU,levofloxacin,0.5,1,v9.0,bloodstream
+KPNEU,piperacillin-tazobactam,8,16,v9.0,bloodstream
+KPNEU,tobramycin,2,4,v9.0,bloodstream
+KPNEU,trimethoprim-sulfamethoxazole,2,4,v9.0,bloodstream

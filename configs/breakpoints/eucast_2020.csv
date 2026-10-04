@@ -1,0 +1,4 @@
+species,drug,s_breakpoint,r_breakpoint,version,site
+KPNEU,amikacin,8,8,v10.0 (systemic values in brackets: combination use),bloodstream
+KPNEU,gentamicin,2,2,v10.0 (systemic values in brackets: combination use),bloodstream
+KPNEU,tobramycin,2,2,v10.0 (systemic values in brackets: combination use),bloodstream
