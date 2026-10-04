@@ -265,6 +265,37 @@ steps** (0.00003 to 1,000,000 mg/L). Why:
 
 Danger mistakes are low today mostly because the model rarely commits.
 
+### Test set used (2026-10-03)
+
+**The test split of `2026-10-04-hackathon-all5` has been scored once**, early, at the data
+owner's request: run `4d85f96f288e` and a same-genes lookup, 4,253 germs, 46,664 lab
+results. Any model tuned after this date has **no untouched test score on this split**.
+The final honest number needs a new holdout (new data or the own-AMRFinderPlus build).
+
+MIC within 1 step, exact lab results only:
+
+| Germ type | Model | Same-genes lookup | Test germs with an identical gene list in training |
+| --- | ---: | ---: | ---: |
+| *S. aureus* | 77% | 88% | 63% |
+| *E. coli* | 71% | 82% | 51% |
+| *Pseudomonas* | 56% | 52% | 19% |
+| *Acinetobacter* | 52% | 66% | 15% |
+| *Klebsiella* | 52% | 69% | 17% |
+
+*Klebsiella* × 15 drugs, US cut-offs (pooled):
+
+| | Model, using its range | Model, single guess only | Same-genes lookup |
+| --- | ---: | ---: | ---: |
+| Commits to works/fails | 45% | 100% | 100% |
+| Right when it commits | **98.7%** | 89.7% | 46.1% |
+| Danger mistakes (VME) | **0.17%** | 4.5% | 14.7% |
+| False alarms (ME) | 1.3% | — | — |
+
+Test scores match the practice-round scores closely, so the practice rounds are a fair
+guide. The lookup wins on exact MIC numbers but is unsafe for calls: it learns only from
+exact results, which skew low for drugs where resistant germs are mostly reported as
+"more than" (tetracycline and trimethoprim-sulfamethoxazole danger mistakes 97–100%).
+
 ## 9. Plan of work
 
 | # | Step | Done when | Time |
